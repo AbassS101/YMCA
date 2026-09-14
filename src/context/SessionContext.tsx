@@ -16,7 +16,8 @@ const SESSION_KEY = '@ymca/session';
 
 type SessionContextValue = {
   session: AuthSession | null;
-  login: (email: string, password: string) => Promise<void>;
+  ready: boolean;
+  login: (email: string, password: string) => Promise<AuthSession>;
   logout: () => Promise<void>;
   api: ProtivityPort;
 };
@@ -26,12 +27,20 @@ const SessionContext = createContext<SessionContextValue | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const api = useMemo(() => createProtivityClient(), []);
   const [session, setSession] = useState<AuthSession | null>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     void (async () => {
-      const raw = await AsyncStorage.getItem(SESSION_KEY);
-      if (raw == null) return;
-      setSession(JSON.parse(raw) as AuthSession);
+      try {
+        const raw = await AsyncStorage.getItem(SESSION_KEY);
+        if (raw != null) {
+          setSession(JSON.parse(raw) as AuthSession);
+        }
+      } catch {
+        // ignore corrupt persisted session
+      } finally {
+        setReady(true);
+      }
     })();
   }, []);
 
@@ -40,6 +49,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const next = await api.login(email, password);
       setSession(next);
       await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(next));
+      return next;
     },
     [api]
   );
@@ -50,8 +60,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ session, login, logout, api }),
-    [session, login, logout, api]
+    () => ({ session, ready, login, logout, api }),
+    [session, ready, login, logout, api]
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

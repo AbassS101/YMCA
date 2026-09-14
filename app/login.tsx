@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -8,7 +8,6 @@ import { TextField } from '@/components/TextField';
 import { YHeader } from '@/components/YHeader';
 import { useSession } from '@/context/SessionContext';
 import type { UserRole } from '@/domain/types';
-import { authRepo } from '@/repositories/authRepo';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 
@@ -23,20 +22,23 @@ function routeForRole(role: UserRole): '/(member)/home' | '/(staff)/today' {
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, api } = useSession();
+  const { session, ready, login } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  if (ready && session != null) {
+    return <Redirect href={routeForRole(session.role)} />;
+  }
 
   async function handleSignIn() {
     setError(null);
     setLoading(true);
     try {
       const trimmed = email.trim();
-      const { role } = await authRepo.login(api, trimmed, password);
-      await login(trimmed, password);
-      router.replace(routeForRole(role));
+      const next = await login(trimmed, password);
+      router.replace(routeForRole(next.role));
     } catch {
       setError('Check email or password.');
     } finally {
