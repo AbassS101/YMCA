@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { ErrorBanner } from '@/components/ErrorBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { TextField } from '@/components/TextField';
 import { YHeader } from '@/components/YHeader';
@@ -35,17 +36,23 @@ export default function CancelMembershipScreen() {
   const [step, setStep] = useState<Step>('form');
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
     if (memberId === '') {
       return;
     }
-    const [nextMember, nextMembership] = await Promise.all([
-      api.getMember(memberId),
-      membershipRepo.getMembership(api, memberId),
-    ]);
-    setMember(nextMember);
-    setMembership(nextMembership);
+    try {
+      setError(false);
+      const [nextMember, nextMembership] = await Promise.all([
+        api.getMember(memberId),
+        membershipRepo.getMembership(api, memberId),
+      ]);
+      setMember(nextMember);
+      setMembership(nextMembership);
+    } catch {
+      setError(true);
+    }
   }, [api, memberId]);
 
   useFocusEffect(
@@ -107,6 +114,7 @@ export default function CancelMembershipScreen() {
   return (
     <View style={styles.screen}>
       <YHeader subtitle="Cancel membership" />
+      {error ? <ErrorBanner onRetry={() => void load()} /> : null}
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
