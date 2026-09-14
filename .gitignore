@@ -5,6 +5,8 @@ node_modules/
 .expo/
 dist/
 web-build/
+expo-env.d.ts
+.metro-health-check*
 *.jks
 *.p8
 *.p12
@@ -12,6 +14,9 @@ web-build/
 *.orig.*
 
 # Native
+.kotlin/
+/ios
+/android
 ios/Pods/
 android/.gradle/
 android/app/build/
@@ -34,6 +39,8 @@ Thumbs.db
 
 # Logs / coverage
 npm-debug.*
-yarn-error.log
+yarn-debug.*
+yarn-error.*
+*.tsbuildinfo
 coverage/
 *.log
