@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Expo / React Native
+.expo/
+dist/
+web-build/
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+*.orig.*
+
+# Native
+ios/Pods/
+android/.gradle/
+android/app/build/
+*.apk
+*.aab
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Brainstorm companion (local session files)
+.superpowers/
+
+# Logs / coverage
+npm-debug.*
+yarn-error.log
+coverage/
+*.log
