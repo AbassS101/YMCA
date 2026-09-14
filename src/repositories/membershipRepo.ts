@@ -14,6 +14,15 @@ export const membershipRepo = {
     return api.updatePaymentMethod(memberId, payment);
   },
 
+  changeMembership(
+    api: ProtivityPort,
+    memberId: string,
+    planName: string,
+    monthlyAmountCents: number
+  ): Promise<Membership> {
+    return api.changeMembership(memberId, planName, monthlyAmountCents);
+  },
+
   submitCancel(
     api: ProtivityPort,
     memberId: string,
@@ -22,3 +31,4 @@ export const membershipRepo = {
     return api.submitCancelNotice(memberId, input);
   },
 };
+

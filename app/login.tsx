@@ -87,14 +87,21 @@ export default function LoginScreen() {
               style={styles.demoButton}
               accessibilityRole="button"
             >
-              <Text style={styles.demoLabel}>Fill Jordan (member)</Text>
+              <Text style={styles.demoLabel}>Fill Jordan Hale (Member)</Text>
             </Pressable>
             <Pressable
               onPress={() => fillDemo(ALEX_EMAIL)}
               style={styles.demoButton}
               accessibilityRole="button"
             >
-              <Text style={styles.demoLabel}>Fill Alex (staff)</Text>
+              <Text style={styles.demoLabel}>Fill Alex Rivera (Staff · Personal Wellness)</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => fillDemo('sarah@silverspring.ymca')}
+              style={styles.demoButton}
+              accessibilityRole="button"
+            >
+              <Text style={styles.demoLabel}>Fill Sarah Jenkins (Staff · Senior Mobility)</Text>
             </Pressable>
           </View>
         </ScrollView>

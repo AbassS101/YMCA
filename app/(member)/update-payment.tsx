@@ -15,6 +15,7 @@ import { TextField } from '@/components/TextField';
 import { YHeader } from '@/components/YHeader';
 import { tokenizePayment } from '@/domain/paymentTokenizer';
 import { useSession } from '@/context/SessionContext';
+import { useTheme } from '@/context/ThemeContext';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
@@ -36,6 +37,7 @@ function cvcOk(raw: string): boolean {
 export default function UpdatePaymentScreen() {
   const router = useRouter();
   const { session, api } = useSession();
+  const { colors: themeColors } = useTheme();
   const memberId = session?.userId ?? '';
 
   const [nameOnCard, setNameOnCard] = useState('');
@@ -83,7 +85,7 @@ export default function UpdatePaymentScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: themeColors.background }]}>
       <YHeader subtitle="Update payment" />
       <KeyboardAvoidingView
         style={styles.flex}
@@ -91,7 +93,7 @@ export default function UpdatePaymentScreen() {
       >
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <Pressable onPress={() => router.back()} accessibilityRole="button">
-            <Text style={styles.back}>← Back</Text>
+            <Text style={[styles.back, { color: themeColors.primary }]}>← Back</Text>
           </Pressable>
 
           <TextField
@@ -148,12 +150,12 @@ const styles = StyleSheet.create({
   },
   back: {
     ...typography.body,
-    color: colors.scarlet,
-    fontWeight: '600',
+    color: colors.primary,
+    fontWeight: '700',
     marginBottom: 4,
   },
   error: {
     ...typography.body,
-    color: colors.scarlet,
+    color: colors.danger,
   },
 });

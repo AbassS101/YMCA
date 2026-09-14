@@ -10,6 +10,14 @@ export const messageRepo = {
     return api.listThreads(userId);
   },
 
+  getOrCreateThread(
+    api: ProtivityPort,
+    memberId: string,
+    staffId: string
+  ): Promise<Thread> {
+    return api.getOrCreateThread(memberId, staffId);
+  },
+
   sendMessage(
     api: ProtivityPort,
     input: { threadId: string; fromId: string; body: string }

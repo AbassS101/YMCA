@@ -1,6 +1,7 @@
-import { View, Text, TextInput, StyleSheet, TextInputProps } from 'react-native';
-import { colors } from '@/theme/colors';
-import { typography } from '@/theme/typography';
+import { View, TextInput, StyleSheet, TextInputProps } from 'react-native';
+import { AppText } from '@/components/AppText';
+import { useTheme } from '@/context/ThemeContext';
+import { radii, tapTarget, typography } from '@/theme/typography';
 
 type TextFieldProps = TextInputProps & {
   label?: string;
@@ -8,46 +9,52 @@ type TextFieldProps = TextInputProps & {
 };
 
 export function TextField({ label, error, style, ...inputProps }: TextFieldProps) {
+  const { colors } = useTheme();
+
   return (
     <View style={styles.wrap}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+      {label ? <AppText style={[styles.label, { color: colors.muted }]}>{label}</AppText> : null}
       <TextInput
         placeholderTextColor={colors.muted}
-        style={[styles.input, error ? styles.inputError : null, style]}
+        style={[
+          styles.input,
+          {
+            color: colors.nearBlack,
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+          error ? styles.inputError : null,
+          style,
+        ]}
+        accessibilityLabel={label}
+        allowFontScaling
         {...inputProps}
       />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <AppText style={styles.error}>{error}</AppText> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {
-    gap: 6,
+    gap: 8,
   },
   label: {
     ...typography.label,
-    color: colors.muted,
-    textTransform: 'none',
-    letterSpacing: 0.2,
-    fontSize: 12,
   },
   input: {
     ...typography.body,
-    color: colors.nearBlack,
-    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingVertical: 12,
+    borderRadius: radii.button,
+    paddingVertical: 14,
     paddingHorizontal: 14,
+    minHeight: tapTarget,
   },
   inputError: {
-    borderColor: colors.scarlet,
+    borderColor: '#EF4444',
   },
   error: {
-    ...typography.body,
-    fontSize: 12,
-    color: colors.scarlet,
+    ...typography.caption,
+    color: '#EF4444',
   },
 });

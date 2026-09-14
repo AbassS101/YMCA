@@ -1,6 +1,7 @@
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
+import { AppText } from '@/components/AppText';
 import { colors } from '@/theme/colors';
-import { typography } from '@/theme/typography';
+import { tapTarget, typography } from '@/theme/typography';
 
 const DEFAULT_MESSAGE = "Couldn't reach membership services";
 
@@ -12,10 +13,15 @@ type ErrorBannerProps = {
 export function ErrorBanner({ message = DEFAULT_MESSAGE, onRetry }: ErrorBannerProps) {
   return (
     <View style={styles.banner} accessibilityRole="alert">
-      <Text style={styles.message}>{message}</Text>
+      <AppText style={styles.message}>{message}</AppText>
       {onRetry ? (
-        <Pressable onPress={onRetry} style={styles.retry} accessibilityRole="button">
-          <Text style={styles.retryText}>Retry</Text>
+        <Pressable
+          onPress={onRetry}
+          style={styles.retry}
+          accessibilityRole="button"
+          accessibilityLabel="Retry"
+        >
+          <AppText style={styles.retryText}>Retry</AppText>
         </Pressable>
       ) : null}
     </View>
@@ -24,8 +30,8 @@ export function ErrorBanner({ message = DEFAULT_MESSAGE, onRetry }: ErrorBannerP
 
 const styles = StyleSheet.create({
   banner: {
-    backgroundColor: colors.scarlet,
-    paddingVertical: 12,
+    backgroundColor: colors.danger,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -38,15 +44,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   retry: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderWidth: 1,
+    minHeight: tapTarget,
+    paddingHorizontal: 16,
+    borderWidth: 2,
     borderColor: colors.white,
-    borderRadius: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   retryText: {
-    ...typography.body,
-    fontWeight: '600',
+    ...typography.bodyStrong,
     color: colors.white,
   },
 });

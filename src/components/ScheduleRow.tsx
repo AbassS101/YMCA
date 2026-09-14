@@ -73,6 +73,6 @@ const styles = StyleSheet.create({
     lineHeight: 26,
   },
   starActive: {
-    color: colors.scarlet,
+    color: colors.gold,
   },
 });

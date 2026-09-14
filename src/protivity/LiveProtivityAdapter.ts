@@ -1,8 +1,11 @@
 import type {
   CancelRequest,
+  ClassRegistration,
+  LessonSlot,
   Member,
   Membership,
   Message,
+  PrivateLesson,
   ScheduleCategory,
   ScheduleItem,
   Staff,
@@ -50,9 +53,25 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
+  async setAssignedTrainer(_memberId: string, _staffId: string): Promise<void> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listStaff(_branchId?: string): Promise<Staff[]> {
+    throw new ProtivityNotConnected();
+  }
+
   async updatePaymentMethod(
     _memberId: string,
     _payment: { brand: string; last4: string }
+  ): Promise<Membership> {
+    throw new ProtivityNotConnected();
+  }
+
+  async changeMembership(
+    _memberId: string,
+    _planName: string,
+    _monthlyAmountCents: number
   ): Promise<Membership> {
     throw new ProtivityNotConnected();
   }
@@ -76,11 +95,61 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
+  async getOrCreateThread(_memberId: string, _staffId: string): Promise<Thread> {
+    throw new ProtivityNotConnected();
+  }
+
   async sendMessage(_input: {
     threadId: string;
     fromId: string;
     body: string;
   }): Promise<Message> {
+    throw new ProtivityNotConnected();
+  }
+
+  async registerForClass(
+    _memberId: string,
+    _scheduleItemId: string
+  ): Promise<ClassRegistration> {
+    throw new ProtivityNotConnected();
+  }
+
+  async cancelClassRegistration(
+    _memberId: string,
+    _scheduleItemId: string
+  ): Promise<ClassRegistration> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listMyRegistrations(_memberId: string): Promise<ClassRegistration[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listClassRoster(_scheduleItemId: string): Promise<Member[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listLessonSlots(
+    _staffId: string,
+    _from: string,
+    _to: string
+  ): Promise<LessonSlot[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async bookPrivateLesson(_memberId: string, _slotId: string): Promise<PrivateLesson> {
+    throw new ProtivityNotConnected();
+  }
+
+  async cancelPrivateLesson(_memberId: string, _lessonId: string): Promise<PrivateLesson> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listMyLessons(_memberId: string): Promise<PrivateLesson[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listStaffLessons(_staffId: string, _date: string): Promise<PrivateLesson[]> {
     throw new ProtivityNotConnected();
   }
 }

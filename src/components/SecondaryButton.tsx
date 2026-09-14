@@ -3,30 +3,25 @@ import { AppText } from '@/components/AppText';
 import { colors } from '@/theme/colors';
 import { radii, tapTarget, typography } from '@/theme/typography';
 
-type PrimaryButtonProps = {
+type SecondaryButtonProps = {
   title: string;
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
+  destructive?: boolean;
   accessibilityHint?: string;
-  variant?: 'primary' | 'success' | 'danger';
 };
 
-export function PrimaryButton({
+export function SecondaryButton({
   title,
   onPress,
   disabled,
   loading,
+  destructive,
   accessibilityHint,
-  variant = 'primary',
-}: PrimaryButtonProps) {
+}: SecondaryButtonProps) {
   const isDisabled = disabled || loading;
-
-  const getBackgroundColor = () => {
-    if (variant === 'success') return colors.success;
-    if (variant === 'danger') return colors.danger;
-    return colors.primary;
-  };
+  const accent = destructive ? colors.danger : colors.primary;
 
   return (
     <Pressable
@@ -34,7 +29,7 @@ export function PrimaryButton({
       disabled={isDisabled}
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: getBackgroundColor() },
+        { borderColor: accent },
         isDisabled && styles.buttonDisabled,
         pressed && !isDisabled && styles.buttonPressed,
       ]}
@@ -44,9 +39,9 @@ export function PrimaryButton({
       accessibilityState={{ disabled: isDisabled, busy: loading }}
     >
       {loading ? (
-        <ActivityIndicator color={colors.white} />
+        <ActivityIndicator color={accent} />
       ) : (
-        <AppText style={styles.title}>{title}</AppText>
+        <AppText style={[styles.title, { color: accent }]}>{title}</AppText>
       )}
     </Pressable>
   );
@@ -54,9 +49,10 @@ export function PrimaryButton({
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.white,
     borderRadius: radii.button,
-    paddingVertical: 16,
+    borderWidth: 2,
+    paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
@@ -66,11 +62,9 @@ const styles = StyleSheet.create({
     opacity: 0.88,
   },
   buttonDisabled: {
-    opacity: 0.45,
+    opacity: 0.5,
   },
   title: {
     ...typography.bodyStrong,
-    color: colors.white,
-    letterSpacing: 0.2,
   },
 });

@@ -19,6 +19,7 @@ import { getDemoToday } from '@/domain/demoClock';
 import { cancelRequestedCopy, formatShortDate } from '@/domain/displayDates';
 import type { Member, Membership } from '@/domain/types';
 import { useSession } from '@/context/SessionContext';
+import { useTheme } from '@/context/ThemeContext';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
@@ -28,6 +29,7 @@ type Step = 'form' | 'confirm';
 export default function CancelMembershipScreen() {
   const router = useRouter();
   const { session, api } = useSession();
+  const { colors: themeColors, isDark } = useTheme();
   const memberId = session?.userId ?? '';
 
   const [member, setMember] = useState<Member | null>(null);
@@ -112,24 +114,27 @@ export default function CancelMembershipScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: themeColors.background }]}>
       <YHeader subtitle="Cancel membership" />
-      {error ? <ErrorBanner onRetry={() => void load()} /> : null}
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <Pressable onPress={() => router.back()} accessibilityRole="button">
-            <Text style={styles.back}>← Back</Text>
+            <Text style={[styles.back, { color: themeColors.primary }]}>← Back to Account</Text>
           </Pressable>
 
+          {error ? <ErrorBanner onRetry={() => void load()} /> : null}
+
           {pending && membership ? (
-            <View style={styles.banner}>
+            <View style={[styles.banner, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
               <Text style={styles.bannerText}>
                 {cancelRequestedCopy(membership.lastBillDate!, membership.cancelEffectiveDate!)}
               </Text>
-              <Text style={styles.muted}>A second cancel request cannot be submitted.</Text>
+              <Text style={[styles.muted, { color: themeColors.muted }]}>
+                A second cancel request cannot be submitted.
+              </Text>
             </View>
           ) : null}
 
@@ -137,7 +142,7 @@ export default function CancelMembershipScreen() {
             <>
               {step === 'form' ? (
                 <>
-                  <Text style={styles.lead}>
+                  <Text style={[styles.lead, { color: themeColors.nearBlack }]}>
                     YMCA DC requires written notice one calendar month before your monthly draft.
                   </Text>
                   <TextField label="Name" value={member.name} editable={false} />
@@ -157,22 +162,22 @@ export default function CancelMembershipScreen() {
                 </>
               ) : previewDates ? (
                 <>
-                  <Text style={styles.sectionTitle}>Confirm cancellation</Text>
-                  <Text style={styles.body}>
+                  <Text style={[styles.sectionTitle, { color: themeColors.nearBlack }]}>Confirm cancellation</Text>
+                  <Text style={[styles.body, { color: themeColors.nearBlack }]}>
                     Based on today ({formatShortDate(getDemoToday())}) and your next billing date (
                     {formatShortDate(membership.nextBillingDate)}):
                   </Text>
-                  <View style={styles.datesCard}>
-                    <Text style={styles.body}>
+                  <View style={[styles.datesCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+                    <Text style={[styles.body, { color: themeColors.nearBlack }]}>
                       Last bill:{' '}
                       {previewDates.lastBillDate === ''
                         ? 'none remaining'
                         : formatShortDate(previewDates.lastBillDate)}
                     </Text>
-                    <Text style={styles.body}>
+                    <Text style={[styles.body, { color: themeColors.nearBlack }]}>
                       Access through: {formatShortDate(previewDates.accessThrough)}
                     </Text>
-                    <Text style={styles.muted}>
+                    <Text style={[styles.muted, { color: themeColors.muted }]}>
                       Notice deadline was {formatShortDate(previewDates.noticeDeadline)}.
                     </Text>
                   </View>
@@ -183,7 +188,7 @@ export default function CancelMembershipScreen() {
                     loading={loading}
                   />
                   <Pressable onPress={() => setStep('form')} accessibilityRole="button">
-                    <Text style={styles.link}>Edit reason</Text>
+                    <Text style={[styles.link, { color: themeColors.primary }]}>Edit reason</Text>
                   </Pressable>
                 </>
               ) : null}
@@ -198,7 +203,6 @@ export default function CancelMembershipScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.offWhite,
   },
   flex: {
     flex: 1,
@@ -210,56 +214,46 @@ const styles = StyleSheet.create({
   },
   back: {
     ...typography.body,
-    color: colors.scarlet,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 4,
   },
   lead: {
     ...typography.body,
-    color: colors.nearBlack,
   },
   sectionTitle: {
     ...typography.body,
     fontWeight: '700',
-    color: colors.nearBlack,
   },
   body: {
     ...typography.body,
-    color: colors.nearBlack,
   },
   muted: {
     ...typography.body,
-    color: colors.muted,
   },
   datesCard: {
-    backgroundColor: colors.white,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.border,
     padding: 16,
     gap: 8,
   },
   banner: {
-    backgroundColor: colors.white,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.border,
     padding: 16,
     gap: 8,
   },
   bannerText: {
     ...typography.body,
-    color: colors.scarlet,
+    color: colors.danger,
     fontWeight: '600',
   },
   error: {
     ...typography.body,
-    color: colors.scarlet,
+    color: colors.danger,
   },
   link: {
     ...typography.body,
-    color: colors.scarlet,
     textAlign: 'center',
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

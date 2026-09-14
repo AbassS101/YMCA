@@ -34,8 +34,15 @@ export default function AboutScreen() {
         </Pressable>
 
         <Text style={styles.disclaimer}>
-          Prototype — not an official published YMCA app. Demo data only; not connected to real
-          membership or billing systems.
+          YMCA Silver Spring · YMCA of Metropolitan Washington{'\n'}
+          9800 Hastings Drive, Silver Spring, MD 20901{'\n'}
+          Phone: (301) 585-2120 · silverspring@ymcadc.org{'\n\n'}
+          Facility Hours:{'\n'}
+          Monday–Friday: 5:30 AM – 10:00 PM{'\n'}
+          Saturday: 7:00 AM – 8:00 PM{'\n'}
+          Sunday: 8:00 AM – 8:00 PM{'\n\n'}
+          Our Cause:{'\n'}
+          The Y is a cause-driven nonprofit strengthening our community through youth development, healthy living, and social responsibility. Programs include aquatics, group fitness, active older adult wellness, child watch, camps, and community health.
         </Text>
 
         <PrimaryButton title="Reset demo data" onPress={() => void handleReset()} loading={resetting} />
@@ -56,8 +63,8 @@ const styles = StyleSheet.create({
   },
   back: {
     ...typography.body,
-    color: colors.scarlet,
-    fontWeight: '600',
+    color: colors.primary,
+    fontWeight: '700',
   },
   disclaimer: {
     ...typography.body,

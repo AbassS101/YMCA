@@ -33,9 +33,8 @@ android/app/build/
 Thumbs.db
 .idea/
 .vscode/
-
-# Brainstorm companion (local session files)
 .superpowers/
+
 
 # Logs / coverage
 npm-debug.*
