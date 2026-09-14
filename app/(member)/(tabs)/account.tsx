@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { YHeader } from '@/components/YHeader';
 import { cancelRequestedCopy } from '@/domain/displayDates';
 import type { Member, Membership } from '@/domain/types';
@@ -34,12 +35,13 @@ function MenuRow({ label, onPress }: { label: string; onPress: () => void }) {
 
 export default function MemberAccountScreen() {
   const router = useRouter();
-  const { session, api } = useSession();
+  const { session, api, logout } = useSession();
   const memberId = session?.userId ?? '';
 
   const [member, setMember] = useState<Member | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
   const [error, setError] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const load = useCallback(async () => {
     if (memberId === '') {
@@ -63,6 +65,16 @@ export default function MemberAccountScreen() {
       void load();
     }, [load])
   );
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try {
+      await logout();
+      router.replace('/login');
+    } finally {
+      setLoggingOut(false);
+    }
+  }
 
   const cancelBanner =
     member?.status === 'cancel_pending' &&
@@ -116,6 +128,8 @@ export default function MemberAccountScreen() {
           />
           <MenuRow label="About" onPress={() => router.push('/(member)/about')} />
         </View>
+
+        <PrimaryButton title="Log out" onPress={() => void handleLogout()} loading={loggingOut} />
       </ScrollView>
     </View>
   );

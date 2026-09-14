@@ -2,6 +2,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
+import { DEMO_TODAY } from '@/domain/demoClock';
 import { MockProtivityAdapter } from '@/protivity/MockProtivityAdapter';
 import { resetStore } from '@/storage/demoStore';
 
@@ -15,6 +16,12 @@ test('login returns jordan as member', async () => {
     userId: 'member-jordan',
     role: 'member',
   });
+});
+
+test('getStaffDay matches demo today from ISO date prefix', async () => {
+  const api = new MockProtivityAdapter();
+  const day = await api.getStaffDay('staff-alex', DEMO_TODAY);
+  expect(day.map((i) => i.id)).toContain('sched-bodypump-mon');
 });
 
 test('bad login throws', async () => {

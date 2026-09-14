@@ -13,12 +13,9 @@ import type {
 import { loadStore, saveStore } from '@/storage/demoStore';
 import type { ProtivityPort } from '@/protivity/ProtivityPort';
 
-function scheduleLocalDate(isoStart: string): string {
-  const d = new Date(isoStart);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+/** Calendar day from seeded ISO datetimes (YYYY-MM-DD), TZ-independent. */
+function scheduleCalendarDay(isoStart: string): string {
+  return isoStart.slice(0, 10);
 }
 
 export class MockProtivityAdapter implements ProtivityPort {
@@ -71,7 +68,7 @@ export class MockProtivityAdapter implements ProtivityPort {
       if (item.branchId !== q.branchId) {
         return false;
       }
-      const day = scheduleLocalDate(item.start);
+      const day = scheduleCalendarDay(item.start);
       if (day < q.from || day > q.to) {
         return false;
       }
@@ -85,7 +82,7 @@ export class MockProtivityAdapter implements ProtivityPort {
   async getStaffDay(staffId: string, date: string): Promise<ScheduleItem[]> {
     const state = await loadStore();
     return state.schedules.filter(
-      (item) => item.staffId === staffId && scheduleLocalDate(item.start) === date
+      (item) => item.staffId === staffId && scheduleCalendarDay(item.start) === date
     );
   }
 
