@@ -1,11 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { TextField } from '@/components/TextField';
 import { YHeader } from '@/components/YHeader';
 import {
   useAccessibility,
@@ -15,6 +24,7 @@ import { useSession } from '@/context/SessionContext';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
 import { cancelRequestedCopy } from '@/domain/displayDates';
 import type { Member, Membership } from '@/domain/types';
+import { memberRepo } from '@/repositories/memberRepo';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { cardStyle } from '@/theme/card';
 import { radii, spacing, tapTarget, typography } from '@/theme/typography';
@@ -82,6 +92,14 @@ export default function MemberAccountScreen() {
   const [error, setError] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
+  // Edit Profile / Name state
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     if (memberId === '') {
       return;
@@ -104,6 +122,39 @@ export default function MemberAccountScreen() {
       void load();
     }, [load])
   );
+
+  const handleStartEdit = () => {
+    if (member) {
+      setEditName(member.name);
+      setEditPhone(member.phone);
+      setProfileError(null);
+      setEditModalVisible(true);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    const trimmedName = editName.trim();
+    if (!trimmedName) {
+      setProfileError('Please enter your full name.');
+      return;
+    }
+    setSavingProfile(true);
+    setProfileError(null);
+    try {
+      const updated = await memberRepo.updateProfile(api, memberId, {
+        name: trimmedName,
+        phone: editPhone.trim(),
+      });
+      setMember(updated);
+      setEditModalVisible(false);
+      setSuccessBanner('Profile name updated successfully.');
+      setTimeout(() => setSuccessBanner(null), 3500);
+    } catch {
+      setProfileError('Failed to update name. Please try again.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -132,11 +183,35 @@ export default function MemberAccountScreen() {
       <YHeader subtitle="Account" />
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
       <ScrollView contentContainerStyle={styles.scroll}>
+        {successBanner ? (
+          <View style={[styles.successBannerWrap, { backgroundColor: colors.successBg }]}>
+            <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+            <AppText style={[styles.successBannerText, { color: colors.success }]}>
+              {successBanner}
+            </AppText>
+          </View>
+        ) : null}
+
         {member ? (
           <View style={[styles.card, cardTheme]}>
-            <AppText style={[styles.name, { color: colors.text }]}>{member.name}</AppText>
-            <AppText style={[styles.meta, { color: colors.textMuted }]}>{member.email}</AppText>
-            <AppText style={[styles.meta, { color: colors.textMuted }]}>{member.phone}</AppText>
+            <View style={styles.membershipCardHeader}>
+              <View style={{ flex: 1 }}>
+                <AppText style={[styles.name, { color: colors.text }]}>{member.name}</AppText>
+                <AppText style={[styles.meta, { color: colors.textMuted }]}>{member.email}</AppText>
+                <AppText style={[styles.meta, { color: colors.textMuted }]}>{member.phone}</AppText>
+              </View>
+              <Pressable
+                onPress={handleStartEdit}
+                style={[styles.changePlanPill, { backgroundColor: colors.primaryLight }]}
+                accessibilityRole="button"
+                accessibilityLabel="Edit profile name"
+              >
+                <Ionicons name="create-outline" size={16} color={colors.primary} />
+                <AppText style={[styles.changePlanText, { color: colors.primary }]}>
+                  Edit Name
+                </AppText>
+              </Pressable>
+            </View>
           </View>
         ) : null}
 
@@ -353,6 +428,111 @@ export default function MemberAccountScreen() {
 
         <PrimaryButton title="Log out" onPress={() => void handleLogout()} loading={loggingOut} />
       </ScrollView>
+
+      {/* Edit Profile Name Modal */}
+      <Modal
+        visible={editModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!savingProfile) setEditModalVisible(false);
+        }}
+        statusBarTranslucent
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <Pressable
+            style={styles.modalDismissArea}
+            onPress={() => {
+              if (!savingProfile) setEditModalVisible(false);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss modal background"
+          />
+          <View
+            style={[
+              styles.editModalCard,
+              {
+                backgroundColor: colors.cardBg,
+                borderColor: colors.cardBorder,
+              },
+            ]}
+          >
+            <View style={styles.modalHeaderRow}>
+              <View style={styles.modalTitleWrap}>
+                <Ionicons name="person-circle-outline" size={28} color={colors.primary} />
+                <AppText style={[styles.modalTitle, { color: colors.text }]}>
+                  Edit Profile Name
+                </AppText>
+              </View>
+              <Pressable
+                onPress={() => setEditModalVisible(false)}
+                disabled={savingProfile}
+                style={styles.modalCloseBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Close modal"
+              >
+                <Ionicons name="close" size={22} color={colors.textMuted} />
+              </Pressable>
+            </View>
+
+            <AppText style={[styles.modalSubtitle, { color: colors.textMuted }]}>
+              Update how your name appears on your member ID barcode, class rosters, and staff messages.
+            </AppText>
+
+            <View style={styles.formWrap}>
+              <TextField
+                label="Full Name"
+                value={editName}
+                onChangeText={(val) => {
+                  setEditName(val);
+                  if (profileError) setProfileError(null);
+                }}
+                placeholder="e.g. Jane Doe"
+                autoCapitalize="words"
+                autoCorrect={false}
+                error={profileError ?? undefined}
+              />
+              <TextField
+                label="Phone Number"
+                value={editPhone}
+                onChangeText={setEditPhone}
+                placeholder="(555) 000-0000"
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <View style={styles.modalBtnRow}>
+              <Pressable
+                onPress={() => setEditModalVisible(false)}
+                disabled={savingProfile}
+                style={[
+                  styles.cancelBtn,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: isDark ? colors.cardBg : colors.white,
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel edit"
+              >
+                <AppText style={[styles.cancelBtnText, { color: colors.text }]}>Cancel</AppText>
+              </Pressable>
+              <View style={{ flex: 1 }}>
+                <PrimaryButton
+                  title="Save Name"
+                  onPress={() => void handleSaveProfile()}
+                  loading={savingProfile}
+                  disabled={!editName.trim()}
+                  accessibilityHint="Saves updated name"
+                />
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -457,5 +637,93 @@ const styles = StyleSheet.create({
     ...typography.body,
     fontSize: 22,
     lineHeight: 22,
+  },
+  successBannerWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: spacing.md,
+    borderRadius: radii.card,
+    marginBottom: spacing.xs,
+  },
+  successBannerText: {
+    ...typography.bodyStrong,
+    fontSize: 14,
+    flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  modalDismissArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  editModalCard: {
+    width: '100%',
+    maxWidth: 440,
+    borderRadius: radii.card,
+    borderWidth: 1.5,
+    padding: spacing.xl,
+    gap: spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalTitle: {
+    ...typography.title,
+    fontSize: 20,
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSubtitle: {
+    ...typography.body,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  formWrap: {
+    gap: spacing.md,
+    marginVertical: spacing.xs,
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  cancelBtn: {
+    minHeight: tapTarget,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.button,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: {
+    ...typography.bodyStrong,
+    fontSize: 15,
   },
 });

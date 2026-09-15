@@ -42,6 +42,29 @@ export class MockProtivityAdapter implements ProtivityPort {
     return member;
   }
 
+  async updateMemberProfile(
+    memberId: string,
+    updates: { name?: string; phone?: string }
+  ): Promise<Member> {
+    const state = await loadStore();
+    const idx = state.members.findIndex((m) => m.id === memberId);
+    if (idx === -1) {
+      throw new Error(`Member not found: ${memberId}`);
+    }
+    const updated: Member = {
+      ...state.members[idx],
+      ...(updates.name != null && updates.name.trim() !== ''
+        ? { name: updates.name.trim() }
+        : {}),
+      ...(updates.phone != null && updates.phone.trim() !== ''
+        ? { phone: updates.phone.trim() }
+        : {}),
+    };
+    state.members[idx] = updated;
+    await saveStore(state);
+    return updated;
+  }
+
   async getStaff(id: string): Promise<Staff> {
     const state = await loadStore();
     const staff = state.staff.find((s) => s.id === id);

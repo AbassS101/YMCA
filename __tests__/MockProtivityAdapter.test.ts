@@ -51,6 +51,7 @@ test('MockProtivityAdapter exposes all ProtivityPort methods', () => {
   const methods = [
     'login',
     'getMember',
+    'updateMemberProfile',
     'getStaff',
     'getMembership',
     'getSchedules',
@@ -76,6 +77,25 @@ test('MockProtivityAdapter exposes all ProtivityPort methods', () => {
   for (const m of methods) {
     expect(typeof (api as any)[m]).toBe('function');
   }
+});
+
+test('updateMemberProfile updates name and phone and persists changes', async () => {
+  const api = new MockProtivityAdapter();
+  const initial = await api.getMember('member-jordan');
+  expect(initial.name).toBe('Jordan Hale');
+
+  const updated = await api.updateMemberProfile('member-jordan', {
+    name: 'Jordan M. Hale',
+    phone: '(301) 555-9999',
+  });
+
+  expect(updated.name).toBe('Jordan M. Hale');
+  expect(updated.phone).toBe('(301) 555-9999');
+
+  // Verify persistence
+  const reloaded = await api.getMember('member-jordan');
+  expect(reloaded.name).toBe('Jordan M. Hale');
+  expect(reloaded.phone).toBe('(301) 555-9999');
 });
 
 test('register for class and block double register', async () => {

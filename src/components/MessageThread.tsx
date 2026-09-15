@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Keyboard,
-  KeyboardAvoidingView,
+  LayoutAnimation,
   Platform,
   Pressable,
   StyleSheet,
@@ -16,6 +16,7 @@ import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 import { TextField } from '@/components/TextField';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type MessageThreadProps = {
   messages: Message[];
@@ -38,23 +39,29 @@ export function MessageThread({
   emptyHint = 'Say hello.',
   listHeader,
 }: MessageThreadProps) {
+  const insets = useSafeAreaInsets();
   const { colors: themeColors, isDark } = useTheme();
   const [draft, setDraft] = useState('');
-  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    const showSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => {
-        setKeyboardVisible(true);
-        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      if (Platform.OS === 'ios') {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       }
-    );
-    const hideSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setKeyboardVisible(false)
-    );
+      setKeyboardHeight(e.endCoordinates.height);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      if (Platform.OS === 'ios') {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      }
+      setKeyboardHeight(0);
+    });
     return () => {
       showSub.remove();
       hideSub.remove();
@@ -69,10 +76,14 @@ export function MessageThread({
   };
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: themeColors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: themeColors.background,
+          paddingBottom: keyboardHeight > 0 ? keyboardHeight : Math.max(insets.bottom, 14),
+        },
+      ]}
     >
       <FlatList
         ref={flatListRef}
@@ -122,26 +133,6 @@ export function MessageThread({
           );
         }}
       />
-      {/* Quick Dismiss Keyboard Bar */}
-      {isKeyboardVisible && (
-        <Pressable
-          onPress={() => Keyboard.dismiss()}
-          style={[
-            styles.dismissKeyboardBar,
-            {
-              backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
-              borderTopColor: themeColors.border,
-            },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Hide keyboard"
-        >
-          <Ionicons name="chevron-down-circle" size={16} color={themeColors.primary} />
-          <Text style={[styles.dismissKeyboardText, { color: themeColors.primary }]}>
-            Hide Keyboard
-          </Text>
-        </Pressable>
-      )}
       <View
         style={[
           styles.composer,
@@ -156,34 +147,17 @@ export function MessageThread({
             <TextField
               value={draft}
               onChangeText={setDraft}
-              placeholder="Message"
+              placeholder="Message..."
               style={styles.composerInput}
               multiline
             />
           </View>
-          {isKeyboardVisible && (
-            <Pressable
-              onPress={() => Keyboard.dismiss()}
-              style={({ pressed }) => [
-                styles.composerHideKeyBtn,
-                {
-                  backgroundColor: pressed
-                    ? themeColors.primaryLight
-                    : isDark
-                      ? '#334155'
-                      : '#E2E8F0',
-                },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Hide keyboard"
-            >
-              <Ionicons name="chevron-down" size={20} color={themeColors.primary} />
-            </Pressable>
-          )}
+          <View style={styles.sendBtnWrap}>
+            <PrimaryButton title="Send" onPress={handleSend} disabled={!draft.trim()} />
+          </View>
         </View>
-        <PrimaryButton title="Send" onPress={handleSend} disabled={!draft.trim()} />
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -250,22 +224,9 @@ const styles = StyleSheet.create({
   timeTheirs: {
     color: colors.muted,
   },
-  dismissKeyboardBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 7,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  dismissKeyboardText: {
-    ...typography.caption,
-    fontSize: 12,
-    fontWeight: '700',
-  },
   composer: {
-    padding: 12,
-    gap: 10,
+    paddingHorizontal: 12,
+    paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     backgroundColor: colors.white,
@@ -281,13 +242,9 @@ const styles = StyleSheet.create({
   composerInput: {
     maxHeight: 100,
   },
-  composerHideKeyBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
+  sendBtnWrap: {
     alignSelf: 'flex-end',
+    minWidth: 70,
     marginBottom: 4,
   },
 });

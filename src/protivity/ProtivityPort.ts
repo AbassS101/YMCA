@@ -16,6 +16,10 @@ import type {
 export interface ProtivityPort {
   login(email: string, password: string): Promise<{ userId: string; role: UserRole }>;
   getMember(id: string): Promise<Member>;
+  updateMemberProfile(
+    memberId: string,
+    updates: { name?: string; phone?: string }
+  ): Promise<Member>;
   getStaff(id: string): Promise<Staff>;
   getMembership(memberId: string): Promise<Membership>;
   getSchedules(q: {

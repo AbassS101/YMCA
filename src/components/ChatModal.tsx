@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Keyboard,
-  KeyboardAvoidingView,
+  LayoutAnimation,
   Modal,
   Platform,
   Pressable,
@@ -18,6 +18,7 @@ import { TextField } from '@/components/TextField';
 import { useTheme } from '@/context/ThemeContext';
 import type { Message, Staff } from '@/domain/types';
 import { radii, spacing, typography } from '@/theme/typography';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type ChatModalProps = {
   visible: boolean;
@@ -43,29 +44,35 @@ export function ChatModal({
   onSend,
   isAssignedTrainer = false,
 }: ChatModalProps) {
+  const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const [draft, setDraft] = useState('');
-  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
   const isStaffDesk = recipient?.id === 'staff-desk';
   const firstName = recipient?.name.split(' ')[0] ?? 'YMCA';
 
-  // Listen to keyboard show/hide
+  // Listen to keyboard show/hide and track exact mobile keyboard height
   useEffect(() => {
-    const showSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => {
-        setKeyboardVisible(true);
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      if (Platform.OS === 'ios') {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       }
-    );
-    const hideSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setKeyboardVisible(false)
-    );
+      setKeyboardHeight(e.endCoordinates.height);
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 80);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      if (Platform.OS === 'ios') {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      }
+      setKeyboardHeight(0);
+    });
     return () => {
       showSub.remove();
       hideSub.remove();
@@ -95,7 +102,6 @@ export function ChatModal({
       visible={visible}
       animationType="slide"
       transparent={false}
-      presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
       onRequestClose={onClose}
     >
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -151,29 +157,6 @@ export function ChatModal({
 
           {/* Header Action Buttons */}
           <View style={styles.headerRight}>
-            {isKeyboardVisible && (
-              <Pressable
-                onPress={() => Keyboard.dismiss()}
-                style={({ pressed }) => [
-                  styles.hideKeyboardHeaderBtn,
-                  {
-                    backgroundColor: pressed
-                      ? colors.primaryLight
-                      : isDark
-                        ? '#1E293B'
-                        : '#E2E8F0',
-                  },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Hide keyboard"
-              >
-                <Ionicons name="chevron-down" size={16} color={colors.primary} />
-                <Text style={[styles.hideKeyboardHeaderText, { color: colors.primary }]}>
-                  Hide Keyboard
-                </Text>
-              </Pressable>
-            )}
-
             {/* Close button */}
             <Pressable
               onPress={onClose}
@@ -196,10 +179,13 @@ export function ChatModal({
         </View>
 
         {/* Messaging Body */}
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+        <View
+          style={[
+            styles.flex,
+            {
+              paddingBottom: keyboardHeight > 0 ? keyboardHeight : Math.max(insets.bottom, 16),
+            },
+          ]}
         >
           <FlatList
             ref={flatListRef}
@@ -283,27 +269,6 @@ export function ChatModal({
             }}
           />
 
-          {/* Quick Dismiss Keyboard Bar */}
-          {isKeyboardVisible && (
-            <Pressable
-              onPress={() => Keyboard.dismiss()}
-              style={[
-                styles.dismissKeyboardBar,
-                {
-                  backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
-                  borderTopColor: colors.border,
-                },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Hide keyboard"
-            >
-              <Ionicons name="chevron-down-circle" size={16} color={colors.primary} />
-              <Text style={[styles.dismissKeyboardText, { color: colors.primary }]}>
-                Hide Keyboard
-              </Text>
-            </Pressable>
-          )}
-
           {/* Composer Input Bar */}
           <View
             style={[
@@ -323,25 +288,6 @@ export function ChatModal({
                 multiline
               />
             </View>
-            {isKeyboardVisible && (
-              <Pressable
-                onPress={() => Keyboard.dismiss()}
-                style={({ pressed }) => [
-                  styles.composerHideKeyBtn,
-                  {
-                    backgroundColor: pressed
-                      ? colors.primaryLight
-                      : isDark
-                        ? '#334155'
-                        : '#E2E8F0',
-                  },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Hide keyboard"
-              >
-                <Ionicons name="chevron-down" size={20} color={colors.primary} />
-              </Pressable>
-            )}
             <View style={styles.sendBtnWrap}>
               <PrimaryButton
                 title="Send"
@@ -350,7 +296,7 @@ export function ChatModal({
               />
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </View>
     </Modal>
   );
@@ -415,19 +361,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  hideKeyboardHeaderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: radii.chip,
-  },
-  hideKeyboardHeaderText: {
-    ...typography.caption,
-    fontSize: 12,
-    fontWeight: '700',
   },
   closeButton: {
     width: 36,
@@ -531,27 +464,5 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     minWidth: 72,
     marginBottom: 2,
-  },
-  dismissKeyboardBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 7,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  dismissKeyboardText: {
-    ...typography.caption,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  composerHideKeyBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'flex-end',
-    marginBottom: 3,
   },
 });

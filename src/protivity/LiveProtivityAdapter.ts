@@ -24,6 +24,13 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
+  async updateMemberProfile(
+    _memberId: string,
+    _updates: { name?: string; phone?: string }
+  ): Promise<Member> {
+    throw new ProtivityNotConnected();
+  }
+
   async getStaff(_id: string): Promise<Staff> {
     throw new ProtivityNotConnected();
   }
