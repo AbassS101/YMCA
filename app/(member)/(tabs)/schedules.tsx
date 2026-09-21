@@ -1,4 +1,4 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   Dimensions,
@@ -9,8 +9,10 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { ClassCard } from '@/components/ClassCard';
+import { ClassForumModal } from '@/components/ClassForumModal';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { PaymentCheckoutModal } from '@/components/PaymentCheckoutModal';
 import { YHeader } from '@/components/YHeader';
@@ -71,6 +73,7 @@ function dayKey(isoStart: string): string {
 }
 
 export default function MemberSchedulesScreen() {
+  const router = useRouter();
   const { session, api } = useSession();
   const { colors, isDark } = useTheme();
   const memberId = session?.userId ?? '';
@@ -86,6 +89,8 @@ export default function MemberSchedulesScreen() {
   const [error, setError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [checkoutItem, setCheckoutItem] = useState<ScheduleItem | null>(null);
+  const [selectedForumClass, setSelectedForumClass] = useState<ScheduleItem | null>(null);
+  const [forumModalVisible, setForumModalVisible] = useState(false);
 
   const weekDays = useMemo(() => {
     const today = getDemoToday();
@@ -370,6 +375,35 @@ export default function MemberSchedulesScreen() {
         })}
       </View>
 
+      {/* Dedicated General Community Forum Callout */}
+      <Pressable
+        onPress={() => router.push('/(member)/community-forum')}
+        style={[
+          styles.generalForumBanner,
+          { backgroundColor: colors.cardBg, borderColor: colors.border },
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel="Looking for General Community Forum? Open General Forum"
+      >
+        <View style={[styles.generalForumIconWrap, { backgroundColor: isDark ? '#1E3A8A' : '#E0F2FE' }]}>
+          <Ionicons name="chatbubbles" size={20} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={[styles.generalForumBannerTitle, { color: colors.text }]}>
+              General Community Forum
+            </Text>
+            <View style={[styles.generalForumBadge, { backgroundColor: colors.primaryLight }]}>
+              <Text style={[styles.generalForumBadgeText, { color: colors.primary }]}>BRANCH-WIDE</Text>
+            </View>
+          </View>
+          <Text style={[styles.generalForumBannerSub, { color: colors.textMuted }]} numberOfLines={1}>
+            Looking for non-class chat? Visit General Forum for tips & @ staff
+          </Text>
+        </View>
+        <Text style={[styles.generalForumAction, { color: colors.primary }]}>Open ›</Text>
+      </Pressable>
+
       {/* Quick Day Selector Tabs */}
       <View style={styles.dayTabsWrapper}>
         <ScrollView
@@ -511,6 +545,10 @@ export default function MemberSchedulesScreen() {
                 onRegister={() => handleBookingPress(item)}
                 onChange={() => confirmChange(item)}
                 onCancel={() => confirmCancel(item)}
+                onOpenForum={() => {
+                  setSelectedForumClass(item);
+                  setForumModalVisible(true);
+                }}
                 busy={busyId === item.id}
               />
             </View>
@@ -535,6 +573,13 @@ export default function MemberSchedulesScreen() {
           }
         }}
         onClose={() => setCheckoutItem(null)}
+      />
+
+      {/* CLASS FORUM & COMMUNITY CHAT MODAL */}
+      <ClassForumModal
+        visible={forumModalVisible}
+        onClose={() => setForumModalVisible(false)}
+        scheduleItem={selectedForumClass}
       />
     </View>
   );
@@ -688,5 +733,45 @@ const styles = StyleSheet.create({
     color: colors.muted,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  generalForumBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: spacing.md,
+    marginTop: 8,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    gap: 10,
+  },
+  generalForumIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  generalForumBannerTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  generalForumBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  generalForumBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  generalForumBannerSub: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  generalForumAction: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

@@ -22,7 +22,8 @@ import { YHeader } from '@/components/YHeader';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { getDemoToday } from '@/domain/demoClock';
-import type { Member, Membership, PrivateLesson, ScheduleItem } from '@/domain/types';
+import type { Announcement, Member, Membership, PrivateLesson, ScheduleItem } from '@/domain/types';
+import { announcementRepo } from '@/repositories/announcementRepo';
 import { lessonRepo } from '@/repositories/lessonRepo';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { registrationRepo } from '@/repositories/registrationRepo';
@@ -85,6 +86,7 @@ export default function MemberHomeScreen() {
 
   const [member, setMember] = useState<Member | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
+  const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
   const [weekItems, setWeekItems] = useState<WeekItem[]>([]);
   const [cardIndex, setCardIndex] = useState(0);
   const [error, setError] = useState(false);
@@ -98,12 +100,13 @@ export default function MemberHomeScreen() {
       setError(false);
       const today = getDemoToday();
       const to = addDays(today, 6);
-      const [nextMember, nextMembership, regs, lessons, schedules] = await Promise.all([
+      const [nextMember, nextMembership, regs, lessons, schedules, anns] = await Promise.all([
         api.getMember(memberId),
         membershipRepo.getMembership(api, memberId),
         registrationRepo.listMine(api, memberId),
         lessonRepo.listMine(api, memberId),
         scheduleRepo.list(api, { branchId: BRANCH_ID, from: today, to }),
+        announcementRepo.list(api, BRANCH_ID),
       ]);
       const byId = new Map(schedules.map((s) => [s.id, s]));
       const classItems: WeekItem[] = [];
@@ -123,6 +126,9 @@ export default function MemberHomeScreen() {
       );
       setMember(nextMember);
       setMembership(nextMembership);
+      if (anns && anns.length > 0) {
+        setLatestAnnouncement(anns[0]);
+      }
       setWeekItems(combined);
       setCardIndex(0);
     } catch {
@@ -162,6 +168,67 @@ export default function MemberHomeScreen() {
         {/* Digital Member Scan Pass */}
         {member ? <MemberCheckInCard member={member} /> : null}
 
+        {/* Latest Announcement Banner */}
+        {latestAnnouncement ? (
+          <Pressable
+            onPress={() =>
+              router.push(
+                latestAnnouncement.actionUrl
+                  ? (latestAnnouncement.actionUrl as any)
+                  : '/(member)/notifications'
+              )
+            }
+            style={[
+              styles.announcementBanner,
+              { backgroundColor: colors.cardBg, borderColor: colors.cardBorder },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Notice: ${latestAnnouncement.title}`}
+          >
+            <View style={styles.announcementLeft}>
+              <View
+                style={[
+                  styles.annIconCircle,
+                  {
+                    backgroundColor:
+                      latestAnnouncement.priority === 'high'
+                        ? colors.goldBg
+                        : colors.primaryLight,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={
+                    latestAnnouncement.priority === 'high'
+                      ? 'alert-circle'
+                      : 'megaphone'
+                  }
+                  size={18}
+                  color={
+                    latestAnnouncement.priority === 'high'
+                      ? colors.gold
+                      : colors.primary
+                  }
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={[styles.annBadgeText, { color: colors.primary }]}>
+                    LATEST BRANCH NOTICE
+                  </Text>
+                </View>
+                <Text style={[styles.annTitleText, { color: colors.text }]} numberOfLines={1}>
+                  {latestAnnouncement.title}
+                </Text>
+                <Text style={[styles.annBodyText, { color: colors.textMuted }]} numberOfLines={1}>
+                  {latestAnnouncement.body}
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.quickPlanAction, { color: colors.primary }]}>View ›</Text>
+          </Pressable>
+        ) : null}
+
         {/* Next Billing Summary */}
         {membership && member ? (
           <View style={styles.billingSectionWrap}>
@@ -170,21 +237,48 @@ export default function MemberHomeScreen() {
               subtitle={membershipSubtitle(member, membership)}
             />
             <Pressable
-              onPress={() => router.push('/(member)/change-membership')}
-              style={[styles.quickPlanRow, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
+              onPress={() => router.push('/(member)/manage-membership')}
+              style={[
+                styles.quickPlanRow,
+                { backgroundColor: colors.cardBg, borderColor: colors.cardBorder },
+              ]}
               accessibilityRole="button"
-              accessibilityLabel="Change membership plan"
+              accessibilityLabel="Manage membership plan"
             >
               <View style={styles.quickPlanLeft}>
-                <Ionicons name="swap-horizontal" size={18} color={colors.primary} />
+                <Ionicons name="card-outline" size={18} color={colors.primary} />
                 <Text style={[styles.quickPlanText, { color: colors.text }]}>
-                  Want to upgrade or change your membership plan?
+                  Manage plan, billing dates, switch or schedule for next month
                 </Text>
               </View>
-              <Text style={[styles.quickPlanAction, { color: colors.primary }]}>Change ›</Text>
+              <Text style={[styles.quickPlanAction, { color: colors.primary }]}>Manage ›</Text>
             </Pressable>
           </View>
         ) : null}
+
+        {/* Dedicated General Community Forum Callout */}
+        <Pressable
+          onPress={() => router.push('/(member)/community-forum')}
+          style={[styles.forumBanner, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
+          accessibilityRole="button"
+          accessibilityLabel="Open YMCA General Community Forum"
+        >
+          <View style={[styles.forumBannerIcon, { backgroundColor: isDark ? '#1E3A8A' : '#E0F2FE' }]}>
+            <Ionicons name="chatbubbles" size={24} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[styles.forumBannerTitle, { color: colors.text }]}>General Community Forum</Text>
+              <View style={[styles.forumBadge, { backgroundColor: colors.primaryLight }]}>
+                <Text style={[styles.forumBadgeText, { color: colors.primary }]}>ACTIVE</Text>
+              </View>
+            </View>
+            <Text style={[styles.forumBannerSub, { color: colors.textMuted }]}>
+              Branch-wide chat: share tips, workout questions, and @ staff desk
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+        </Pressable>
 
         {/* Quick Branch Feature Hub */}
         <View style={styles.featureHubRow}>
@@ -197,21 +291,34 @@ export default function MemberHomeScreen() {
             <View style={[styles.tileIconCircle, { backgroundColor: colors.primaryLight }]}>
               <Ionicons name="water-outline" size={20} color={colors.primary} />
             </View>
-            <Text style={[styles.tileTitle, { color: colors.text }]}>Pools & Amenities</Text>
-            <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>Heated Pool, Saunas & Gym</Text>
+            <Text style={[styles.tileTitle, { color: colors.text }]}>Pools & Saunas</Text>
+            <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>Heated Pool & Gym</Text>
           </Pressable>
 
           <Pressable
-            onPress={() => router.push('/(member)/programs')}
+            onPress={() => router.push('/(member)/events')}
             style={[styles.featureTile, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
             accessibilityRole="button"
-            accessibilityLabel="View Programs and Community Health"
+            accessibilityLabel="View Events and RSVP"
           >
             <View style={[styles.tileIconCircle, { backgroundColor: colors.primaryLight }]}>
-              <Ionicons name="fitness-outline" size={20} color={colors.primary} />
+              <Ionicons name="calendar-outline" size={20} color={colors.accentBlue} />
             </View>
-            <Text style={[styles.tileTitle, { color: colors.text }]}>Programs & Health</Text>
-            <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>Camps, Swim Academy, Wellness</Text>
+            <Text style={[styles.tileTitle, { color: colors.text }]}>Events & 5K</Text>
+            <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>RSVP & Reminders</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push('/(member)/donate')}
+            style={[styles.featureTile, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
+            accessibilityRole="button"
+            accessibilityLabel="Donate to YMCA"
+          >
+            <View style={[styles.tileIconCircle, { backgroundColor: '#FEE2E2' }]}>
+              <Ionicons name="heart" size={20} color="#DC2626" />
+            </View>
+            <Text style={[styles.tileTitle, { color: colors.text }]}>Give / Donate</Text>
+            <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>Community Impact</Text>
           </Pressable>
 
           <Pressable
@@ -224,7 +331,7 @@ export default function MemberHomeScreen() {
               <Ionicons name="ticket-outline" size={20} color={colors.gold} />
             </View>
             <Text style={[styles.tileTitle, { color: colors.text }]}>Guest Passes</Text>
-            <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>2 Free Annual Passes</Text>
+            <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>2 Free Annual</Text>
           </Pressable>
         </View>
 
@@ -641,6 +748,45 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 13,
   },
+  forumBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    gap: 12,
+    marginBottom: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  forumBannerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  forumBannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  forumBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  forumBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  forumBannerSub: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
   featureHubRow: {
     flexDirection: 'row',
     gap: 8,
@@ -680,5 +826,40 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontWeight: '700',
     fontSize: 13,
+  },
+  announcementBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    marginBottom: 4,
+  },
+  announcementLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  annIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  annBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  annTitleText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  annBodyText: {
+    fontSize: 12,
+    lineHeight: 16,
   },
 });

@@ -7,10 +7,22 @@ import { useAccessibility } from '@/context/AccessibilityContext';
 export function AppText({ style, ...props }: TextProps) {
   const { multiplier } = useAccessibility();
   const flat = StyleSheet.flatten(style) as TextStyle | undefined;
-  const scaled: StyleProp<TextStyle> =
-    flat?.fontSize != null
-      ? [style, { fontSize: Math.round(flat.fontSize * multiplier) }]
-      : style;
+
+  let scaledStyle: TextStyle | undefined;
+  if (flat?.fontSize != null) {
+    const newFontSize = Math.round(flat.fontSize * multiplier);
+    const newLineHeight =
+      flat.lineHeight != null
+        ? Math.max(Math.round(flat.lineHeight * multiplier), Math.round(newFontSize * 1.25))
+        : undefined;
+
+    scaledStyle = {
+      fontSize: newFontSize,
+      ...(newLineHeight != null ? { lineHeight: newLineHeight } : {}),
+    };
+  }
+
+  const scaled: StyleProp<TextStyle> = scaledStyle ? [style, scaledStyle] : style;
 
   return <Text {...props} style={scaled} allowFontScaling />;
 }

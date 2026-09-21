@@ -1,4 +1,5 @@
 import { View, StyleSheet, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '@/components/AppText';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
@@ -23,6 +24,7 @@ export type ClassCardProps = {
   onRegister?: () => void;
   onChange?: () => void;
   onCancel?: () => void;
+  onOpenForum?: () => void;
   busy?: boolean;
 };
 
@@ -42,6 +44,7 @@ export function ClassCard({
   onRegister,
   onChange,
   onCancel,
+  onOpenForum,
   busy,
 }: ClassCardProps) {
   const { colors: tc, isDark } = useTheme();
@@ -189,6 +192,26 @@ export function ClassCard({
           }
         />
       ) : null}
+
+      {onOpenForum ? (
+        <Pressable
+          onPress={onOpenForum}
+          style={[
+            styles.forumBtn,
+            {
+              backgroundColor: isDark ? '#1E1B4B' : '#FAF5FF',
+              borderColor: '#C084FC',
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={`Open class community forum and chat for ${title}`}
+        >
+          <Ionicons name="chatbubbles" size={15} color="#7C3AED" />
+          <AppText style={[styles.forumBtnText, { color: '#7C3AED' }]}>
+            Class Community Forum & Chat ›
+          </AppText>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -199,6 +222,21 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.md,
     minWidth: 280,
+  },
+  forumBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  forumBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   badgeRow: {
     flexDirection: 'row',

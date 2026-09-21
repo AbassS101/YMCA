@@ -15,16 +15,19 @@ export default function MemberTabsLayout() {
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: {
           minHeight: tapTarget + 14,
-          paddingTop: 8,
-          paddingBottom: 10,
+          paddingTop: 6,
+          paddingBottom: 8,
           backgroundColor: colors.cardBg,
           borderTopColor: colors.border,
           borderTopWidth: 1,
         },
         tabBarLabelStyle: {
-          fontSize: 14,
+          fontSize: 11,
           fontWeight: '700',
           marginBottom: 2,
+        },
+        tabBarItemStyle: {
+          paddingHorizontal: 2,
         },
         tabBarIconStyle: {
           marginTop: 2,
@@ -49,6 +52,22 @@ export default function MemberTabsLayout() {
             <Ionicons name="calendar" size={Math.max(size, 26)} color={color} />
           ),
           tabBarAccessibilityLabel: 'Classes',
+        }}
+      />
+      <Tabs.Screen
+        name="community"
+        options={{
+          title: 'Community',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people" size={Math.max(size, 26)} color={color} />
+          ),
+          tabBarAccessibilityLabel: 'General Community Space & Forum',
+        }}
+      />
+      <Tabs.Screen
+        name="forum"
+        options={{
+          href: null,
         }}
       />
       <Tabs.Screen

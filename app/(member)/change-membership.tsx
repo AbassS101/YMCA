@@ -81,6 +81,9 @@ export default function ChangeMembershipScreen() {
     }, [load])
   );
 
+  const [timing, setTiming] = useState<'next_cycle' | 'immediate'>('next_cycle');
+  const [cancelingScheduled, setCancelingScheduled] = useState(false);
+
   const currentPlan = YMCA_MEMBERSHIP_PLANS.find(
     (p) => p.name.toLowerCase() === (membership?.rateName ?? 'adult').toLowerCase()
   ) ?? YMCA_MEMBERSHIP_PLANS[0];
@@ -93,47 +96,87 @@ export default function ChangeMembershipScreen() {
 
   function handleConfirmChange() {
     if (!memberId || isCurrent) return;
+    const effectiveDate = membership?.nextBillingDate || '2026-10-12';
 
-    dialog.show({
-      title: 'Confirm Membership Switch',
-      message: `Switch your plan from ${currentPlan.name} (${formatCents(
-        currentPlan.monthlyAmountCents
-      )}/mo) to ${selectedPlan.name} (${formatCents(
-        selectedPlan.monthlyAmountCents
-      )}/mo)?\n\nYour new rate will take effect on ${
-        membership?.nextBillingDate
-          ? formatBillingDate(membership.nextBillingDate)
-          : 'your next billing date'
-      }. New benefits begin immediately!`,
-      icon: 'info',
-      buttons: [
-        { text: 'Keep Current Plan', style: 'cancel' },
-        {
-          text: 'Confirm Switch',
-          onPress: () => {
-            void executePlanChange();
+    if (timing === 'next_cycle') {
+      dialog.show({
+        title: 'Schedule Switch for Next Month',
+        message: `Schedule switch from ${currentPlan.name} (${formatCents(
+          currentPlan.monthlyAmountCents
+        )}/mo) to ${selectedPlan.name} (${formatCents(
+          selectedPlan.monthlyAmountCents
+        )}/mo)?\n\nYour new rate and plan will take effect on ${formatBillingDate(
+          effectiveDate
+        )}. You will remain on ${currentPlan.name} until then with no unexpected charges today!`,
+        icon: 'info',
+        buttons: [
+          { text: 'Keep Current Plan', style: 'cancel' },
+          {
+            text: 'Schedule Switch',
+            onPress: () => {
+              void executePlanChange(true);
+            },
           },
-        },
-      ],
-    });
+        ],
+      });
+    } else {
+      dialog.show({
+        title: 'Confirm Immediate Switch',
+        message: `Switch your plan immediately from ${currentPlan.name} (${formatCents(
+          currentPlan.monthlyAmountCents
+        )}/mo) to ${selectedPlan.name} (${formatCents(
+          selectedPlan.monthlyAmountCents
+        )}/mo)?\n\nYour benefits and updated monthly rate will take effect immediately today!`,
+        icon: 'info',
+        buttons: [
+          { text: 'Keep Current Plan', style: 'cancel' },
+          {
+            text: 'Switch Now',
+            onPress: () => {
+              void executePlanChange(false);
+            },
+          },
+        ],
+      });
+    }
   }
 
-  async function executePlanChange() {
+  async function executePlanChange(forNextMonth: boolean) {
     setSubmitting(true);
     try {
-      const updated = await membershipRepo.changeMembership(
-        api,
-        memberId,
-        selectedPlan.name,
-        selectedPlan.monthlyAmountCents
-      );
-      setMembership(updated);
-      dialog.alert(
-        'Plan Updated!',
-        `Your membership has been successfully updated to ${selectedPlan.name}. You now have full access to all ${selectedPlan.name} features and privileges at YMCA Silver Spring.`,
-        [{ text: 'Done', onPress: () => router.back() }],
-        'checkmark'
-      );
+      if (forNextMonth) {
+        const effectiveDate = membership?.nextBillingDate || '2026-10-12';
+        const updated = await membershipRepo.scheduleMembershipChange(
+          api,
+          memberId,
+          selectedPlan.name,
+          selectedPlan.monthlyAmountCents,
+          effectiveDate
+        );
+        setMembership(updated);
+        dialog.alert(
+          'Switch Scheduled for Next Month!',
+          `Your membership plan switch to ${selectedPlan.name} has been scheduled for ${formatBillingDate(
+            effectiveDate
+          )}. You will receive a notification when it takes effect.`,
+          [{ text: 'Done', onPress: () => router.back() }],
+          'checkmark'
+        );
+      } else {
+        const updated = await membershipRepo.changeMembership(
+          api,
+          memberId,
+          selectedPlan.name,
+          selectedPlan.monthlyAmountCents
+        );
+        setMembership(updated);
+        dialog.alert(
+          'Plan Updated Immediately!',
+          `Your membership has been successfully updated to ${selectedPlan.name}. You now have full access to all ${selectedPlan.name} features and privileges at YMCA Silver Spring.`,
+          [{ text: 'Done', onPress: () => router.back() }],
+          'checkmark'
+        );
+      }
     } catch (err: any) {
       dialog.alert(
         'Error',
@@ -143,6 +186,24 @@ export default function ChangeMembershipScreen() {
       );
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleCancelScheduled() {
+    setCancelingScheduled(true);
+    try {
+      const updated = await membershipRepo.cancelScheduledChange(api, memberId);
+      setMembership(updated);
+      dialog.alert(
+        'Scheduled Switch Cancelled',
+        'Your scheduled plan switch has been cancelled. You will continue on your current plan.',
+        [{ text: 'OK' }],
+        'checkmark'
+      );
+    } catch (err: any) {
+      dialog.alert('Error', err?.message || 'Could not cancel scheduled switch.');
+    } finally {
+      setCancelingScheduled(false);
     }
   }
 
@@ -195,6 +256,50 @@ export default function ChangeMembershipScreen() {
             </AppText>
           </View>
         )}
+
+        {/* Pending Change Banner if active */}
+        {membership?.pendingChange ? (
+          <View
+            style={[
+              styles.currentCard,
+              {
+                backgroundColor: colors.goldBg,
+                borderColor: colors.gold,
+                borderWidth: 1.5,
+              },
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Ionicons name="time" size={20} color={colors.gold} />
+              <AppText style={{ fontSize: 16, fontWeight: '700', color: '#92400E' }}>
+                Pending Plan Change Scheduled
+              </AppText>
+            </View>
+            <AppText style={{ fontSize: 14, color: '#78350F', lineHeight: 20 }}>
+              Your switch to <Text style={{ fontWeight: '700' }}>{membership.pendingChange.planName}</Text> ($
+              {(membership.pendingChange.monthlyAmountCents / 100).toFixed(2)}/mo) is scheduled for{' '}
+              <Text style={{ fontWeight: '700' }}>{formatBillingDate(membership.pendingChange.effectiveDate)}</Text>.
+            </AppText>
+            <Pressable
+              onPress={handleCancelScheduled}
+              disabled={cancelingScheduled}
+              style={{
+                marginTop: 10,
+                alignSelf: 'flex-start',
+                paddingVertical: 6,
+                paddingHorizontal: 12,
+                borderRadius: 6,
+                backgroundColor: '#FFFFFF',
+                borderWidth: 1,
+                borderColor: '#D97706',
+              }}
+            >
+              <AppText style={{ color: '#B45309', fontWeight: '700', fontSize: 13 }}>
+                {cancelingScheduled ? 'Cancelling...' : 'Cancel Scheduled Switch'}
+              </AppText>
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* Plan Selection Header */}
         <View style={styles.introBlock}>
@@ -362,11 +467,80 @@ export default function ChangeMembershipScreen() {
                 {priceDiff > 0 ? `+${formatCents(priceDiff)}/mo` : `${formatCents(priceDiff)}/mo`}
               </AppText>
             </View>
+
+            {/* Timing Selector: Next Month vs Immediate */}
+            <AppText style={{ fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 10, marginBottom: 6 }}>
+              When should this change take effect?
+            </AppText>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+              <Pressable
+                onPress={() => setTiming('next_cycle')}
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  paddingHorizontal: 8,
+                  borderRadius: 8,
+                  borderWidth: 1.5,
+                  borderColor: timing === 'next_cycle' ? colors.primary : colors.border,
+                  backgroundColor: timing === 'next_cycle' ? colors.primaryLight : colors.cardBg,
+                  alignItems: 'center',
+                }}
+              >
+                <AppText
+                  style={{
+                    fontSize: 12,
+                    fontWeight: '700',
+                    color: timing === 'next_cycle' ? colors.primary : colors.text,
+                    textAlign: 'center',
+                  }}
+                >
+                  Next Billing Cycle
+                </AppText>
+                <AppText style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>
+                  {membership?.nextBillingDate ? formatBillingDate(membership.nextBillingDate) : 'Next Month'}
+                </AppText>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setTiming('immediate')}
+                style={{
+                  flex: 1,
+                  paddingVertical: 10,
+                  paddingHorizontal: 8,
+                  borderRadius: 8,
+                  borderWidth: 1.5,
+                  borderColor: timing === 'immediate' ? colors.primary : colors.border,
+                  backgroundColor: timing === 'immediate' ? colors.primaryLight : colors.cardBg,
+                  alignItems: 'center',
+                }}
+              >
+                <AppText
+                  style={{
+                    fontSize: 12,
+                    fontWeight: '700',
+                    color: timing === 'immediate' ? colors.primary : colors.text,
+                    textAlign: 'center',
+                  }}
+                >
+                  Immediately
+                </AppText>
+                <AppText style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>
+                  Apply Today
+                </AppText>
+              </Pressable>
+            </View>
+
             <AppText style={[styles.effectiveNote, { color: colors.textMuted }]}>
-              Effective {membership?.nextBillingDate ? formatBillingDate(membership.nextBillingDate) : 'next billing'}. Immediate access updates today!
+              {timing === 'next_cycle'
+                ? `Starts on ${membership?.nextBillingDate ? formatBillingDate(membership.nextBillingDate) : 'your next billing date'}. No extra charge today.`
+                : 'Takes effect immediately today. Prorated difference will be applied.'}
             </AppText>
             <PrimaryButton
-              title={`Switch to ${selectedPlan.name}`}
+              title={
+                timing === 'next_cycle'
+                  ? `Schedule Switch for Next Month`
+                  : `Switch Immediately to ${selectedPlan.name}`
+              }
               onPress={() => void handleConfirmChange()}
               loading={submitting}
               accessibilityHint="Confirms membership plan switch"

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
@@ -11,14 +12,15 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/AppText';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { TextField } from '@/components/TextField';
+import { useAccessibility } from '@/context/AccessibilityContext';
 import { useTheme } from '@/context/ThemeContext';
 import type { Message, Staff } from '@/domain/types';
 import { radii, spacing, typography } from '@/theme/typography';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type ChatModalProps = {
   visible: boolean;
@@ -30,10 +32,29 @@ type ChatModalProps = {
   isAssignedTrainer?: boolean;
 };
 
-function formatTime(iso: string) {
+export function formatChatTime(iso: string) {
   const d = new Date(iso);
   return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
+
+export function calculateModalTopInset(insetsTop: number, platform: string = Platform.OS): number {
+  // On iOS devices with Dynamic Island (iPhone 14 Pro, 15, 16 series), insetsTop is typically 54-59px.
+  // Standard notch devices are 44-47px. If insetsTop is missing or 0 in a modal, provide a safe iOS fallback.
+  return Math.max(insetsTop, platform === 'ios' ? 48 : 20);
+}
+
+const STAFF_SUGGESTIONS = [
+  'What are the current pool & gym hours?',
+  'How do I claim or send a guest pass?',
+  'I would like help updating my membership plan.',
+  'Are locker rentals available today?',
+];
+
+const TRAINER_SUGGESTIONS = [
+  'Can we schedule a 1-on-1 personal training session?',
+  'What workout routine do you recommend for core strength?',
+  'How often should I rest between heavy lifting days?',
+];
 
 export function ChatModal({
   visible,
@@ -46,38 +67,51 @@ export function ChatModal({
 }: ChatModalProps) {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
+  const { multiplier } = useAccessibility();
   const [draft, setDraft] = useState('');
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isFocused, setIsFocused] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  const inputRef = useRef<any>(null);
 
   const isStaffDesk = recipient?.id === 'staff-desk';
   const firstName = recipient?.name.split(' ')[0] ?? 'YMCA';
+  const topInset = calculateModalTopInset(insets.top);
+  const suggestions = isStaffDesk ? STAFF_SUGGESTIONS : TRAINER_SUGGESTIONS;
 
-  // Listen to keyboard show/hide and track exact mobile keyboard height
+  // Listen to keyboard show/hide and track exact mobile keyboard state
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
     const showSub = Keyboard.addListener(showEvent, (e) => {
-      if (Platform.OS === 'ios') {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      }
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setKeyboardVisible(true);
       setKeyboardHeight(e.endCoordinates.height);
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 80);
     });
     const hideSub = Keyboard.addListener(hideEvent, () => {
-      if (Platform.OS === 'ios') {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      }
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setKeyboardVisible(false);
       setKeyboardHeight(0);
+      setIsFocused(false);
     });
     return () => {
       showSub.remove();
       hideSub.remove();
     };
   }, []);
+
+  const handleDismissKeyboard = () => {
+    inputRef.current?.blur();
+    Keyboard.dismiss();
+    setIsFocused(false);
+    setKeyboardVisible(false);
+    setKeyboardHeight(0);
+  };
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -95,7 +129,19 @@ export function ChatModal({
     setDraft('');
   };
 
+  const handleApplySuggestion = (prompt: string) => {
+    setDraft(prompt);
+    inputRef.current?.focus();
+  };
+
   if (!recipient) return null;
+
+  const bottomInset =
+    keyboardVisible && keyboardHeight > 0
+      ? keyboardHeight
+      : keyboardVisible && Platform.OS === 'android'
+        ? 280
+        : Math.max(insets.bottom, 12);
 
   return (
     <Modal
@@ -103,17 +149,32 @@ export function ChatModal({
       animationType="slide"
       transparent={false}
       onRequestClose={onClose}
+      statusBarTranslucent
     >
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* Modal Header */}
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.background,
+            paddingLeft: insets.left,
+            paddingRight: insets.right,
+          },
+        ]}
+      >
+        {/* Modal Header with Dynamic Island safe area padding */}
         <View
           style={[
             styles.header,
             {
               backgroundColor: colors.card,
               borderBottomColor: colors.border,
+              paddingTop: topInset + 6,
+              paddingBottom: 12,
+              paddingHorizontal: Math.max(spacing.md, insets.left, insets.right),
             },
           ]}
+          accessibilityRole="header"
         >
           <View style={styles.headerLeft}>
             <View
@@ -129,6 +190,8 @@ export function ChatModal({
                       : '#DCFCE7',
                 },
               ]}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
             >
               <Ionicons
                 name={isStaffDesk ? 'business' : 'fitness'}
@@ -138,18 +201,29 @@ export function ChatModal({
             </View>
             <View style={styles.headerTextWrap}>
               <View style={styles.nameRow}>
-                <AppText style={[styles.recipientName, { color: colors.nearBlack }]}>
+                <AppText
+                  style={[styles.recipientName, { color: colors.nearBlack }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
                   {recipient.name}
                 </AppText>
                 {isAssignedTrainer ? (
-                  <View style={[styles.badgePill, { backgroundColor: colors.primaryLight }]}>
+                  <View
+                    style={[styles.badgePill, { backgroundColor: colors.primaryLight }]}
+                    accessibilityLabel="Primary Assigned Trainer"
+                  >
                     <AppText style={[styles.badgeText, { color: colors.primary }]}>
                       PRIMARY
                     </AppText>
                   </View>
                 ) : null}
               </View>
-              <AppText style={[styles.recipientRole, { color: colors.muted }]}>
+              <AppText
+                style={[styles.recipientRole, { color: colors.muted }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
                 {recipient.roleLabel}
               </AppText>
             </View>
@@ -157,7 +231,6 @@ export function ChatModal({
 
           {/* Header Action Buttons */}
           <View style={styles.headerRight}>
-            {/* Close button */}
             <Pressable
               onPress={onClose}
               style={({ pressed }) => [
@@ -171,9 +244,11 @@ export function ChatModal({
                 },
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Close chat"
+              accessibilityLabel={`Close chat with ${recipient.name}`}
+              accessibilityHint="Closes chat and returns to previous screen"
+              hitSlop={8}
             >
-              <Ionicons name="close" size={20} color={colors.nearBlack} />
+              <Ionicons name="close" size={22} color={colors.nearBlack} />
             </Pressable>
           </View>
         </View>
@@ -182,8 +257,9 @@ export function ChatModal({
         <View
           style={[
             styles.flex,
+            styles.responsiveConstraint,
             {
-              paddingBottom: keyboardHeight > 0 ? keyboardHeight : Math.max(insets.bottom, 16),
+              paddingBottom: bottomInset,
             },
           ]}
         >
@@ -203,6 +279,8 @@ export function ChatModal({
                       backgroundColor: isDark ? colors.card : colors.primaryLight,
                     },
                   ]}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
                 >
                   <Ionicons
                     name="chatbubbles-outline"
@@ -218,16 +296,59 @@ export function ChatModal({
                     ? 'Ask questions about membership, facility hours, program registrations, or YMCA services.'
                     : `Direct line for personal fitness advice, private lesson scheduling, and workout guidance.`}
                 </AppText>
+
+                {/* Interactive Quick Prompts */}
+                <View style={styles.suggestionsContainer}>
+                  <AppText style={[styles.suggestionsHeader, { color: colors.muted }]}>
+                    Suggested questions:
+                  </AppText>
+                  <View style={styles.suggestionsGrid}>
+                    {suggestions.map((prompt, idx) => (
+                      <Pressable
+                        key={idx}
+                        onPress={() => handleApplySuggestion(prompt)}
+                        style={({ pressed }) => [
+                          styles.suggestionChip,
+                          {
+                            backgroundColor: isDark ? colors.card : '#FFFFFF',
+                            borderColor: pressed ? colors.primary : colors.border,
+                          },
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Ask: ${prompt}`}
+                        accessibilityHint="Inserts this question into your message box"
+                      >
+                        <Ionicons
+                          name="chatbubble-ellipses-outline"
+                          size={14}
+                          color={colors.primary}
+                        />
+                        <AppText
+                          style={[styles.suggestionText, { color: colors.nearBlack }]}
+                          numberOfLines={2}
+                        >
+                          {prompt}
+                        </AppText>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
               </View>
             }
             renderItem={({ item }) => {
               const isMine = item.fromId === currentUserId;
+              const formattedTime = formatChatTime(item.createdAt);
+              const senderLabel = isMine ? 'You' : recipient.name;
+
               return (
                 <View
                   style={[
                     styles.bubbleRow,
                     isMine ? styles.bubbleRowMine : styles.bubbleRowTheirs,
                   ]}
+                  accessible={true}
+                  accessibilityRole="text"
+                  accessibilityLabel={`${senderLabel} said: ${item.body}. Sent at ${formattedTime}`}
                 >
                   <View
                     style={[
@@ -260,8 +381,10 @@ export function ChatModal({
                           ? styles.timeMine
                           : [styles.timeTheirs, { color: colors.muted }],
                       ]}
+                      accessibilityElementsHidden
+                      importantForAccessibility="no"
                     >
-                      {formatTime(item.createdAt)}
+                      {formattedTime}
                     </Text>
                   </View>
                 </View>
@@ -279,13 +402,39 @@ export function ChatModal({
               },
             ]}
           >
+            {keyboardVisible || isFocused ? (
+              <Pressable
+                onPress={handleDismissKeyboard}
+                style={({ pressed }) => [
+                  styles.dismissKeyboardBtn,
+                  {
+                    backgroundColor: pressed
+                      ? colors.primaryLight
+                      : isDark
+                        ? colors.background
+                        : '#F1F5F9',
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Put keyboard down"
+                accessibilityHint="Dismisses the on-screen keyboard"
+                hitSlop={8}
+              >
+                <Ionicons name="chevron-down" size={20} color={colors.primary} />
+              </Pressable>
+            ) : null}
             <View style={styles.inputFlex}>
               <TextField
+                ref={inputRef}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
                 value={draft}
                 onChangeText={setDraft}
                 placeholder={`Message ${firstName}...`}
                 style={styles.inputStyle}
                 multiline
+                accessibilityLabel={`Message draft for ${firstName}`}
+                accessibilityHint="Type your message here"
               />
             </View>
             <View style={styles.sendBtnWrap}>
@@ -293,6 +442,7 @@ export function ChatModal({
                 title="Send"
                 onPress={handleSend}
                 disabled={!draft.trim()}
+                accessibilityHint="Sends your typed message"
               />
             </View>
           </View>
@@ -309,19 +459,24 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
+  responsiveConstraint: {
+    maxWidth: 720,
+    width: '100%',
+    alignSelf: 'center',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: spacing.sm,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     flex: 1,
+    minWidth: 0,
   },
   avatarCircle: {
     width: 44,
@@ -329,25 +484,29 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
   },
   headerTextWrap: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    flexWrap: 'wrap',
+    flexShrink: 1,
   },
   recipientName: {
     fontSize: 16,
     fontWeight: '700',
+    flexShrink: 1,
   },
   badgePill: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+    flexShrink: 0,
   },
   badgeText: {
     fontSize: 10,
@@ -360,12 +519,12 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    flexShrink: 0,
   },
   closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    minWidth: 44,
+    minHeight: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -378,12 +537,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing.xl,
+    padding: spacing.md,
   },
   emptyWrap: {
     alignItems: 'center',
     gap: spacing.sm,
-    maxWidth: 320,
+    width: '100%',
+    maxWidth: 420,
   },
   emptyIconCircle: {
     width: 64,
@@ -402,6 +562,37 @@ const styles = StyleSheet.create({
     ...typography.body,
     textAlign: 'center',
     lineHeight: 20,
+    paddingHorizontal: spacing.sm,
+  },
+  suggestionsContainer: {
+    width: '100%',
+    marginTop: spacing.md,
+    gap: 8,
+  },
+  suggestionsHeader: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 4,
+  },
+  suggestionsGrid: {
+    gap: 8,
+    width: '100%',
+  },
+  suggestionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: radii.card,
+    borderWidth: 1,
+  },
+  suggestionText: {
+    fontSize: 13,
+    flex: 1,
+    lineHeight: 18,
   },
   bubbleRow: {
     marginBottom: 10,
@@ -454,6 +645,7 @@ const styles = StyleSheet.create({
   },
   inputFlex: {
     flex: 1,
+    minWidth: 0,
   },
   inputStyle: {
     minHeight: 44,
@@ -462,7 +654,18 @@ const styles = StyleSheet.create({
   },
   sendBtnWrap: {
     alignSelf: 'flex-end',
-    minWidth: 72,
+    minWidth: 68,
     marginBottom: 2,
+    flexShrink: 0,
+  },
+  dismissKeyboardBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+    marginRight: 2,
+    flexShrink: 0,
   },
 });

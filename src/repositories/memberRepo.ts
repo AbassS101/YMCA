@@ -9,7 +9,7 @@ export const memberRepo = {
   updateProfile(
     api: ProtivityPort,
     memberId: string,
-    updates: { name?: string; phone?: string }
+    updates: { name?: string; phone?: string; avatarUrl?: string }
   ): Promise<Member> {
     return api.updateMemberProfile(memberId, updates);
   },

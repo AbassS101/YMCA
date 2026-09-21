@@ -40,6 +40,16 @@ export default function StaffTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="schedules"
+        options={{
+          title: 'Schedules',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar" size={Math.max(size, 26)} color={color} />
+          ),
+          tabBarAccessibilityLabel: 'Schedules and Events',
+        }}
+      />
+      <Tabs.Screen
         name="members"
         options={{
           title: 'Members',

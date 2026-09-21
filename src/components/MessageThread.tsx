@@ -42,31 +42,41 @@ export function MessageThread({
   const insets = useSafeAreaInsets();
   const { colors: themeColors, isDark } = useTheme();
   const [draft, setDraft] = useState('');
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isFocused, setIsFocused] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  const inputRef = useRef<any>(null);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
     const showSub = Keyboard.addListener(showEvent, (e) => {
-      if (Platform.OS === 'ios') {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      }
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setKeyboardVisible(true);
       setKeyboardHeight(e.endCoordinates.height);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
     });
     const hideSub = Keyboard.addListener(hideEvent, () => {
-      if (Platform.OS === 'ios') {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      }
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setKeyboardVisible(false);
       setKeyboardHeight(0);
+      setIsFocused(false);
     });
     return () => {
       showSub.remove();
       hideSub.remove();
     };
   }, []);
+
+  const handleDismissKeyboard = () => {
+    inputRef.current?.blur();
+    Keyboard.dismiss();
+    setIsFocused(false);
+    setKeyboardVisible(false);
+    setKeyboardHeight(0);
+  };
 
   const handleSend = () => {
     const body = draft.trim();
@@ -81,7 +91,12 @@ export function MessageThread({
         styles.container,
         {
           backgroundColor: themeColors.background,
-          paddingBottom: keyboardHeight > 0 ? keyboardHeight : Math.max(insets.bottom, 14),
+          paddingBottom:
+            keyboardVisible && keyboardHeight > 0
+              ? keyboardHeight
+              : keyboardVisible && Platform.OS === 'android'
+                ? 280
+                : Math.max(insets.bottom, 12),
         },
       ]}
     >
@@ -96,8 +111,14 @@ export function MessageThread({
         ListEmptyComponent={<Text style={[styles.empty, { color: themeColors.muted }]}>{emptyHint}</Text>}
         renderItem={({ item }) => {
           const mine = item.fromId === currentUserId;
+          const formattedTime = formatTime(item.createdAt);
           return (
-            <View style={[styles.bubbleWrap, mine ? styles.bubbleWrapMine : styles.bubbleWrapTheirs]}>
+            <View
+              style={[styles.bubbleWrap, mine ? styles.bubbleWrapMine : styles.bubbleWrapTheirs]}
+              accessible={true}
+              accessibilityRole="text"
+              accessibilityLabel={`${mine ? 'You' : 'Member'} said: ${item.body}. Sent at ${formattedTime}`}
+            >
               <View
                 style={[
                   styles.bubble,
@@ -125,8 +146,10 @@ export function MessageThread({
                     styles.time,
                     mine ? styles.timeMine : [styles.timeTheirs, { color: themeColors.muted }],
                   ]}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
                 >
-                  {formatTime(item.createdAt)}
+                  {formattedTime}
                 </Text>
               </View>
             </View>
@@ -143,8 +166,31 @@ export function MessageThread({
         ]}
       >
         <View style={styles.composerInputRow}>
+          {keyboardVisible || isFocused ? (
+            <Pressable
+              onPress={handleDismissKeyboard}
+              style={({ pressed }) => [
+                styles.dismissKeyboardBtn,
+                {
+                  backgroundColor: pressed
+                    ? '#E0F2FE'
+                    : isDark
+                      ? themeColors.background
+                      : '#F1F5F9',
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Put keyboard down"
+              hitSlop={8}
+            >
+              <Ionicons name="chevron-down" size={20} color={themeColors.primary} />
+            </Pressable>
+          ) : null}
           <View style={styles.inputFlex}>
             <TextField
+              ref={inputRef}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               value={draft}
               onChangeText={setDraft}
               placeholder="Message..."
@@ -165,6 +211,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.offWhite,
+    maxWidth: 720,
+    width: '100%',
+    alignSelf: 'center',
   },
   list: {
     padding: 16,
@@ -246,5 +295,14 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     minWidth: 70,
     marginBottom: 4,
+  },
+  dismissKeyboardBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+    marginRight: 2,
   },
 });

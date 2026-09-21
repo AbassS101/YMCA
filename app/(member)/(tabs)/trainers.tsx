@@ -7,6 +7,7 @@ import { ChatModal } from '@/components/ChatModal';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
+import { UserAvatar } from '@/components/UserAvatar';
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
@@ -337,14 +338,15 @@ export default function MemberTrainersScreen() {
                       accessibilityLabel={`${tr.name}, ${tr.roleLabel}`}
                     >
                       <View style={styles.chipTopRow}>
+                        <UserAvatar uri={tr.avatarUrl} name={tr.name} size={24} />
                         <Text
                           style={[
                             styles.chipName,
                             {
                               color: isSelected
                                 ? isDark
-                                  ? colors.primary
-                                  : colors.primaryDark
+                                ? colors.primary
+                                : colors.primaryDark
                                 : colors.text,
                               fontWeight: isSelected ? '700' : '600',
                             },
@@ -381,16 +383,11 @@ export default function MemberTrainersScreen() {
             {selectedTrainer ? (
               <View style={[styles.card, cardTheme]}>
                 <View style={styles.profileHeader}>
-                  <View
-                    style={[
-                      styles.trainerAvatar,
-                      {
-                        backgroundColor: isDark ? colors.primaryLight : '#E0F2FE',
-                      },
-                    ]}
-                  >
-                    <Ionicons name="fitness" size={26} color={colors.primary} />
-                  </View>
+                  <UserAvatar
+                    uri={selectedTrainer.avatarUrl}
+                    name={selectedTrainer.name}
+                    size={56}
+                  />
                   <View style={styles.profileMeta}>
                     <View style={styles.profileNameRow}>
                       <Text style={[styles.cardName, { color: colors.text }]} allowFontScaling>

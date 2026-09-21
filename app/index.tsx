@@ -13,7 +13,7 @@ export default function IndexScreen() {
     return <Redirect href="/login" />;
   }
 
-  if (session.role === 'staff') {
+  if (session.role !== 'member') {
     return <Redirect href="/(staff)/today" />;
   }
 

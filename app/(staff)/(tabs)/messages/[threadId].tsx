@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -5,8 +6,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { MessageThread } from '@/components/MessageThread';
 import { YHeader } from '@/components/YHeader';
-import type { Member, Message } from '@/domain/types';
 import { useSession } from '@/context/SessionContext';
+import { useTheme } from '@/context/ThemeContext';
+import type { Member, Message } from '@/domain/types';
 import { messageRepo } from '@/repositories/messageRepo';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
@@ -16,6 +18,7 @@ export default function StaffThreadScreen() {
   const { threadId: threadIdParam } = useLocalSearchParams<{ threadId: string }>();
   const threadId = threadIdParam ?? '';
   const { session, api } = useSession();
+  const { colors: tc } = useTheme();
   const staffId = session?.userId ?? '';
 
   const [member, setMember] = useState<Member | null>(null);
@@ -69,15 +72,17 @@ export default function StaffThreadScreen() {
   const contactFirstName = member?.name.split(' ')[0] ?? 'member';
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: tc.background }]}>
       <YHeader subtitle={member?.name ?? 'Messages'} />
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
       <Pressable
         onPress={() => router.back()}
         style={styles.backWrap}
         accessibilityRole="button"
+        accessibilityLabel="Back to Inbox"
       >
-        <Text style={styles.back}>← Inbox</Text>
+        <Ionicons name="arrow-back" size={18} color={colors.primary} />
+        <Text style={[styles.back, { color: colors.primary }]}>Inbox</Text>
       </Pressable>
       {threadId ? (
         <MessageThread
@@ -94,15 +99,16 @@ export default function StaffThreadScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.offWhite,
   },
   backWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
   },
   back: {
     ...typography.body,
-    color: colors.scarlet,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

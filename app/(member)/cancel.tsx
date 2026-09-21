@@ -38,6 +38,7 @@ export default function CancelMembershipScreen() {
   const [step, setStep] = useState<Step>('form');
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [rescinding, setRescinding] = useState(false);
   const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
@@ -104,6 +105,19 @@ export default function CancelMembershipScreen() {
     }
   }
 
+  async function handleRescind() {
+    setRescinding(true);
+    try {
+      await membershipRepo.rescindCancel(api, memberId);
+      await load();
+      router.back();
+    } catch {
+      setFormError('Could not restore membership.');
+    } finally {
+      setRescinding(false);
+    }
+  }
+
   function goConfirm() {
     setFormError(null);
     if (reason.trim() === '') {
@@ -132,9 +146,14 @@ export default function CancelMembershipScreen() {
               <Text style={styles.bannerText}>
                 {cancelRequestedCopy(membership.lastBillDate!, membership.cancelEffectiveDate!)}
               </Text>
-              <Text style={[styles.muted, { color: themeColors.muted }]}>
+              <Text style={[styles.muted, { color: themeColors.muted, marginBottom: 12 }]}>
                 A second cancel request cannot be submitted.
               </Text>
+              <PrimaryButton
+                title={rescinding ? 'Restoring...' : 'Keep My Membership (Rescind Cancellation)'}
+                onPress={() => void handleRescind()}
+                loading={rescinding}
+              />
             </View>
           ) : null}
 

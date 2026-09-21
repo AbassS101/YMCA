@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { YHeader } from '@/components/YHeader';
@@ -53,6 +54,32 @@ export default function StaffMessagesInboxScreen() {
       <YHeader subtitle="Messages" />
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
       <ScrollView contentContainerStyle={styles.list}>
+        {/* Community Forum & Staff Inquiries Banner */}
+        <Pressable
+          onPress={() => router.push('/(member)/community-forum')}
+          style={({ pressed }) => [styles.forumCard, pressed && styles.rowPressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Open Community Forum and Staff Inquiries"
+        >
+          <View style={styles.forumIconWrap}>
+            <Ionicons name="chatbubbles" size={24} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1, gap: 3 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.forumTitle}>Community Forum</Text>
+              <View style={styles.staffTagPill}>
+                <Text style={styles.staffTagPillText}>@ STAFF INQUIRIES</Text>
+              </View>
+            </View>
+            <Text style={styles.forumSub}>
+              Browse topics, answer @ staff questions, and pin branch notices
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+        </Pressable>
+
+        <Text style={styles.sectionHeader}>Direct Member Messages</Text>
+
         {rows.length === 0 ? (
           <Text style={styles.empty}>No conversations yet.</Text>
         ) : (
@@ -108,5 +135,54 @@ const styles = StyleSheet.create({
   meta: {
     ...typography.body,
     color: colors.muted,
+  },
+  forumCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#0284C7',
+    padding: 14,
+    gap: 12,
+    marginBottom: 6,
+  },
+  forumIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  forumTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.nearBlack,
+  },
+  staffTagPill: {
+    backgroundColor: '#EDE9FE',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  staffTagPillText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#6D28D9',
+    letterSpacing: 0.5,
+  },
+  forumSub: {
+    fontSize: 12,
+    color: colors.muted,
+    lineHeight: 16,
+  },
+  sectionHeader: {
+    ...typography.label,
+    color: colors.muted,
+    marginTop: 8,
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 });
