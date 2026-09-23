@@ -442,7 +442,7 @@ export default function StaffSettingsScreen() {
             <Text style={[styles.sectionTitle, { color: tc.text }]}>IT Support & Feature Requests</Text>
           </View>
           <Text style={[styles.sectionDesc, { color: tc.textMuted }]}>
-            Report internal bugs, request staff management features, or chat directly with David Chen (Chief IT Systems Administrator).
+            Report internal bugs, request staff management features, or chat directly with David Miller (IT Systems Administrator).
           </Text>
 
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
@@ -496,6 +496,48 @@ export default function StaffSettingsScreen() {
             <Ionicons name="chevron-forward" size={16} color={colors.primary} />
           </Pressable>
         </View>
+
+        {/* ADMIN CONTROLS: STAFF ROSTER & FEEDBACK */}
+        {isAdmin ? (
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: tc.cardBg, borderColor: tc.cardBorder },
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="people-circle-outline" size={22} color={colors.primary} />
+              <Text style={[styles.sectionTitle, { color: tc.text }]}>Branch Administration</Text>
+            </View>
+            <Text style={[styles.sectionDesc, { color: tc.textMuted }]}>
+              Administrative tools for both Staff Admin and IT Admin to configure staff accounts and review member feedback.
+            </Text>
+
+            <Pressable
+              onPress={() => router.push('/(staff)/staff-management')}
+              style={[styles.securityActionBtn, { borderColor: tc.border, marginTop: 4 }]}
+              accessibilityRole="button"
+            >
+              <Ionicons name="person-add-outline" size={18} color={colors.primary} />
+              <Text style={[styles.securityActionText, { color: tc.text }]}>
+                Manage Staff Accounts & Permissions
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color={tc.textMuted} />
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push('/(staff)/complaints-suggestions')}
+              style={[styles.securityActionBtn, { borderColor: tc.border, marginTop: 6 }]}
+              accessibilityRole="button"
+            >
+              <Ionicons name="chatbubbles-outline" size={18} color={colors.primary} />
+              <Text style={[styles.securityActionText, { color: tc.text }]}>
+                Member Complaints & Suggestions
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color={tc.textMuted} />
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* SECURITY & ACCOUNT ACTIONS */}
         <View

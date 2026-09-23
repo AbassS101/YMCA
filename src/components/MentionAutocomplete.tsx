@@ -47,7 +47,7 @@ export const DEFAULT_MENTION_CANDIDATES: MentionCandidate[] = [
   },
   {
     id: 'staff-sarah',
-    name: 'Sarah Jenkins',
+    name: 'Sarah Davis',
     roleLabel: 'Senior Mobility & Aqua Coach',
     roleType: 'trainer',
     icon: 'water',
@@ -56,8 +56,8 @@ export const DEFAULT_MENTION_CANDIDATES: MentionCandidate[] = [
   },
   {
     id: 'staff-desk',
-    name: 'Marcus Vance',
-    roleLabel: 'Wellness & Aquatics Desk',
+    name: 'Marcus Taylor',
+    roleLabel: 'Wellness & Front Desk Team',
     roleType: 'desk',
     icon: 'people',
     badgeBg: '#FEF3C7',
@@ -65,8 +65,8 @@ export const DEFAULT_MENTION_CANDIDATES: MentionCandidate[] = [
   },
   {
     id: 'staff-itadmin',
-    name: 'David Chen',
-    roleLabel: 'Chief IT Systems & Security',
+    name: 'David Miller',
+    roleLabel: 'IT Systems & Security',
     roleType: 'it',
     icon: 'construct',
     badgeBg: '#EDE9FE',
@@ -74,8 +74,8 @@ export const DEFAULT_MENTION_CANDIDATES: MentionCandidate[] = [
   },
   {
     id: 'staff-admin',
-    name: 'Patricia Nguyen',
-    roleLabel: 'Executive Branch Director',
+    name: 'Jane Smith',
+    roleLabel: 'Branch Director',
     roleType: 'admin',
     icon: 'shield-checkmark',
     badgeBg: '#EEF2FF',
@@ -164,7 +164,7 @@ export function MentionAutocomplete({
         <View style={styles.headerLeft}>
           <Ionicons name="at-circle" size={16} color={colors.primary} />
           <AppText style={[styles.headerTitle, { color: tc.textMuted }]}>
-            DISCORD-STYLE MENTION SUGGESTIONS
+            MENTION SUGGESTIONS
           </AppText>
         </View>
         {onDismiss ? (

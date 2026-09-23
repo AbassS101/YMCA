@@ -19,6 +19,7 @@ export default function MemberLayout() {
       <Stack.Screen name="about" />
       <Stack.Screen name="community-forum" />
       <Stack.Screen name="notification-settings" />
+      <Stack.Screen name="complaints-suggestions" />
     </Stack>
   );
 }

@@ -4,7 +4,9 @@ import type {
   CancelRequest,
   ClassForumPost,
   ClassRegistration,
+  ComplaintSuggestion,
   Donation,
+  FeedbackStatus,
   ForumReply,
   ForumTopic,
   ForumTopicCategory,
@@ -237,5 +239,16 @@ export interface ProtivityPort {
   listSupportTickets(userId?: string): Promise<SupportTicket[]>;
   getSupportTicket(ticketId: string): Promise<SupportTicket | null>;
   updateSupportTicketStatus(ticketId: string, status: TicketStatus): Promise<SupportTicket>;
+
+  // Complaints & Suggestions
+  listComplaintsSuggestions(branchId?: string, memberId?: string): Promise<ComplaintSuggestion[]>;
+  createComplaintSuggestion(input: Omit<ComplaintSuggestion, 'id' | 'createdAt' | 'status'>): Promise<ComplaintSuggestion>;
+  updateComplaintSuggestionStatus(
+    id: string,
+    status: FeedbackStatus,
+    staffResponse?: string,
+    staffId?: string,
+    staffName?: string
+  ): Promise<ComplaintSuggestion>;
 }
 

@@ -100,11 +100,11 @@ test('staff list separates into personal trainers and wellness desk with distinc
 
   expect(trainers.length).toBeGreaterThanOrEqual(3);
   expect(trainers.map((t) => t.name)).toContain('Alex Rivera');
-  expect(trainers.map((t) => t.name)).toContain('Sarah Jenkins');
-  expect(trainers.map((t) => t.name)).toContain('Elena Rostova');
+  expect(trainers.map((t) => t.name)).toContain('Sarah Davis');
+  expect(trainers.map((t) => t.name)).toContain('Emily Wilson');
 
   expect(desk).toBeDefined();
-  expect(desk?.name).toBe('Marcus Vance');
+  expect(desk?.name).toBe('Marcus Taylor');
   expect(desk?.roleLabel).toContain('Wellness Desk');
 
   // Verify separate messaging threads can be created and messaged

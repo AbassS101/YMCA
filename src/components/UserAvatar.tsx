@@ -14,6 +14,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { colors } from '@/theme/colors';
 import { radii } from '@/theme/typography';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { TextField } from '@/components/TextField';
 
 export const YMCA_AVATAR_PRESETS = [
   {
@@ -250,26 +251,15 @@ export function UserAvatar({
                 </View>
 
                 {/* CUSTOM IMAGE URL */}
-                <View style={{ gap: 6, marginTop: 4 }}>
-                  <Text style={[styles.sectionLabel, { color: tc.text }]}>
-                    Or Enter Image URL
-                  </Text>
-                  <TextInput
+                <View style={{ marginTop: 4 }}>
+                  <TextField
+                    label="Or Enter Image URL"
                     value={customUrl}
                     onChangeText={(val) => {
                       setCustomUrl(val);
                       setSelectedPreset('custom');
                     }}
                     placeholder="https://example.com/my-photo.jpg"
-                    placeholderTextColor={tc.textMuted}
-                    style={[
-                      styles.urlInput,
-                      {
-                        backgroundColor: isDark ? '#0F172A' : '#F1F5F9',
-                        color: tc.text,
-                        borderColor: tc.border,
-                      },
-                    ]}
                     autoCapitalize="none"
                     autoCorrect={false}
                   />

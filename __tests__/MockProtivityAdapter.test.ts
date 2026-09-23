@@ -196,9 +196,9 @@ test('listStaff returns multiple trainers and wellness desk staff', async () => 
   expect(staff.length).toBeGreaterThanOrEqual(4);
   const names = staff.map((s) => s.name);
   expect(names).toContain('Alex Rivera');
-  expect(names).toContain('Sarah Jenkins');
-  expect(names).toContain('Elena Rostova');
-  expect(names).toContain('Marcus Vance');
+  expect(names).toContain('Sarah Davis');
+  expect(names).toContain('Emily Wilson');
+  expect(names).toContain('Marcus Taylor');
 });
 
 test('getOrCreateThread resolves existing thread or creates new one', async () => {
@@ -223,10 +223,10 @@ test('setAssignedTrainer updates member primary trainer', async () => {
   const api = new MockProtivityAdapter();
   await api.setAssignedTrainer('member-jordan', 'staff-sarah');
   const assigned = await api.getAssignedTrainer('member-jordan');
-  expect(assigned?.name).toBe('Sarah Jenkins');
+  expect(assigned?.name).toBe('Sarah Davis');
 });
 
-test('book private lesson with different trainers (Sarah Jenkins)', async () => {
+test('book private lesson with different trainers (Sarah Davis)', async () => {
   const api = new MockProtivityAdapter();
   const openSarah = await api.listLessonSlots('staff-sarah', '2026-09-14', '2026-09-20');
   expect(openSarah.length).toBeGreaterThan(0);

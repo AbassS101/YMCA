@@ -59,10 +59,10 @@ describe('Support Ticket System, IT Chat & Mention Autocomplete', () => {
       expect(userMsg.body).toContain(result.ticket.ticketNumber);
       expect(userMsg.body).toContain('Barcode scan shortcut');
 
-      // Message 2 automated reply from IT Admin David Chen
+      // Message 2 automated reply from IT Admin David Miller
       const itMsg = messages[1];
       expect(itMsg.fromId).toBe('staff-itadmin');
-      expect(itMsg.body).toContain('David Chen');
+      expect(itMsg.body).toContain('David Miller');
       expect(itMsg.body).toContain('YMCA IT Systems');
       expect(itMsg.body).toContain(result.ticket.ticketNumber);
 
@@ -70,7 +70,7 @@ describe('Support Ticket System, IT Chat & Mention Autocomplete', () => {
       const notifs = await notificationRepo.list(adapter, 'member-jordan');
       const ticketNotif = notifs.find((n) => n.title.includes(result.ticket.ticketNumber));
       expect(ticketNotif).toBeDefined();
-      expect(ticketNotif?.body).toContain('David Chen from YMCA IT responded');
+      expect(ticketNotif?.body).toContain('David Miller from YMCA IT responded');
     });
 
     it('creates a problem report ticket with high priority', async () => {
@@ -127,7 +127,7 @@ describe('Support Ticket System, IT Chat & Mention Autocomplete', () => {
     });
   });
 
-  describe('2. Discord-Style @ Mention Extraction & Auto-Completion', () => {
+  describe('2. @ Mention Extraction & Auto-Completion', () => {
     it('extracts mention queries from string inputs', () => {
       expect(extractMentionQuery('@')).toBe('');
       expect(extractMentionQuery('Hello @')).toBe('');

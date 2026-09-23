@@ -39,15 +39,15 @@ const DEMO_PERSONAS = [
     highlights: 'Barcode pass, class booking, charitable giving, community forum',
   },
   {
-    name: 'Patricia "Pat" Nguyen',
+    name: 'Jane Smith',
     email: 'admin@silverspring.ymca',
-    roleTitle: 'Executive Director · Staff Admin',
+    roleTitle: 'Director · Staff Admin',
     badge: 'DIRECTOR',
     badgeBg: '#FEF3C7',
     badgeColor: '#B45309',
     borderColor: '#F59E0B',
     icon: 'star' as const,
-    highlights: 'Facility notices, membership cancel approvals, schedule oversight',
+    highlights: 'Facility notices, membership cancel approvals, staff & schedule oversight',
   },
   {
     name: 'Alex Rivera',
@@ -61,15 +61,15 @@ const DEMO_PERSONAS = [
     highlights: 'Class rosters, 1-on-1 private lesson slots, client messaging',
   },
   {
-    name: 'David Chen',
+    name: 'David Miller',
     email: 'itadmin@silverspring.ymca',
-    roleTitle: 'Chief Systems Administrator · IT',
+    roleTitle: 'IT Systems Administrator · IT',
     badge: 'IT ADMIN',
     badgeBg: '#FAF5FF',
     badgeColor: '#7C3AED',
     borderColor: '#8B5CF6',
     icon: 'shield-checkmark' as const,
-    highlights: 'System configuration, IT support tickets, staff desk access',
+    highlights: 'System configuration, staff accounts, IT tickets, tech access',
   },
 ];
 

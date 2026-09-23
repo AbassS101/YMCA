@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '@/components/AppText';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { TextField } from '@/components/TextField';
 import { useAccessibility } from '@/context/AccessibilityContext';
 import { dialog } from '@/context/DialogContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -168,7 +169,7 @@ export function SupportTicketModal({
 
       dialog.alert(
         'Ticket Created & Chat Opened!',
-        `Your ticket #${ticket.ticketNumber} has been logged. We've opened a direct support thread with David Chen from YMCA IT Systems.`,
+        `Your ticket #${ticket.ticketNumber} has been logged. We've opened a direct support thread with David Miller from YMCA IT Systems.`,
         [
           {
             text: 'Open IT Chat',
@@ -466,10 +467,8 @@ export function SupportTicketModal({
 
               {/* Title Input */}
               <View style={styles.section}>
-                <AppText style={[styles.sectionLabel, { color: tc.text }]}>
-                  Subject / Summary Title *
-                </AppText>
-                <TextInput
+                <TextField
+                  label="Subject / Summary Title *"
                   value={title}
                   onChangeText={setTitle}
                   placeholder={
@@ -477,48 +476,21 @@ export function SupportTicketModal({
                       ? 'e.g. Add quick pool lane reservation shortcut'
                       : 'e.g. Barcode brightness does not activate in sauna hallway'
                   }
-                  placeholderTextColor={tc.textMuted}
-                  style={[
-                    styles.inputField,
-                    {
-                      backgroundColor: tc.cardBg,
-                      borderColor: tc.border,
-                      color: tc.text,
-                      fontSize: Math.round(15 * multiplier),
-                    },
-                  ]}
                   maxLength={100}
                 />
               </View>
 
               {/* Description Input */}
               <View style={styles.section}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <AppText style={[styles.sectionLabel, { color: tc.text }]}>
-                    Detailed Description *
-                  </AppText>
-                  <AppText style={{ fontSize: 11, color: tc.textMuted }}>
-                    {description.length}/500 chars
-                  </AppText>
-                </View>
-                <TextInput
+                <TextField
+                  label="Detailed Description *"
                   value={description}
                   onChangeText={setDescription}
                   placeholder="Explain what happened, steps to reproduce, or why this feature would help YMCA members..."
-                  placeholderTextColor={tc.textMuted}
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
-                  style={[
-                    styles.textAreaField,
-                    {
-                      backgroundColor: tc.cardBg,
-                      borderColor: tc.border,
-                      color: tc.text,
-                      fontSize: Math.round(14 * multiplier),
-                      lineHeight: Math.round(20 * multiplier),
-                    },
-                  ]}
+                  style={{ minHeight: 110 }}
                   maxLength={500}
                 />
               </View>

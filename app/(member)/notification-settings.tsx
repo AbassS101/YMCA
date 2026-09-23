@@ -306,9 +306,9 @@ export default function NotificationSettingsScreen() {
                 <Ionicons name="sparkles" size={18} color="#7C3AED" />
               </View>
               <View style={styles.rowMeta}>
-                <Text style={[styles.rowTitle, { color: tc.text }]}>Events & 5K Notices</Text>
+                <Text style={[styles.rowTitle, { color: tc.text }]}>Event Notices</Text>
                 <Text style={[styles.rowSubtitle, { color: tc.textMuted }]}>
-                  Reminders for community runs, youth camps, and branch workshops
+                  Reminders for community events, youth camps, and branch workshops
                 </Text>
               </View>
               <Switch

@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MentionAutocomplete } from '@/components/MentionAutocomplete';
+import { TextField } from '@/components/TextField';
 import { useAccessibility } from '@/context/AccessibilityContext';
 import { useTheme } from '@/context/ThemeContext';
 import { FORUM_CATEGORIES, type ForumTopicCategory } from '@/domain/types';
@@ -30,9 +31,9 @@ type StaffTagOption = {
 const AVAILABLE_STAFF_TAGS: StaffTagOption[] = [
   { id: 'staff-all', name: 'All Staff Desk', roleLabel: 'Front Desk & Operations' },
   { id: 'staff-alex', name: 'Alex Rivera', roleLabel: 'Personal Wellness Trainer' },
-  { id: 'staff-sarah', name: 'Sarah Jenkins', roleLabel: 'Senior Mobility & Aqua' },
-  { id: 'staff-desk', name: 'Marcus Vance', roleLabel: 'Aquatics & Operations Desk' },
-  { id: 'staff-admin', name: 'Patricia Nguyen', roleLabel: 'Executive Director' },
+  { id: 'staff-sarah', name: 'Sarah Davis', roleLabel: 'Senior Mobility & Aqua' },
+  { id: 'staff-desk', name: 'Marcus Taylor', roleLabel: 'Aquatics & Operations Desk' },
+  { id: 'staff-admin', name: 'Jane Smith', roleLabel: 'Director' },
 ];
 
 export type NewTopicModalProps = {
@@ -256,24 +257,15 @@ export function NewTopicModal({
           </ScrollView>
 
           {/* Title Input */}
-          <Text style={[styles.sectionLabel, { color: tc.text }]}>Topic Title</Text>
-          <TextInput
+          <TextField
             ref={titleInputRef}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            style={[
-              styles.input,
-              {
-                backgroundColor: tc.cardBg,
-                borderColor: tc.border,
-                color: tc.text,
-              },
-            ]}
+            label="Topic Title"
             placeholder="e.g. Question about morning lap swimming..."
-            placeholderTextColor={tc.textMuted}
             value={title}
             onChangeText={setTitle}
             maxLength={100}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
           />
 
           {/* @ Staff Mentions Section */}
@@ -340,43 +332,34 @@ export function NewTopicModal({
           ) : null}
 
           {/* Body Content Input */}
-          <Text style={[styles.sectionLabel, { color: tc.text }]}>Discussion Content</Text>
+          <View style={{ gap: 8 }}>
+            <MentionAutocomplete
+              text={content}
+              onSelect={(cand, newText) => {
+                setContent(newText);
+                if (!selectedStaffIds.includes(cand.id)) {
+                  setSelectedStaffIds((prev) => [...prev, cand.id]);
+                }
+              }}
+            />
 
-          <MentionAutocomplete
-            text={content}
-            onSelect={(cand, newText) => {
-              setContent(newText);
-              if (!selectedStaffIds.includes(cand.id)) {
-                setSelectedStaffIds((prev) => [...prev, cand.id]);
-              }
-            }}
-          />
-
-          <TextInput
-            ref={contentInputRef}
-            onFocus={() => {
-              setIsFocused(true);
-              setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
-            }}
-            onBlur={() => setIsFocused(false)}
-            style={[
-              styles.textArea,
-              {
-                backgroundColor: tc.cardBg,
-                borderColor: tc.border,
-                color: tc.text,
-                fontSize: Math.round(15 * multiplier),
-                lineHeight: Math.round(22 * multiplier),
-              },
-            ]}
-            placeholder="Share details, ask your question, or start the conversation (type @ to mention)..."
-            placeholderTextColor={tc.textMuted}
-            value={content}
-            onChangeText={setContent}
-            multiline
-            numberOfLines={6}
-            textAlignVertical="top"
-          />
+            <TextField
+              ref={contentInputRef}
+              label="Discussion Content"
+              placeholder="Share details, ask your question, or start the conversation (type @ to mention)..."
+              value={content}
+              onChangeText={setContent}
+              multiline
+              numberOfLines={6}
+              textAlignVertical="top"
+              style={{ minHeight: 130 }}
+              onFocus={() => {
+                setIsFocused(true);
+                setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
+              }}
+              onBlur={() => setIsFocused(false)}
+            />
+          </View>
 
           {/* Publish Action Button */}
           <Pressable

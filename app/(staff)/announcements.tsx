@@ -122,7 +122,7 @@ export default function StaffAnnouncementsScreen() {
           category,
           priority,
           pinned,
-          authorName: staff ? `${staff.name} (${staff.roleLabel})` : 'YMCA Executive Staff',
+          authorName: staff ? `${staff.name} (${staff.roleLabel})` : 'YMCA Staff',
           actionLabel: actionLabel.trim() || undefined,
           actionUrl: actionUrl.trim() || undefined,
         });

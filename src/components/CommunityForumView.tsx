@@ -21,6 +21,7 @@ import {
   type ForumTopicCategory,
   type ScheduleItem,
 } from '@/domain/types';
+import { radii } from '@/theme/typography';
 
 const BRANCH_ID = 'silver-spring';
 import { forumRepo } from '@/repositories/forumRepo';
@@ -781,15 +782,16 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 10,
     marginBottom: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: radii.button,
     borderWidth: 1,
+    minHeight: 46,
     gap: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 15,
     paddingVertical: 0,
   },
   filterTabsRow: {

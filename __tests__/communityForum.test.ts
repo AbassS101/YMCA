@@ -97,7 +97,7 @@ describe('Dedicated YMCA Community Forum & @ Staff Mentions', () => {
       // Staff reply check
       const staffReply = replies.find((r) => r.isStaffReply);
       expect(staffReply).toBeDefined();
-      expect(staffReply?.authorName).toBe('Marcus Vance');
+      expect(staffReply?.authorName).toBe('Marcus Taylor');
     });
 
     it('allows members and staff to post replies to a topic', async () => {

@@ -45,6 +45,7 @@ export default function StaffManagementScreen() {
   const [formPassword, setFormPassword] = useState('');
   const [formRoleLabel, setFormRoleLabel] = useState('');
   const [formStaffRole, setFormStaffRole] = useState<StaffRole>('trainer');
+  const [formAvatarUrl, setFormAvatarUrl] = useState('');
   const [submittingStaff, setSubmittingStaff] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
 
@@ -105,6 +106,7 @@ export default function StaffManagementScreen() {
     setFormPassword('ymca-demo');
     setFormRoleLabel('Personal Wellness Trainer');
     setFormStaffRole('trainer');
+    setFormAvatarUrl('');
     setModalError(null);
     setStaffModalVisible(true);
   }
@@ -116,6 +118,7 @@ export default function StaffManagementScreen() {
     setFormPassword('');
     setFormRoleLabel(staff.roleLabel);
     setFormStaffRole(staff.staffRole || 'trainer');
+    setFormAvatarUrl(staff.avatarUrl || '');
     setModalError(null);
     setStaffModalVisible(true);
   }
@@ -135,7 +138,11 @@ export default function StaffManagementScreen() {
           email: formEmail.trim(),
           roleLabel: formRoleLabel.trim(),
           staffRole: formStaffRole,
+          avatarUrl: formAvatarUrl.trim() || undefined,
         });
+        if (formPassword.trim()) {
+          await api.changeUserPassword(formEmail.trim(), formPassword.trim());
+        }
         dialog.alert('Updated!', 'Staff profile updated successfully.', [{ text: 'OK' }], 'checkmark');
       } else {
         await api.createStaff({
@@ -145,6 +152,7 @@ export default function StaffManagementScreen() {
           roleLabel: formRoleLabel.trim(),
           staffRole: formStaffRole,
           homeBranchId: BRANCH_ID,
+          avatarUrl: formAvatarUrl.trim() || undefined,
         });
         dialog.alert(
           'Staff Member Created!',
@@ -205,7 +213,7 @@ export default function StaffManagementScreen() {
 
   return (
     <View style={styles.screen}>
-      <YHeader subtitle="Staff Admin · Staff & Trainers" />
+      <YHeader subtitle="Staff Admin & IT Admin · Staff & Trainers" />
       {error ? <ErrorBanner onRetry={() => void loadStaff()} /> : null}
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -360,13 +368,65 @@ export default function StaffManagementScreen() {
 
             {modalError ? <ErrorBanner message={modalError} /> : null}
 
-            <ScrollView style={{ maxHeight: 440 }} contentContainerStyle={{ gap: 12, paddingBottom: 16 }}>
+            <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ gap: 12, paddingBottom: 16 }}>
               <TextField label="Full Name *" value={formName} onChangeText={setFormName} placeholder="e.g. David Martinez" />
               <TextField label="Email Address *" value={formEmail} onChangeText={setFormEmail} autoCapitalize="none" keyboardType="email-address" placeholder="david@silverspring.ymca" />
 
-              {!editingStaffId ? (
-                <TextField label="Initial Password" value={formPassword} onChangeText={setFormPassword} secureTextEntry placeholder="Default: ymca-demo" />
-              ) : null}
+              {/* Profile Avatar / Silhouette Selection */}
+              <Text style={styles.fieldLabel}>Profile Avatar & Silhouette</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 2 }}>
+                <UserAvatar uri={formAvatarUrl} name={formName || 'Staff'} size={46} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: colors.nearBlack }}>
+                    {formAvatarUrl ? 'Custom Silhouette / Photo' : 'Clean Vector Silhouette (Default)'}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: colors.muted, marginTop: 1 }}>
+                    Pick a preset silhouette below or enter a custom image URL.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
+                {[
+                  { label: 'Clean Silhouette', url: '' },
+                  { label: 'Trainer (Alex)', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80' },
+                  { label: 'Trainer (Sarah)', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&q=80' },
+                  { label: 'Director (Jane)', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&q=80' },
+                  { label: 'IT Admin (David)', url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=80' },
+                ].map((preset) => {
+                  const isMatch = formAvatarUrl === preset.url;
+                  return (
+                    <Pressable
+                      key={preset.label}
+                      onPress={() => setFormAvatarUrl(preset.url)}
+                      style={[
+                        styles.avatarPresetChip,
+                        isMatch && styles.avatarPresetChipActive,
+                      ]}
+                    >
+                      <Text style={[styles.avatarPresetText, isMatch && { color: colors.primary, fontWeight: '700' }]}>
+                        {preset.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <TextField
+                label="Custom Avatar Photo URL (Optional)"
+                value={formAvatarUrl}
+                onChangeText={setFormAvatarUrl}
+                placeholder="https://... or leave blank for silhouette"
+                autoCapitalize="none"
+              />
+
+              <TextField
+                label={editingStaffId ? "Update Password (Optional)" : "Initial Password"}
+                value={formPassword}
+                onChangeText={setFormPassword}
+                secureTextEntry
+                placeholder={editingStaffId ? "Leave blank to keep unchanged" : "Default: ymca-demo"}
+              />
 
               <TextField label="Role Title / Specialty *" value={formRoleLabel} onChangeText={setFormRoleLabel} placeholder="e.g. Strength Coach, Aquatics Specialist" />
 
@@ -706,5 +766,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.muted,
     marginTop: 2,
+  },
+  avatarPresetChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  avatarPresetChipActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: colors.primary,
+  },
+  avatarPresetText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.nearBlack,
   },
 });

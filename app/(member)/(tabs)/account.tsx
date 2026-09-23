@@ -14,6 +14,7 @@ import {
 import { AppText } from '@/components/AppText';
 import { ChatModal } from '@/components/ChatModal';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { MemberCheckInCard } from '@/components/MemberCheckInCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SupportTicketModal } from '@/components/SupportTicketModal';
 import { TextField } from '@/components/TextField';
@@ -62,9 +63,9 @@ const DEMO_ACCOUNTS = [
     color: '#2563EB',
   },
   {
-    name: 'Patricia "Pat" Nguyen',
+    name: 'Jane Smith',
     email: 'admin@silverspring.ymca',
-    role: 'Staff Admin · Executive Director',
+    role: 'Staff Admin · Director',
     icon: 'shield' as const,
     color: '#D97706',
   },
@@ -76,9 +77,9 @@ const DEMO_ACCOUNTS = [
     color: '#15803D',
   },
   {
-    name: 'David Chen',
+    name: 'David Miller',
     email: 'itadmin@silverspring.ymca',
-    role: 'IT Admin · Chief Systems Administrator',
+    role: 'IT Admin · Systems Administrator',
     icon: 'shield-checkmark' as const,
     color: '#7C3AED',
   },
@@ -142,6 +143,7 @@ export default function MemberAccountScreen() {
   const [error, setError] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [rescinding, setRescinding] = useState(false);
+  const [showBarcodeModal, setShowBarcodeModal] = useState(false);
 
   // Edit Profile / Name state
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -363,6 +365,22 @@ export default function MemberAccountScreen() {
               Status: {statusLabel(member.status)}
             </AppText>
 
+            <Pressable
+              onPress={() => setShowBarcodeModal(true)}
+              style={[
+                styles.barcodeScanButton,
+                { backgroundColor: colors.primaryLight, borderColor: colors.border },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="View digital member barcode pass for optical scanning"
+            >
+              <Ionicons name="barcode-outline" size={18} color={colors.primary} />
+              <AppText style={[styles.barcodeScanButtonText, { color: colors.primary }]}>
+                View Barcode Pass (Scan Ready)
+              </AppText>
+              <Ionicons name="expand-outline" size={14} color={colors.primary} />
+            </Pressable>
+
             {membership.pendingChange ? (
               <View style={{ marginTop: 8, padding: 8, borderRadius: 6, backgroundColor: colors.goldBg }}>
                 <AppText style={{ fontSize: 13, color: '#92400E', fontWeight: '700' }}>
@@ -563,6 +581,17 @@ export default function MemberAccountScreen() {
           </View>
 
           <Pressable
+            onPress={() => router.push('/(member)/complaints-suggestions')}
+            style={[styles.ticketHistoryBtn, { borderColor: colors.border, marginBottom: 8 }]}
+            accessibilityRole="button"
+          >
+            <Ionicons name="chatbox-ellipses-outline" size={16} color={colors.primary} />
+            <AppText style={[styles.ticketHistoryText, { color: colors.primary }]}>
+              Facility Complaints & Suggestions ›
+            </AppText>
+          </Pressable>
+
+          <Pressable
             onPress={() => {
               setSupportInitialType('problem_report');
               setSupportModalVisible(true);
@@ -606,6 +635,12 @@ export default function MemberAccountScreen() {
             label="General Community Forum & Staff Q&A"
             icon="chatbubbles"
             onPress={() => router.push('/(member)/community-forum')}
+            colors={colors}
+          />
+          <MenuRow
+            label="Complaints & Suggestions"
+            icon="chatbox-ellipses"
+            onPress={() => router.push('/(member)/complaints-suggestions')}
             colors={colors}
           />
           <MenuRow
@@ -873,6 +908,16 @@ export default function MemberAccountScreen() {
         currentUserId={memberId}
         onSend={handleSendITMessage}
       />
+
+      {/* Digital Member Barcode Pass Modal */}
+      {showBarcodeModal && member ? (
+        <MemberCheckInCard
+          member={member}
+          initialExpanded={true}
+          showInlineCard={false}
+          onClose={() => setShowBarcodeModal(false)}
+        />
+      ) : null}
     </View>
   );
 }
@@ -902,6 +947,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: radii.chip,
+  },
+  barcodeScanButton: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  barcodeScanButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   changePlanText: {
     ...typography.caption,

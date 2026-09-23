@@ -304,7 +304,7 @@ export default function MemberHomeScreen() {
             <View style={[styles.tileIconCircle, { backgroundColor: colors.primaryLight }]}>
               <Ionicons name="calendar-outline" size={20} color={colors.accentBlue} />
             </View>
-            <Text style={[styles.tileTitle, { color: colors.text }]}>Events & 5K</Text>
+            <Text style={[styles.tileTitle, { color: colors.text }]}>Events</Text>
             <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>RSVP & Reminders</Text>
           </Pressable>
 

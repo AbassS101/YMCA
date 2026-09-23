@@ -292,7 +292,7 @@ export default function StaffTodayScreen() {
           </Pressable>
 
           {isAdmin ? (
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
               <Pressable
                 onPress={() => router.push('/(staff)/announcements')}
                 style={{
@@ -300,7 +300,7 @@ export default function StaffTodayScreen() {
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 6,
+                  gap: 4,
                   paddingVertical: 10,
                   borderRadius: radii.sm,
                   backgroundColor: tc.cardBg,
@@ -308,9 +308,9 @@ export default function StaffTodayScreen() {
                   borderColor: tc.cardBorder,
                 }}
               >
-                <Ionicons name="newspaper-outline" size={16} color={colors.primary} />
-                <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>
-                  Manage Notices
+                <Ionicons name="newspaper-outline" size={15} color={colors.primary} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>
+                  Notices
                 </Text>
               </Pressable>
               <Pressable
@@ -320,7 +320,7 @@ export default function StaffTodayScreen() {
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 6,
+                  gap: 4,
                   paddingVertical: 10,
                   borderRadius: radii.sm,
                   backgroundColor: tc.cardBg,
@@ -328,13 +328,57 @@ export default function StaffTodayScreen() {
                   borderColor: tc.cardBorder,
                 }}
               >
-                <Ionicons name="calendar-outline" size={16} color={colors.primary} />
-                <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>
-                  Manage Schedules
+                <Ionicons name="calendar-outline" size={15} color={colors.primary} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>
+                  Schedules
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => router.push('/(staff)/staff-management')}
+                style={{
+                  flex: 1,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 4,
+                  paddingVertical: 10,
+                  borderRadius: radii.sm,
+                  backgroundColor: tc.cardBg,
+                  borderWidth: 1,
+                  borderColor: tc.cardBorder,
+                }}
+              >
+                <Ionicons name="people-outline" size={15} color={colors.primary} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>
+                  Staff Team
                 </Text>
               </Pressable>
             </View>
           ) : null}
+
+          <Pressable
+            onPress={() => router.push('/(staff)/complaints-suggestions')}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingVertical: 10,
+              paddingHorizontal: 12,
+              borderRadius: radii.sm,
+              backgroundColor: isDark ? '#082F49' : '#F0F9FF',
+              borderWidth: 1,
+              borderColor: '#0284C7',
+              marginTop: 8,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="chatbox-ellipses" size={18} color="#0284C7" />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#0284C7' }}>
+                Member Complaints & Suggestions
+              </Text>
+            </View>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#0284C7' }}>Review ›</Text>
+          </Pressable>
         </View>
 
         <Text style={[styles.sectionTitle, { color: tc.text }]} allowFontScaling>

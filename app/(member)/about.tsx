@@ -86,7 +86,7 @@ const DEMO_ROLES = [
     icon: 'person' as const,
   },
   {
-    name: 'Patricia Nguyen',
+    name: 'Jane Smith',
     email: 'admin@silverspring.ymca',
     role: 'Staff Admin · Director',
     color: '#D97706',
@@ -100,7 +100,7 @@ const DEMO_ROLES = [
     icon: 'barbell' as const,
   },
   {
-    name: 'David Chen',
+    name: 'David Miller',
     email: 'itadmin@silverspring.ymca',
     role: 'IT Admin · Chief Systems',
     color: '#7C3AED',

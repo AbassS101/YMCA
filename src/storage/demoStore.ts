@@ -6,6 +6,7 @@ import type {
   CancelRequest,
   ClassForumPost,
   ClassRegistration,
+  ComplaintSuggestion,
   Donation,
   ForumReply,
   ForumTopic,
@@ -48,6 +49,7 @@ export type DemoState = {
   forumReplies: ForumReply[];
   notificationPreferences: Record<string, NotificationPreferences>;
   supportTickets: SupportTicket[];
+  complaintsSuggestions: ComplaintSuggestion[];
 };
 
 function cloneSeed(): DemoState {
@@ -86,7 +88,7 @@ function migrateState(raw: DemoState): DemoState {
 
   let mergedCreds = (raw.credentials ?? seed.credentials).map((c) => {
     const seedCred = seed.credentials.find((sc) => sc.email === c.email);
-    return seedCred ? { ...c, role: seedCred.role } : c;
+    return seedCred ? { ...c, role: c.role ?? seedCred.role } : c;
   });
   if (!mergedCreds.some((c) => c.email === 'admin@silverspring.ymca')) {
     const adminCred = seed.credentials.find((c) => c.email === 'admin@silverspring.ymca');
@@ -119,6 +121,7 @@ function migrateState(raw: DemoState): DemoState {
     forumReplies: raw.forumReplies ?? seed.forumReplies ?? [],
     notificationPreferences: raw.notificationPreferences ?? seed.notificationPreferences ?? {},
     supportTickets: raw.supportTickets ?? seed.supportTickets ?? [],
+    complaintsSuggestions: raw.complaintsSuggestions ?? seed.complaintsSuggestions ?? [],
   };
 }
 

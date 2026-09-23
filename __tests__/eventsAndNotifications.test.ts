@@ -17,7 +17,7 @@ describe('YMCA Events and Announcements with Notifications', () => {
     expect(anns.length).toBeGreaterThanOrEqual(4);
     expect(anns[0].pinned).toBe(true);
     expect(anns.some((a) => a.title.includes('Indoor Lap Pool'))).toBe(true);
-    expect(anns.some((a) => a.title.includes('Turkey Chase Charity 5K'))).toBe(true);
+    expect(anns.some((a) => a.title.includes('Turkey Chase Community Event'))).toBe(true);
   });
 
   test('createAnnouncement broadcasts in-app notification to all members', async () => {
@@ -67,7 +67,7 @@ describe('YMCA Events and Announcements with Notifications', () => {
     const api = new MockProtivityAdapter();
     const notif = await api.createNotification({
       userId: 'member-jordan',
-      title: 'Reminder: Turkey Chase 5K This Saturday',
+      title: 'Reminder: Turkey Chase Event This Saturday',
       body: 'Packet pick-up begins at 7:30 AM at the Silver Spring YMCA outdoor track.',
       type: 'event',
       link: '/(member)/events',

@@ -27,6 +27,7 @@ import {
 import { forumRepo } from '@/repositories/forumRepo';
 import { UserAvatar } from '@/components/UserAvatar';
 import { colors } from '@/theme/colors';
+import { radii } from '@/theme/typography';
 
 type ForumTopicDetailModalProps = {
   visible: boolean;
@@ -593,7 +594,7 @@ export function ForumTopicDetailModal({
               },
             ]}
           >
-            {/* Discord-style Mention Autocomplete Popup */}
+            {/* Mention Autocomplete Popup */}
             <MentionAutocomplete
               text={replyText}
               onSelect={(cand, newText) => setReplyText(newText)}
@@ -602,7 +603,7 @@ export function ForumTopicDetailModal({
             {/* Quick @ mention helper */}
             <View style={styles.quickMentionRow}>
               <Text style={[styles.quickMentionLabel, { color: tc.textMuted }]}>Quick Mention:</Text>
-              {['@All Staff Desk', '@Alex Rivera', '@David Chen'].map((mention) => (
+              {['@All Staff Desk', '@Alex Rivera', '@David Miller'].map((mention) => (
                 <Pressable
                   key={mention}
                   onPress={() => setReplyText((prev) => (prev ? `${prev} ${mention} ` : `${mention} `))}
@@ -643,9 +644,9 @@ export function ForumTopicDetailModal({
                 style={[
                   styles.composerInput,
                   {
-                    backgroundColor: isDark ? '#0F172A' : '#F1F5F9',
-                    color: tc.text,
-                    borderColor: tc.border,
+                    backgroundColor: tc.cardBg,
+                  color: tc.text,
+                  borderColor: tc.border,
                     fontSize: Math.round(15 * multiplier),
                     lineHeight: Math.round(20 * multiplier),
                   },
@@ -978,12 +979,12 @@ const styles = StyleSheet.create({
   composerInput: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 14,
+    borderRadius: radii.button,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
     maxHeight: 100,
-    minHeight: 38,
+    minHeight: 44,
   },
   sendBtn: {
     width: 38,

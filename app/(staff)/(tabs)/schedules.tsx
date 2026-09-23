@@ -761,7 +761,7 @@ export default function StaffSchedulesScreen() {
                   label="Instructor Display Name"
                   value={formInstructor}
                   onChangeText={setFormInstructor}
-                  placeholder="e.g. Sarah Jenkins or Guest Instructor"
+                  placeholder="e.g. Sarah Davis or Guest Instructor"
                 />
               </View>
 
@@ -877,14 +877,14 @@ export default function StaffSchedulesScreen() {
               </Text>
             </View>
 
-            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.nearBlack, marginBottom: 4 }}>
-              Cancellation Reason (sent to all enrolled members):
-            </Text>
-            <TextInput
+            <TextField
+              label="Cancellation Reason (sent to all enrolled members):"
               value={cancelReason}
               onChangeText={setCancelReason}
-              style={styles.reasonInput}
               multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+              style={{ minHeight: 80 }}
               placeholder="e.g. Instructor illness, pool maintenance..."
             />
 

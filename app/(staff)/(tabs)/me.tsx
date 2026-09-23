@@ -30,16 +30,16 @@ const THEME_OPTIONS: { key: ThemeMode; label: string; icon: keyof typeof Ionicon
 
 const DEMO_ACCOUNTS = [
   {
-    name: 'David Chen',
+    name: 'David Miller',
     email: 'itadmin@silverspring.ymca',
-    role: 'IT Admin · Chief Systems Administrator',
+    role: 'IT Admin · Systems Administrator',
     icon: 'shield-checkmark',
     color: '#7C3AED',
   },
   {
-    name: 'Patricia "Pat" Nguyen',
+    name: 'Jane Smith',
     email: 'admin@silverspring.ymca',
-    role: 'Staff Admin · Executive Director',
+    role: 'Staff Admin · Director',
     icon: 'shield',
     color: colors.primary,
   },
@@ -51,16 +51,16 @@ const DEMO_ACCOUNTS = [
     color: '#15803D',
   },
   {
-    name: 'Sarah Jenkins',
+    name: 'Sarah Davis',
     email: 'sarah@silverspring.ymca',
     role: 'Trainer · Senior Mobility',
     icon: 'heart',
     color: '#0284C7',
   },
   {
-    name: 'Marcus Vance',
+    name: 'Marcus Taylor',
     email: 'wellness@silverspring.ymca',
-    role: 'Staff · Front Desk & Desk Services',
+    role: 'Staff · Front Desk & Member Services',
     icon: 'business',
     color: '#D97706',
   },
@@ -255,6 +255,53 @@ export default function StaffMeScreen() {
           </View>
         </View>
 
+        {/* Staff Administration & Feedback */}
+        <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="briefcase-outline" size={22} color={colors.primary} />
+            <Text style={[styles.sectionTitle, { color: tc.text }]}>Staff Operations & Feedback</Text>
+          </View>
+          <Text style={[styles.meta, { color: tc.textMuted }]}>
+            Branch tools for staff accounts, role management, and member complaints & suggestions.
+          </Text>
+
+          {isAdmin ? (
+            <Pressable
+              onPress={() => router.push('/(staff)/staff-management')}
+              style={[styles.adminActionBtn, { borderColor: tc.border, marginTop: 10 }]}
+              accessibilityRole="button"
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                <Ionicons name="people" size={20} color={colors.primary} />
+                <View>
+                  <Text style={[styles.adminActionTitle, { color: tc.text }]}>Manage Staff Accounts</Text>
+                  <Text style={[styles.adminActionSub, { color: tc.textMuted }]}>
+                    Create, edit, or customize credentials for both Staff Admin & IT Admin
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={tc.textMuted} />
+            </Pressable>
+          ) : null}
+
+          <Pressable
+            onPress={() => router.push('/(staff)/complaints-suggestions')}
+            style={[styles.adminActionBtn, { borderColor: tc.border, marginTop: 8 }]}
+            accessibilityRole="button"
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+              <Ionicons name="chatbubbles" size={20} color="#0284C7" />
+              <View>
+                <Text style={[styles.adminActionTitle, { color: tc.text }]}>Complaints & Suggestions</Text>
+                <Text style={[styles.adminActionSub, { color: tc.textMuted }]}>
+                  Review, filter, and respond to member feedback & ideas
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={tc.textMuted} />
+          </Pressable>
+        </View>
+
         {/* Quick Demo Switcher */}
         <View style={[styles.switcherCard, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
           <Text style={[styles.switcherTitle, { color: tc.text }]}>Quick Switch Role (Testing)</Text>
@@ -421,5 +468,21 @@ const styles = StyleSheet.create({
   accRole: {
     fontSize: 12,
     marginTop: 1,
+  },
+  adminActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+  },
+  adminActionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  adminActionSub: {
+    fontSize: 11,
+    marginTop: 2,
   },
 });

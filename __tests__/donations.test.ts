@@ -74,7 +74,7 @@ describe('YMCA Charitable Donations: 501(c)(3) Giving & Tax Receipts', () => {
       designation: 'LIVESTRONG® at the YMCA (Cancer Survivorship)',
       dedication: {
         tributeType: 'honor',
-        name: 'Coach Elena Rostova',
+        name: 'Coach Emily Wilson',
         message: 'Thank you for coaching our youth with patience and passion.',
       },
       paymentBrand: 'Visa',
@@ -84,7 +84,7 @@ describe('YMCA Charitable Donations: 501(c)(3) Giving & Tax Receipts', () => {
     expect(donation.frequency).toBe('monthly');
     expect(donation.dedication).toBeDefined();
     expect(donation.dedication?.tributeType).toBe('honor');
-    expect(donation.dedication?.name).toBe('Coach Elena Rostova');
+    expect(donation.dedication?.name).toBe('Coach Emily Wilson');
     expect(donation.taxDeductibleId).toBe('53-0196605');
   });
 });

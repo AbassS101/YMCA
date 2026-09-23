@@ -8,7 +8,9 @@ import {
   type CancelRequest,
   type ClassForumPost,
   type ClassRegistration,
+  type ComplaintSuggestion,
   type Donation,
+  type FeedbackStatus,
   type ForumReply,
   type ForumTopic,
   type ForumTopicCategory,
@@ -2003,8 +2005,8 @@ export class MockProtivityAdapter implements ProtivityPort {
     };
     state.messages.push(userMessage);
 
-    // 4. Auto-generate IT triage acknowledgment response from David Chen (IT Admin)
-    const itAckBody = `Hello ${input.userName.split(' ')[0]}! This is David Chen from YMCA IT Systems. We've logged your ticket #${ticketNumber} ("${input.title}") as ${input.priority.toUpperCase()} priority. Our technical support team is reviewing your report. Please feel free to send any additional details or screenshots right here!`;
+    // 4. Auto-generate IT triage acknowledgment response from David Miller (IT Admin)
+    const itAckBody = `Hello ${input.userName.split(' ')[0]}! This is David Miller from YMCA IT Systems. We've logged your ticket #${ticketNumber} ("${input.title}") as ${input.priority.toUpperCase()} priority. Our technical support team is reviewing your report. Please feel free to send any additional details or screenshots right here!`;
     const itAckMsg: Message = {
       id: `msg-${Date.now()}-2`,
       threadId: thread.id,
@@ -2019,7 +2021,7 @@ export class MockProtivityAdapter implements ProtivityPort {
       id: `notif-${Date.now()}`,
       userId: input.userId,
       title: `IT Support Ticket Logged: ${ticketNumber}`,
-      body: `Ticket "${input.title}" has been registered. David Chen from YMCA IT responded.`,
+      body: `Ticket "${input.title}" has been registered. David Miller from YMCA IT responded.`,
       type: 'general',
       createdAt: now,
       read: false,
@@ -2054,6 +2056,74 @@ export class MockProtivityAdapter implements ProtivityPort {
     state.supportTickets[idx].updatedAt = new Date().toISOString();
     await saveStore(state);
     return state.supportTickets[idx];
+  }
+
+  // ==========================================
+  // Complaints & Suggestions
+  // ==========================================
+  async listComplaintsSuggestions(branchId?: string, memberId?: string): Promise<ComplaintSuggestion[]> {
+    const state = await loadStore();
+    let list = state.complaintsSuggestions ?? [];
+    if (branchId) {
+      list = list.filter((item) => !item.branchId || item.branchId === branchId);
+    }
+    if (memberId) {
+      list = list.filter((item) => item.memberId === memberId);
+    }
+    return [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async createComplaintSuggestion(
+    input: Omit<ComplaintSuggestion, 'id' | 'createdAt' | 'status'>
+  ): Promise<ComplaintSuggestion> {
+    const state = await loadStore();
+    const now = new Date().toISOString();
+    const item: ComplaintSuggestion = {
+      ...input,
+      id: `cs-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      status: 'submitted',
+      createdAt: now,
+    };
+    if (!state.complaintsSuggestions) {
+      state.complaintsSuggestions = [];
+    }
+    state.complaintsSuggestions.unshift(item);
+    await saveStore(state);
+    return item;
+  }
+
+  async updateComplaintSuggestionStatus(
+    id: string,
+    status: FeedbackStatus,
+    staffResponse?: string,
+    staffId?: string,
+    staffName?: string
+  ): Promise<ComplaintSuggestion> {
+    const state = await loadStore();
+    const list = state.complaintsSuggestions ?? [];
+    const idx = list.findIndex((c) => c.id === id);
+    if (idx === -1) {
+      throw new Error(`Complaint/Suggestion not found: ${id}`);
+    }
+    const existing = list[idx];
+    const updated: ComplaintSuggestion = {
+      ...existing,
+      status,
+      updatedAt: new Date().toISOString(),
+    };
+    if (staffResponse !== undefined) {
+      updated.staffResponse = staffResponse;
+    }
+    if (staffId !== undefined) {
+      updated.respondedByStaffId = staffId;
+    }
+    if (staffName !== undefined) {
+      updated.respondedByStaffName = staffName;
+    }
+    list[idx] = updated;
+    state.complaintsSuggestions = list;
+    await saveStore(state);
+    return updated;
   }
 }
 

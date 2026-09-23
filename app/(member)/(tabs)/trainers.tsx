@@ -542,7 +542,7 @@ export default function MemberTrainersScreen() {
                     YMCA Silver Spring Member Services
                   </Text>
                   <Text style={[styles.cardRole, { color: colors.primary }]} allowFontScaling>
-                    {deskStaff?.name ?? 'Marcus Vance'} · Wellness Desk Lead
+                    {deskStaff?.name ?? 'Marcus Taylor'} · Wellness Desk Lead
                   </Text>
                   <Text style={[styles.cardBranch, { color: colors.textMuted }]} allowFontScaling>
                     Silver Spring Branch · Main Lobby Front Desk

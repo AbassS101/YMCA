@@ -543,6 +543,53 @@ export type SupportTicket = {
   updatedAt: string;
 };
 
+export type FeedbackType = 'complaint' | 'suggestion';
 
+export type FeedbackCategory =
+  | 'facility_cleanliness'
+  | 'equipment'
+  | 'pool_aquatics'
+  | 'group_classes'
+  | 'staff_service'
+  | 'hours_schedules'
+  | 'locker_rooms'
+  | 'programs_events'
+  | 'other';
 
+export type FeedbackStatus = 'submitted' | 'under_review' | 'resolved';
 
+export type ComplaintSuggestion = {
+  id: string;
+  type: FeedbackType;
+  title: string;
+  details: string;
+  category: FeedbackCategory;
+  branchId: string;
+  memberId?: string;
+  memberName?: string;
+  memberEmail?: string;
+  isAnonymous?: boolean;
+  status: FeedbackStatus;
+  staffResponse?: string;
+  respondedByStaffId?: string;
+  respondedByStaffName?: string;
+  createdAt: string; // ISO
+  updatedAt?: string; // ISO
+};
+
+export const FEEDBACK_CATEGORIES: {
+  id: FeedbackCategory;
+  label: string;
+  icon: string;
+  description: string;
+}[] = [
+  { id: 'facility_cleanliness', label: 'Facility & Cleanliness', icon: 'sparkles-outline', description: 'Gym floor, studios, and general hygiene' },
+  { id: 'equipment', label: 'Weights & Equipment', icon: 'barbell-outline', description: 'Machines, free weights, and cardio gear' },
+  { id: 'pool_aquatics', label: 'Pool & Aquatics', icon: 'water-outline', description: 'Lap lanes, temperature, and saunas' },
+  { id: 'group_classes', label: 'Group Classes & Instructors', icon: 'people-outline', description: 'Yoga, BodyPump, Cycle, and class sizes' },
+  { id: 'staff_service', label: 'Staff & Front Desk', icon: 'shield-outline', description: 'Customer service and member care' },
+  { id: 'hours_schedules', label: 'Hours & Scheduling', icon: 'time-outline', description: 'Building open times and class time slots' },
+  { id: 'locker_rooms', label: 'Locker Rooms & Showers', icon: 'business-outline', description: 'Lockers, showers, and saunas' },
+  { id: 'programs_events', label: 'Programs & Youth Activities', icon: 'fitness-outline', description: 'Child Watch, summer camps, and sports leagues' },
+  { id: 'other', label: 'General / Other', icon: 'chatbox-ellipses-outline', description: 'Other thoughts, ideas, or feedback' },
+];

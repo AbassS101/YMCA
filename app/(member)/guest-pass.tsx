@@ -70,11 +70,11 @@ export default function GuestPassScreen() {
         ...prev,
       ]);
 
-      const shareMessage = `Hi ${guestName.trim()}! I've sent you a complimentary 1-Day Guest Pass to the YMCA Silver Spring. Your Pass Code is ${code}. Present this code along with a photo ID at 9800 Hastings Drive, Silver Spring, MD!`;
+      const shareMessage = `Hi ${guestName.trim()}! I've sent you a complimentary 1-Day Guest Pass to the YMCA Silver Spring. Your Pass Code is ${code}. Present this pass code at the YMCA Silver Spring Member Services desk (9800 Hastings Drive, Silver Spring, MD)!`;
 
       dialog.alert(
         'Guest Pass Created!',
-        `Guest pass issued for ${guestName.trim()}!\n\nPass Code: ${code}\n\nYour guest can present this pass code and a government photo ID at the YMCA Silver Spring Member Services desk.`,
+        `Guest pass issued for ${guestName.trim()}!\n\nPass Code: ${code}\n\nYour guest can present this pass code at the YMCA Silver Spring Member Services desk.`,
         [{ text: 'Done' }],
         'checkmark'
       );
@@ -208,7 +208,7 @@ export default function GuestPassScreen() {
             <View style={styles.bulletItem}>
               <Ionicons name="checkmark-circle" size={16} color={colors.success} />
               <AppText style={[styles.bulletText, { color: colors.text }]}>
-                Simply show your YMCA Silver Spring barcode pass and a valid photo ID at any participating YMCA.
+                Simply show your YMCA Silver Spring barcode pass at any participating YMCA.
               </AppText>
             </View>
             <View style={styles.bulletItem}>
@@ -225,12 +225,6 @@ export default function GuestPassScreen() {
           <AppText style={[styles.guidelinesTitle, { color: colors.text }]}>
             Guest & Check-In Policies
           </AppText>
-          <View style={styles.ruleItem}>
-            <AppText style={[styles.ruleHeader, { color: colors.text }]}>• Photo ID Required</AppText>
-            <AppText style={[styles.ruleText, { color: colors.textMuted }]}>
-              All guests age 18 and older must present a valid government-issued photo ID upon entry.
-            </AppText>
-          </View>
           <View style={styles.ruleItem}>
             <AppText style={[styles.ruleHeader, { color: colors.text }]}>• Youth Supervision</AppText>
             <AppText style={[styles.ruleText, { color: colors.textMuted }]}>

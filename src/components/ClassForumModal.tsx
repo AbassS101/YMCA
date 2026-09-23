@@ -447,7 +447,7 @@ export function ClassForumModal({
             </View>
           ) : null}
 
-          {/* Discord-style Mention Autocomplete Popup */}
+          {/* Mention Autocomplete Popup */}
           <MentionAutocomplete
             text={inputText}
             onSelect={(cand, newText) => setInputText(newText)}
@@ -481,7 +481,7 @@ export function ClassForumModal({
               style={[
                 styles.composerInput,
                 {
-                  backgroundColor: isDark ? '#0F172A' : '#F1F5F9',
+                  backgroundColor: tc.cardBg,
                   color: tc.text,
                   borderColor: tc.border,
                   fontSize: Math.round(15 * multiplier),
@@ -758,10 +758,10 @@ const styles = StyleSheet.create({
   composerInput: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 14,
+    borderRadius: radii.button,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
     maxHeight: 90,
   },
   sendBtn: {

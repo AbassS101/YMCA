@@ -4,7 +4,9 @@ import type {
   CancelRequest,
   ClassForumPost,
   ClassRegistration,
+  ComplaintSuggestion,
   Donation,
+  FeedbackStatus,
   ForumReply,
   ForumTopic,
   ForumTopicCategory,
@@ -471,6 +473,29 @@ export class LiveProtivityAdapter implements ProtivityPort {
     _ticketId: string,
     _status: TicketStatus
   ): Promise<SupportTicket> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listComplaintsSuggestions(
+    _branchId?: string,
+    _memberId?: string
+  ): Promise<ComplaintSuggestion[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async createComplaintSuggestion(
+    _input: Omit<ComplaintSuggestion, 'id' | 'createdAt' | 'status'>
+  ): Promise<ComplaintSuggestion> {
+    throw new ProtivityNotConnected();
+  }
+
+  async updateComplaintSuggestionStatus(
+    _id: string,
+    _status: FeedbackStatus,
+    _staffResponse?: string,
+    _staffId?: string,
+    _staffName?: string
+  ): Promise<ComplaintSuggestion> {
     throw new ProtivityNotConnected();
   }
 }
