@@ -92,6 +92,8 @@ export type ScheduleItem = {
   roomType?: string;
   /** What equipment is provided by YMCA or brought by member */
   equipmentInfo?: string;
+  /** Concise 1-2 line summary displayed directly on the schedule card */
+  shortSummary?: string;
   description?: string;
 };
 

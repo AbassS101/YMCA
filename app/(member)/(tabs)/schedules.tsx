@@ -21,6 +21,7 @@ import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
+import { getClassShortSummary, requiresAdvanceRegistration } from '@/domain/classCatalog';
 import { getDemoToday } from '@/domain/demoClock';
 import type { ClassRegistration, Membership, ScheduleItem } from '@/domain/types';
 import { membershipRepo } from '@/repositories/membershipRepo';
@@ -51,8 +52,8 @@ type FilterChipKey =
 
 const FILTER_CHIPS: { key: FilterChipKey; label: string; icon?: any }[] = [
   { key: 'all', label: 'All Classes' },
+  { key: 'favorites', label: 'Starred Reminders', icon: 'star' },
   { key: 'myBookings', label: 'My Bookings', icon: 'checkmark-circle' },
-  { key: 'favorites', label: 'Favorites', icon: 'star' },
   { key: 'regRequired', label: '⚠️ Reg Required' },
   { key: 'swim', label: '🏊 Aquatics & Pool' },
   { key: 'groupEx', label: '🏋️ Group Fitness' },
@@ -265,7 +266,9 @@ export default function MemberSchedulesScreen() {
         const matchesTitle = item.title.toLowerCase().includes(q);
         const matchesInstructor = item.instructorName.toLowerCase().includes(q);
         const matchesLocation = item.location.toLowerCase().includes(q);
-        if (!matchesTitle && !matchesInstructor && !matchesLocation) {
+        const matchesSummary = getClassShortSummary(item).toLowerCase().includes(q);
+        const matchesDesc = (item.description ?? '').toLowerCase().includes(q);
+        if (!matchesTitle && !matchesInstructor && !matchesLocation && !matchesSummary && !matchesDesc) {
           return false;
         }
       }
@@ -284,7 +287,7 @@ export default function MemberSchedulesScreen() {
       const d = dayKey(item.start);
       if (stats[d]) {
         stats[d].count += 1;
-        if (registeredMap.has(item.id)) {
+        if (requiresAdvanceRegistration(item) && registeredMap.has(item.id)) {
           stats[d].hasRegistered = true;
         }
         if (savedIds.has(item.id)) {
@@ -295,20 +298,6 @@ export default function MemberSchedulesScreen() {
     return stats;
   }, [weekDays, allWeekItems, registeredMap, savedIds]);
 
-  // Active day statistics
-  const activeDaySummary = useMemo(() => {
-    const dayClasses = allWeekItems.filter((i) => dayKey(i.start) === activeDay);
-    const poolCount = dayClasses.filter((i) => i.location.toLowerCase().includes('pool')).length;
-    const regReqCount = dayClasses.filter((i) => i.registrationRequired).length;
-    const myCountToday = dayClasses.filter((i) => registeredMap.has(i.id)).length;
-    return {
-      total: dayClasses.length,
-      poolCount,
-      regReqCount,
-      myCountToday,
-    };
-  }, [allWeekItems, activeDay, registeredMap]);
-
   const onToggleStar = async (scheduleItemId: string) => {
     if (memberId === '') {
       return;
@@ -318,6 +307,9 @@ export default function MemberSchedulesScreen() {
   };
 
   const handleBookingPress = (item: ScheduleItem) => {
+    if (!requiresAdvanceRegistration(item)) {
+      return;
+    }
     const isPaid = (item.priceCents ?? 0) > 0;
     if (isPaid) {
       setCheckoutItem(item);
@@ -492,6 +484,63 @@ export default function MemberSchedulesScreen() {
       {/* PINNED COMPACT TOP SECTION (Maximized Class List Height) */}
       {/* ========================================================= */}
       <View style={[styles.pinnedHeader, { backgroundColor: tc.cardBg, borderBottomColor: tc.border }]}>
+        {/* Top Schedule Mode Toggle */}
+        <View style={styles.topScheduleToggleRow}>
+          <View
+            style={[
+              styles.topScheduleToggleBtn,
+              { backgroundColor: tc.primary },
+            ]}
+          >
+            <Ionicons name="fitness" size={13} color="#FFFFFF" />
+            <Text style={styles.topScheduleToggleTextActive}>Group Classes</Text>
+          </View>
+          <Pressable
+            onPress={() => router.push('/(member)/pool-schedule')}
+            style={[
+              styles.topScheduleToggleBtn,
+              styles.topScheduleToggleBtnPool,
+              {
+                backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+                borderColor: tc.border,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Switch to Pool and Lane Schedules"
+          >
+            <Ionicons
+              name="water"
+              size={13}
+              color={tc.primary}
+              style={styles.topScheduleToggleIcon}
+            />
+            <View style={styles.topScheduleToggleLabelStack}>
+              <Text
+                style={[styles.topScheduleToggleText, styles.topScheduleToggleTextPool, { color: tc.text }]}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+              >
+                Pool & Lane Schedules
+              </Text>
+              <View style={[styles.poolBadgePill, { backgroundColor: '#38BDF8' }]}>
+                <Text style={styles.poolBadgePillText}>6 LANES</Text>
+              </View>
+            </View>
+          </Pressable>
+        </View>
+
+        <View style={styles.fallScheduleRow}>
+          <View style={[styles.sessionBadge, { backgroundColor: tc.primaryLight }]}>
+            <Text style={[styles.sessionBadgeText, { color: tc.primaryDark }]}>
+              FALL 1 SCHEDULE
+            </Text>
+          </View>
+          <Text style={[styles.sessionDateText, { color: tc.textMuted }]}>
+            Aug 24 – Nov 11
+          </Text>
+        </View>
+
         {/* Compact Day Selector Bar */}
         <View style={styles.dayStripRow}>
           <Pressable
@@ -667,62 +716,6 @@ export default function MemberSchedulesScreen() {
         showsVerticalScrollIndicator
         ListHeaderComponent={
           <View style={styles.listHeaderWrapper}>
-            {/* Fall 1 Official Schedule Banner (Responsive, Zero-Overlap) */}
-            <View
-              style={[
-                styles.sessionBanner,
-                { backgroundColor: isDark ? '#0F172A' : '#F8FAFC', borderColor: tc.border },
-              ]}
-            >
-              <View style={styles.sessionBannerTop}>
-                <View style={styles.sessionBadgeRow}>
-                  <View style={[styles.sessionBadge, { backgroundColor: tc.primaryLight }]}>
-                    <Text style={[styles.sessionBadgeText, { color: tc.primaryDark }]}>
-                      FALL 1 SCHEDULE
-                    </Text>
-                  </View>
-                  <Text style={[styles.sessionDateText, { color: tc.textMuted }]}>
-                    Aug 24 – Nov 11
-                  </Text>
-                </View>
-
-                <View style={[styles.sessionCountTagWrap, { backgroundColor: isDark ? '#1E293B' : '#EDF2F7' }]}>
-                  <Ionicons name="calendar-outline" size={12} color={tc.primary} />
-                  <Text style={[styles.sessionCountTag, { color: tc.text }]}>
-                    {allWeekItems.length} Weekly Sessions
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.sessionBranchRow}>
-                <Ionicons name="location-outline" size={12} color={tc.textMuted} />
-                <Text style={[styles.sessionBranchText, { color: tc.textMuted }]} numberOfLines={1}>
-                  YMCA Silver Spring · 9800 Hastings Dr · Group Fitness
-                </Text>
-              </View>
-            </View>
-
-            {/* Day Header & Session Highlights Strip */}
-            <View style={[styles.daySummaryBox, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC', borderColor: tc.border }]}>
-              <View style={styles.daySummaryMain}>
-                <Text style={[styles.activeDayTitle, { color: tc.text }]}>
-                  {formatDayLabel(activeDay)}
-                </Text>
-                <Text style={[styles.activeDaySub, { color: tc.textMuted }]}>
-                  {activeDaySummary.total} sessions scheduled · {activeDaySummary.poolCount} pool · {activeDaySummary.regReqCount} reg required
-                </Text>
-              </View>
-
-              {activeDaySummary.myCountToday > 0 ? (
-                <View style={[styles.enrolledBadge, { backgroundColor: tc.successBg }]}>
-                  <Ionicons name="checkmark-circle" size={13} color={tc.success} />
-                  <Text style={[styles.enrolledBadgeText, { color: tc.success }]}>
-                    {activeDaySummary.myCountToday} Booked
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-
             {/* Quick Community Forum Banner (Scrolls naturally with list) */}
             <Pressable
               onPress={() => router.push('/(member)/community-forum')}
@@ -740,6 +733,40 @@ export default function MemberSchedulesScreen() {
                 Have a question or looking to connect? <Text style={{ color: tc.primary, fontWeight: '700' }}>Open Community Forum ›</Text>
               </Text>
             </Pressable>
+
+            {/* Dedicated Aquatics Pool Schedule Callout Banner */}
+            {activeChip === 'swim' || activeChip === 'pool' || activeChip === 'all' ? (
+              <Pressable
+                onPress={() => router.push('/(member)/pool-schedule')}
+                style={[
+                  styles.poolScheduleBanner,
+                  {
+                    backgroundColor: isDark ? '#0C2A4A' : '#EFF6FF',
+                    borderColor: isDark ? '#1D4ED8' : '#BFDBFE',
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="View Official 6-Lane Pool Schedules"
+              >
+                <View style={[styles.poolBannerIconWrap, { backgroundColor: isDark ? '#1E3A8A' : '#DBEAFE' }]}>
+                  <Ionicons name="water" size={16} color={tc.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.poolBannerTitle, { color: tc.text }]}>
+                      Indoor & Outdoor Pool Schedules
+                    </Text>
+                    <View style={[styles.poolBadge, { backgroundColor: '#38BDF8' }]}>
+                      <Text style={styles.poolBadgeText}>OCT 05, 2026</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.poolBannerSub, { color: tc.textMuted }]} numberOfLines={1}>
+                    6-Lane allocations, lap swimming hours, water fitness & water polo
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={tc.primary} />
+              </Pressable>
+            ) : null}
 
             {/* Filter Status Reset Pill if filters are active */}
             {hasActiveFilters ? (
@@ -787,8 +814,9 @@ export default function MemberSchedulesScreen() {
           </View>
         }
         renderItem={({ item }) => {
-          const reg = registeredMap.get(item.id);
-          const registered = reg != null && reg.status === 'registered';
+          const canRegister = requiresAdvanceRegistration(item);
+          const reg = canRegister ? registeredMap.get(item.id) : undefined;
+          const registered = canRegister && reg != null && reg.status === 'registered';
           const taken = rosterCounts[item.id] ?? 0;
           const spotsLeft = Math.max(0, item.capacity - taken);
           const durationStr = formatDurationStr(item.start, item.end);
@@ -807,14 +835,16 @@ export default function MemberSchedulesScreen() {
                 priceCents={item.priceCents}
                 isSpecialEvent={item.isSpecialEvent}
                 seniorFriendly={item.seniorFriendly}
-                registrationRequired={item.registrationRequired}
+                registrationRequired={canRegister}
                 intensity={item.intensity}
                 durationStr={durationStr}
                 paidAmountCents={reg?.paidAmountCents}
+                shortSummary={item.shortSummary}
+                description={item.description}
                 onToggleStar={() => void onToggleStar(item.id)}
-                onRegister={() => handleBookingPress(item)}
-                onChange={() => confirmChange(item)}
-                onCancel={() => confirmCancel(item)}
+                onRegister={canRegister ? () => handleBookingPress(item) : undefined}
+                onChange={registered ? () => confirmChange(item) : undefined}
+                onCancel={registered ? () => confirmCancel(item) : undefined}
                 onPressCard={() => {
                   setDetailItem(item);
                   setDetailModalVisible(true);
@@ -836,19 +866,31 @@ export default function MemberSchedulesScreen() {
         item={detailItem}
         dayLabel={detailItem ? formatDayLabel(dayKey(detailItem.start)) : ''}
         timeLabel={detailItem ? formatClassTime(detailItem.start) : ''}
-        registered={detailItem ? registeredMap.has(detailItem.id) : false}
+        registered={
+          detailItem && requiresAdvanceRegistration(detailItem)
+            ? registeredMap.has(detailItem.id)
+            : false
+        }
         spotsLeft={detailItem ? Math.max(0, detailItem.capacity - (rosterCounts[detailItem.id] ?? 0)) : 0}
         totalBooked={detailItem ? rosterCounts[detailItem.id] ?? 0 : 0}
         starred={detailItem ? savedIds.has(detailItem.id) : false}
         busy={busyId === detailItem?.id}
         onClose={() => setDetailModalVisible(false)}
         onRegister={() => {
-          if (detailItem) {
+          if (detailItem && requiresAdvanceRegistration(detailItem)) {
             handleBookingPress(detailItem);
           }
         }}
-        onChange={detailItem && registeredMap.has(detailItem.id) ? () => confirmChange(detailItem) : undefined}
-        onCancel={detailItem && registeredMap.has(detailItem.id) ? () => confirmCancel(detailItem) : undefined}
+        onChange={
+          detailItem && requiresAdvanceRegistration(detailItem) && registeredMap.has(detailItem.id)
+            ? () => confirmChange(detailItem)
+            : undefined
+        }
+        onCancel={
+          detailItem && requiresAdvanceRegistration(detailItem) && registeredMap.has(detailItem.id)
+            ? () => confirmCancel(detailItem)
+            : undefined
+        }
         onToggleStar={detailItem ? () => void onToggleStar(detailItem.id) : undefined}
         onOpenForum={() => {
           if (detailItem) {
@@ -999,25 +1041,12 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 6,
   },
-  sessionBanner: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    gap: 6,
-  },
-  sessionBannerTop: {
+  fallScheduleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  sessionBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flexShrink: 1,
+    gap: 8,
+    paddingHorizontal: spacing.sm,
+    paddingBottom: 4,
   },
   sessionBadge: {
     paddingHorizontal: 7,
@@ -1034,64 +1063,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     flexShrink: 1,
-  },
-  sessionCountTagWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-    flexShrink: 0,
-  },
-  sessionCountTag: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  sessionBranchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  sessionBranchText: {
-    fontSize: 11,
-    flex: 1,
-  },
-  daySummaryBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    gap: 8,
-  },
-  daySummaryMain: {
-    gap: 2,
-    flex: 1,
-    minWidth: 0,
-  },
-  activeDayTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  activeDaySub: {
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  enrolledBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    flexShrink: 0,
-  },
-  enrolledBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
   },
   slimForumBanner: {
     flexDirection: 'row',
@@ -1161,5 +1132,96 @@ const styles = StyleSheet.create({
   resetBtnText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  topScheduleToggleRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: spacing.sm,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  topScheduleToggleBtn: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 6,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  topScheduleToggleBtnPool: {
+    gap: 4,
+    paddingVertical: 6,
+  },
+  topScheduleToggleIcon: {
+    flexShrink: 0,
+  },
+  topScheduleToggleLabelStack: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  topScheduleToggleTextPool: {
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  topScheduleToggleTextActive: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  topScheduleToggleText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  poolBadgePill: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: radii.full,
+  },
+  poolBadgePillText: {
+    color: '#0369A1',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  poolScheduleBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.sm,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    gap: spacing.sm,
+    marginTop: 4,
+  },
+  poolBannerIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  poolBannerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  poolBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radii.full,
+  },
+  poolBadgeText: {
+    color: '#0369A1',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  poolBannerSub: {
+    fontSize: 11,
+    marginTop: 1,
   },
 });

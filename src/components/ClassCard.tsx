@@ -4,9 +4,10 @@ import { AppText } from '@/components/AppText';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
 import { useTheme } from '@/context/ThemeContext';
+import { getClassShortSummary } from '@/domain/classCatalog';
 import { cardStyle } from '@/theme/card';
 import { colors } from '@/theme/colors';
-import { radii, spacing, tapTarget, typography } from '@/theme/typography';
+import { radii, spacing, typography } from '@/theme/typography';
 
 export type ClassCardProps = {
   time: string;
@@ -24,6 +25,8 @@ export type ClassCardProps = {
   capacity?: number;
   durationStr?: string;
   paidAmountCents?: number;
+  shortSummary?: string;
+  description?: string;
   onToggleStar?: () => void;
   onRegister?: () => void;
   onChange?: () => void;
@@ -58,6 +61,8 @@ export function ClassCard({
   capacity = 20,
   durationStr,
   paidAmountCents,
+  shortSummary,
+  description,
   onToggleStar,
   onRegister,
   onChange,
@@ -67,13 +72,16 @@ export function ClassCard({
   busy,
 }: ClassCardProps) {
   const { colors: tc, isDark } = useTheme();
-  const full = spotsLeft <= 0 && !registered;
+  const needsRegistration = Boolean(registrationRequired);
+  const isRegistered = Boolean(registered && needsRegistration);
+  const full = spotsLeft <= 0 && !isRegistered;
   const isPaid = priceCents > 0;
   const priceDisplay = isPaid ? `$${(priceCents / 100).toFixed(2)}` : 'Free';
   const totalEnrolled = Math.max(0, capacity - spotsLeft);
   const percentFilled = Math.min(100, Math.max(8, (totalEnrolled / Math.max(1, capacity)) * 100));
 
   const locIcon = getLocationIcon(location);
+  const summaryText = getClassShortSummary({ title, shortSummary, description });
 
   return (
     <View
@@ -81,9 +89,11 @@ export function ClassCard({
         styles.card,
         {
           backgroundColor: tc.cardBg,
-          borderColor: registered
+          borderColor: isRegistered
             ? tc.success
-            : registrationRequired
+            : starred && !needsRegistration
+            ? colors.gold
+            : needsRegistration
             ? isDark
               ? '#B45309'
               : '#FBBF24'
@@ -95,7 +105,7 @@ export function ClassCard({
       {/* Badges Header Row */}
       <View style={styles.badgeRow}>
         <View style={styles.badgeLeftGroup}>
-          {registrationRequired ? (
+          {needsRegistration ? (
             <View
               style={[
                 styles.pill,
@@ -110,7 +120,22 @@ export function ClassCard({
                 REGISTRATION REQUIRED
               </AppText>
             </View>
-          ) : null}
+          ) : (
+            <View
+              style={[
+                styles.pill,
+                {
+                  backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+                  borderColor: tc.border,
+                },
+              ]}
+            >
+              <Ionicons name="walk-outline" size={12} color={tc.primary} />
+              <AppText style={[styles.pillText, { color: tc.primary }]}>
+                Drop-In · No Reg Needed
+              </AppText>
+            </View>
+          )}
 
           {isPaid ? (
             <View
@@ -166,7 +191,11 @@ export function ClassCard({
             onPress={onToggleStar}
             style={styles.starHit}
             accessibilityRole="button"
-            accessibilityLabel={starred ? 'Remove from saved classes' : 'Save class'}
+            accessibilityLabel={
+              starred
+                ? 'Remove star and class notification reminder'
+                : 'Star class to get notified when it is happening'
+            }
             hitSlop={8}
           >
             <Ionicons
@@ -196,7 +225,7 @@ export function ClassCard({
             ) : null}
           </View>
 
-          {/* Title & Metadata */}
+          {/* Title, Metadata & Short Summary */}
           <View style={styles.body}>
             <AppText style={[styles.title, { color: tc.text }]} numberOfLines={2}>
               {title}
@@ -226,13 +255,20 @@ export function ClassCard({
                 </View>
               ) : null}
             </View>
+
+            {/* Concise Short Summary on the Schedule Card */}
+            {summaryText ? (
+              <AppText style={[styles.shortSummary, { color: tc.textMuted }]} numberOfLines={2}>
+                {summaryText}
+              </AppText>
+            ) : null}
           </View>
         </View>
 
-        {/* Capacity Bar & Spots Indicator */}
+        {/* Status / Capacity Section */}
         <View style={styles.capacitySection}>
           <View style={styles.capacityStatusRow}>
-            {registered ? (
+            {isRegistered ? (
               <View style={[styles.registeredPill, { backgroundColor: tc.successBg }]}>
                 <Ionicons name="checkmark-circle" size={13} color={tc.success} />
                 <AppText style={[styles.registeredPillText, { color: tc.success }]}>
@@ -241,7 +277,7 @@ export function ClassCard({
                     : 'You are Registered'}
                 </AppText>
               </View>
-            ) : (
+            ) : needsRegistration ? (
               <AppText
                 style={[
                   styles.spots,
@@ -256,6 +292,17 @@ export function ClassCard({
                   ? `Only ${spotsLeft} spot${spotsLeft > 1 ? 's' : ''} remaining!`
                   : `${spotsLeft} of ${capacity} spots open`}
               </AppText>
+            ) : starred ? (
+              <View style={[styles.starredReminderPill, { backgroundColor: isDark ? '#422006' : '#FEF3C7' }]}>
+                <Ionicons name="notifications" size={13} color="#D97706" />
+                <AppText style={[styles.starredReminderText, { color: isDark ? '#FDE68A' : '#B45309' }]}>
+                  Starred · You’ll be notified when class starts
+                </AppText>
+              </View>
+            ) : (
+              <AppText style={[styles.spots, { color: tc.textMuted }]}>
+                Drop-in class · No registration required
+              </AppText>
             )}
 
             <AppText style={[styles.detailsPrompt, { color: tc.primary }]}>
@@ -263,8 +310,8 @@ export function ClassCard({
             </AppText>
           </View>
 
-          {/* Mini capacity track */}
-          {!registered ? (
+          {/* Mini capacity track only for classes requiring registration */}
+          {!isRegistered && needsRegistration ? (
             <View style={[styles.miniTrack, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
               <View
                 style={[
@@ -284,8 +331,8 @@ export function ClassCard({
         </View>
       </Pressable>
 
-      {/* Primary Actions (Register, Change, Cancel) */}
-      {registered ? (
+      {/* Primary Registration Actions: ONLY shown for classes that require registration */}
+      {isRegistered ? (
         <View style={styles.actions}>
           {onChange ? (
             <View style={styles.actionFlex}>
@@ -309,16 +356,14 @@ export function ClassCard({
             </View>
           ) : null}
         </View>
-      ) : onRegister ? (
+      ) : needsRegistration && onRegister ? (
         <PrimaryButton
           title={
             full
               ? 'Session is Full'
               : isPaid
               ? `Book & Pay ${priceDisplay}`
-              : registrationRequired
-              ? 'Reserve My Spot (Free)'
-              : 'Register (Free)'
+              : 'Reserve My Spot (Free)'
           }
           onPress={onRegister}
           disabled={full || busy}
@@ -326,7 +371,7 @@ export function ClassCard({
           accessibilityHint={
             isPaid
               ? `Book this session for ${priceDisplay}`
-              : 'Register for this class included with your YMCA membership'
+              : 'Reserve your spot for this registration-required class'
           }
         />
       ) : null}
@@ -478,6 +523,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+  shortSummary: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 1,
+  },
   capacitySection: {
     gap: 4,
   },
@@ -485,6 +535,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
   },
   registeredPill: {
     flexDirection: 'row',
@@ -498,9 +549,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  starredReminderPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    flexShrink: 1,
+  },
+  starredReminderText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
   spots: {
     fontSize: 12,
     fontWeight: '600',
+    flexShrink: 1,
   },
   spotsLow: {
     fontWeight: '700',
@@ -528,6 +593,21 @@ const styles = StyleSheet.create({
   },
   actionFlex: {
     flex: 1,
+  },
+  starNotifyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 2,
+  },
+  starNotifyBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
   },
   forumBtn: {
     flexDirection: 'row',
