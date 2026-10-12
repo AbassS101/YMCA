@@ -84,6 +84,14 @@ export type ScheduleItem = {
   isSpecialEvent?: boolean;
   /** True for classes specially designed or great for Active Older Adults / seniors */
   seniorFriendly?: boolean;
+  /** Flags whether advance registration is mandatory on the schedule (e.g. Full Circle Health, Pedaling for Parkinson's) */
+  registrationRequired?: boolean;
+  /** Exercise intensity level */
+  intensity?: 'All Levels' | 'Low' | 'Moderate' | 'High';
+  /** Facility room designation */
+  roomType?: string;
+  /** What equipment is provided by YMCA or brought by member */
+  equipmentInfo?: string;
   description?: string;
 };
 

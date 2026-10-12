@@ -548,29 +548,24 @@ export default function MemberTrainersScreen() {
 
             {/* My Coaching & Fitness Goals Section */}
             <View style={styles.section}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionHeaderTitleWrap}>
                   <Ionicons name="trophy" size={20} color={colors.primary} />
-                  <Text style={[styles.sectionTitle, { color: colors.text }]} allowFontScaling>
+                  <Text
+                    style={[styles.sectionTitle, styles.sectionTitleFlex, { color: colors.text }]}
+                    allowFontScaling
+                  >
                     My Fitness Goals & Progress
                   </Text>
                 </View>
                 <Pressable
                   onPress={() => setGoalModalVisible(true)}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 4,
-                    backgroundColor: colors.primary,
-                    paddingHorizontal: 10,
-                    paddingVertical: 5,
-                    borderRadius: radii.full,
-                  }}
+                  style={[styles.sectionActionBtn, { backgroundColor: colors.primary }]}
                   accessibilityRole="button"
                   accessibilityLabel={clientGoal ? 'Edit my fitness goals' : 'Set my fitness goals'}
                 >
                   <Ionicons name={clientGoal ? 'create-outline' : 'add'} size={14} color="#FFFFFF" />
-                  <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '700' }}>
+                  <Text style={styles.sectionActionBtnText}>
                     {clientGoal ? 'Edit Goals' : '+ Set Goal'}
                   </Text>
                 </Pressable>
@@ -579,7 +574,7 @@ export default function MemberTrainersScreen() {
               {clientGoal ? (
                 <View style={[styles.card, cardTheme, { gap: 12 }]}>
                   {/* Category & Update Info Banner */}
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
                     <View style={{ backgroundColor: isDark ? '#1E3A8A' : '#DBEAFE', paddingHorizontal: 8, paddingVertical: 3, borderRadius: radii.full }}>
                       <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary, textTransform: 'uppercase' }}>
                         {clientGoal.category ? clientGoal.category.replace('_', ' ') : 'FITNESS MILESTONE'}
@@ -735,10 +730,13 @@ export default function MemberTrainersScreen() {
 
             {/* My Workout Log & Coach Notes History */}
             <View style={styles.section}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionHeaderTitleWrap}>
                   <Ionicons name="barbell" size={20} color={colors.primary} />
-                  <Text style={[styles.sectionTitle, { color: colors.text }]} allowFontScaling>
+                  <Text
+                    style={[styles.sectionTitle, styles.sectionTitleFlex, { color: colors.text }]}
+                    allowFontScaling
+                  >
                     My Training Logs & Coach Notes ({workoutLogs.length})
                   </Text>
                 </View>
@@ -747,26 +745,18 @@ export default function MemberTrainersScreen() {
                     setEditingWorkoutLog(null);
                     setWorkoutModalVisible(true);
                   }}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 4,
-                    backgroundColor: colors.primary,
-                    paddingHorizontal: 10,
-                    paddingVertical: 5,
-                    borderRadius: radii.full,
-                  }}
+                  style={[styles.sectionActionBtn, { backgroundColor: colors.primary }]}
                   accessibilityRole="button"
                   accessibilityLabel="Log workout"
                 >
                   <Ionicons name="add" size={14} color="#FFFFFF" />
-                  <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '700' }}>+ Log Workout</Text>
+                  <Text style={styles.sectionActionBtnText}>+ Log Workout</Text>
                 </Pressable>
               </View>
 
               {/* Workout Filter Chips */}
               {workoutLogs.length > 0 ? (
-                <View style={{ flexDirection: 'row', gap: 6, marginVertical: 4 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 4 }}>
                   {(['all', 'coach', 'self'] as const).map((filterKey) => {
                     const isSel = logFilter === filterKey;
                     const label = filterKey === 'all' ? `All (${workoutLogs.length})` : filterKey === 'coach' ? 'Coach-Led' : 'Self-Logged';
@@ -1247,9 +1237,41 @@ const styles = StyleSheet.create({
   section: {
     gap: spacing.sm,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  sectionHeaderTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    minWidth: 180,
+  },
   sectionTitle: {
     ...typography.title,
     fontSize: 18,
+  },
+  sectionTitleFlex: {
+    flex: 1,
+    flexShrink: 1,
+  },
+  sectionActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radii.full,
+    flexShrink: 0,
+  },
+  sectionActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
   muted: {
     ...typography.body,

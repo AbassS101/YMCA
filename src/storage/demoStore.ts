@@ -70,10 +70,12 @@ function migrateState(raw: DemoState): DemoState {
   const seed = cloneSeed();
 
   let schedules = raw.schedules;
-  if (!schedules) {
+  if (!schedules || schedules.length === 0) {
     schedules = seed.schedules;
   } else {
-    schedules = schedules.map((item) => ({
+    const existingIds = new Set(schedules.map((s) => s.id));
+    const missingSeed = seed.schedules.filter((s) => !existingIds.has(s.id));
+    schedules = [...schedules, ...missingSeed].map((item) => ({
       ...item,
       priceCents: item.priceCents ?? 0,
       seniorFriendly: item.seniorFriendly ?? false,

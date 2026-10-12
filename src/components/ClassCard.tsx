@@ -6,7 +6,7 @@ import { SecondaryButton } from '@/components/SecondaryButton';
 import { useTheme } from '@/context/ThemeContext';
 import { cardStyle } from '@/theme/card';
 import { colors } from '@/theme/colors';
-import { spacing, tapTarget, typography } from '@/theme/typography';
+import { radii, spacing, tapTarget, typography } from '@/theme/typography';
 
 export type ClassCardProps = {
   time: string;
@@ -19,14 +19,28 @@ export type ClassCardProps = {
   priceCents?: number;
   isSpecialEvent?: boolean;
   seniorFriendly?: boolean;
+  registrationRequired?: boolean;
+  intensity?: 'All Levels' | 'Low' | 'Moderate' | 'High';
+  capacity?: number;
+  durationStr?: string;
   paidAmountCents?: number;
   onToggleStar?: () => void;
   onRegister?: () => void;
   onChange?: () => void;
   onCancel?: () => void;
   onOpenForum?: () => void;
+  onPressCard?: () => void;
   busy?: boolean;
 };
+
+function getLocationIcon(loc: string): any {
+  const l = loc.toLowerCase();
+  if (l.includes('pool')) return 'water';
+  if (l.includes('free weight') || l.includes('weight')) return 'barbell';
+  if (l.includes('circuit') || l.includes('studio/circuit')) return 'fitness';
+  if (l.includes('studio')) return 'sparkles';
+  return 'basketball';
+}
 
 export function ClassCard({
   time,
@@ -39,175 +53,300 @@ export function ClassCard({
   priceCents = 0,
   isSpecialEvent,
   seniorFriendly,
+  registrationRequired,
+  intensity,
+  capacity = 20,
+  durationStr,
   paidAmountCents,
   onToggleStar,
   onRegister,
   onChange,
   onCancel,
   onOpenForum,
+  onPressCard,
   busy,
 }: ClassCardProps) {
   const { colors: tc, isDark } = useTheme();
   const full = spotsLeft <= 0 && !registered;
   const isPaid = priceCents > 0;
   const priceDisplay = isPaid ? `$${(priceCents / 100).toFixed(2)}` : 'Free';
+  const totalEnrolled = Math.max(0, capacity - spotsLeft);
+  const percentFilled = Math.min(100, Math.max(8, (totalEnrolled / Math.max(1, capacity)) * 100));
+
+  const locIcon = getLocationIcon(location);
 
   return (
     <View
-      style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}
+      style={[
+        styles.card,
+        {
+          backgroundColor: tc.cardBg,
+          borderColor: registered
+            ? tc.success
+            : registrationRequired
+            ? isDark
+              ? '#B45309'
+              : '#FBBF24'
+            : tc.cardBorder,
+        },
+      ]}
       accessibilityRole="summary"
     >
       {/* Badges Header Row */}
       <View style={styles.badgeRow}>
-        {isPaid ? (
-          <View
-            style={[
-              styles.pill,
-              isSpecialEvent
-                ? styles.pillSpecial
-                : [styles.pillPaid, { backgroundColor: tc.paidBadgeBg, borderColor: tc.border }],
-            ]}
-          >
-            <AppText
+        <View style={styles.badgeLeftGroup}>
+          {registrationRequired ? (
+            <View
               style={[
-                styles.pillText,
-                isSpecialEvent ? styles.pillSpecialText : { color: tc.paidBadge },
+                styles.pill,
+                {
+                  backgroundColor: isDark ? '#451A03' : '#FFFBEB',
+                  borderColor: isDark ? '#D97706' : '#F59E0B',
+                },
               ]}
             >
-              {isSpecialEvent ? `Special Event · ${priceDisplay}` : `Extra Cost · ${priceDisplay}`}
-            </AppText>
-          </View>
-        ) : (
-          <View
-            style={[
-              styles.pill,
-              styles.pillIncluded,
-              { backgroundColor: tc.successBg, borderColor: '#A7F3D0' },
-            ]}
-          >
-            <AppText style={[styles.pillText, { color: tc.success }]}>
-              Included with Membership
-            </AppText>
-          </View>
-        )}
+              <Ionicons name="alert-circle" size={12} color="#D97706" />
+              <AppText style={[styles.pillText, { color: isDark ? '#FDE68A' : '#B45309' }]}>
+                REGISTRATION REQUIRED
+              </AppText>
+            </View>
+          ) : null}
 
-        {seniorFriendly ? (
-          <View
-            style={[
-              styles.pill,
-              styles.pillSenior,
-              { backgroundColor: tc.primaryLight, borderColor: tc.border },
-            ]}
-          >
-            <AppText style={[styles.pillText, { color: tc.primary }]}>
-              Senior / AOA Friendly
-            </AppText>
-          </View>
-        ) : null}
-      </View>
+          {isPaid ? (
+            <View
+              style={[
+                styles.pill,
+                isSpecialEvent
+                  ? styles.pillSpecial
+                  : [styles.pillPaid, { backgroundColor: tc.paidBadgeBg, borderColor: tc.border }],
+              ]}
+            >
+              <AppText
+                style={[
+                  styles.pillText,
+                  isSpecialEvent ? styles.pillSpecialText : { color: tc.paidBadge },
+                ]}
+              >
+                {isSpecialEvent ? `Special Event · ${priceDisplay}` : `Extra Cost · ${priceDisplay}`}
+              </AppText>
+            </View>
+          ) : (
+            <View
+              style={[
+                styles.pill,
+                styles.pillIncluded,
+                { backgroundColor: tc.successBg, borderColor: '#A7F3D0' },
+              ]}
+            >
+              <Ionicons name="checkmark-circle-outline" size={12} color={tc.success} />
+              <AppText style={[styles.pillText, { color: tc.success }]}>
+                Included Free
+              </AppText>
+            </View>
+          )}
 
-      <View style={styles.topRow}>
-        <View style={styles.timeBlock}>
-          <AppText style={[styles.time, { color: tc.primary }]}>{time}</AppText>
+          {seniorFriendly ? (
+            <View
+              style={[
+                styles.pill,
+                styles.pillSenior,
+                { backgroundColor: tc.primaryLight, borderColor: tc.border },
+              ]}
+            >
+              <Ionicons name="heart" size={11} color={tc.primary} />
+              <AppText style={[styles.pillText, { color: tc.primary }]}>
+                Senior / AOA Friendly
+              </AppText>
+            </View>
+          ) : null}
         </View>
-        <View style={styles.body}>
-          <AppText style={[styles.title, { color: tc.text }]}>{title}</AppText>
-          <AppText style={[styles.meta, { color: tc.textMuted }]}>{location}</AppText>
-          <AppText style={[styles.meta, { color: tc.textMuted }]}>Instructor: {instructor}</AppText>
-        </View>
+
         {onToggleStar ? (
           <Pressable
             onPress={onToggleStar}
             style={styles.starHit}
             accessibilityRole="button"
             accessibilityLabel={starred ? 'Remove from saved classes' : 'Save class'}
+            hitSlop={8}
           >
-            <AppText style={[styles.star, { color: tc.muted }, starred && styles.starActive]}>
-              {starred ? '★' : '☆'}
-            </AppText>
+            <Ionicons
+              name={starred ? 'star' : 'star-outline'}
+              size={22}
+              color={starred ? colors.gold : tc.textMuted}
+            />
           </Pressable>
         ) : null}
       </View>
 
-      <View style={styles.statusRow}>
-        {registered ? (
-          <View style={styles.badge}>
-            <AppText style={styles.badgeText}>
-              {paidAmountCents && paidAmountCents > 0
-                ? `Booked & Paid ($${(paidAmountCents / 100).toFixed(2)})`
-                : 'Registered'}
+      {/* Main Card Content (Tappable for Details) */}
+      <Pressable
+        onPress={onPressCard}
+        style={styles.pressableArea}
+        accessibilityRole="button"
+        accessibilityLabel={`View full details for ${title}`}
+      >
+        <View style={styles.topRow}>
+          {/* Time & Duration Rail */}
+          <View style={[styles.timeBlock, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC', borderColor: tc.border }]}>
+            <AppText style={[styles.time, { color: tc.primary }]}>{time}</AppText>
+            {durationStr ? (
+              <View style={[styles.durationPill, { backgroundColor: tc.primaryLight }]}>
+                <AppText style={[styles.durationText, { color: tc.primary }]}>{durationStr}</AppText>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Title & Metadata */}
+          <View style={styles.body}>
+            <AppText style={[styles.title, { color: tc.text }]} numberOfLines={2}>
+              {title}
+            </AppText>
+
+            <View style={styles.metaRow}>
+              <View style={[styles.metaChip, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
+                <Ionicons name={locIcon} size={12} color={tc.primary} />
+                <AppText style={[styles.metaChipText, { color: tc.text }]}>
+                  {location}
+                </AppText>
+              </View>
+
+              <View style={[styles.metaChip, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
+                <Ionicons name="person" size={12} color={tc.textMuted} />
+                <AppText style={[styles.metaChipText, { color: tc.textMuted }]}>
+                  {instructor}
+                </AppText>
+              </View>
+
+              {intensity ? (
+                <View style={[styles.metaChip, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
+                  <Ionicons name="speedometer-outline" size={12} color={tc.textMuted} />
+                  <AppText style={[styles.metaChipText, { color: tc.textMuted }]}>
+                    {intensity}
+                  </AppText>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        </View>
+
+        {/* Capacity Bar & Spots Indicator */}
+        <View style={styles.capacitySection}>
+          <View style={styles.capacityStatusRow}>
+            {registered ? (
+              <View style={[styles.registeredPill, { backgroundColor: tc.successBg }]}>
+                <Ionicons name="checkmark-circle" size={13} color={tc.success} />
+                <AppText style={[styles.registeredPillText, { color: tc.success }]}>
+                  {paidAmountCents && paidAmountCents > 0
+                    ? `Booked & Paid ($${(paidAmountCents / 100).toFixed(2)})`
+                    : 'You are Registered'}
+                </AppText>
+              </View>
+            ) : (
+              <AppText
+                style={[
+                  styles.spots,
+                  full && [styles.spotsFull, { color: tc.danger }],
+                  !full && spotsLeft <= 3 && [styles.spotsLow, { color: tc.gold }],
+                  !full && spotsLeft > 3 && { color: tc.textMuted },
+                ]}
+              >
+                {full
+                  ? 'Session is Full'
+                  : spotsLeft <= 3
+                  ? `Only ${spotsLeft} spot${spotsLeft > 1 ? 's' : ''} remaining!`
+                  : `${spotsLeft} of ${capacity} spots open`}
+              </AppText>
+            )}
+
+            <AppText style={[styles.detailsPrompt, { color: tc.primary }]}>
+              Details & Info ›
             </AppText>
           </View>
-        ) : (
-          <AppText
-            style={[
-              styles.spots,
-              full && styles.spotsFull,
-              !full && spotsLeft <= 3 && styles.spotsLow,
-            ]}
-          >
-            {full
-              ? 'Class full'
-              : spotsLeft <= 3
-              ? `Only ${spotsLeft} spot${spotsLeft > 1 ? 's' : ''} remaining!`
-              : `${spotsLeft} spots left`}
-          </AppText>
-        )}
-      </View>
 
+          {/* Mini capacity track */}
+          {!registered ? (
+            <View style={[styles.miniTrack, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
+              <View
+                style={[
+                  styles.miniFill,
+                  {
+                    width: `${percentFilled}%`,
+                    backgroundColor: full
+                      ? tc.danger
+                      : spotsLeft <= 3
+                      ? tc.gold
+                      : tc.primary,
+                  },
+                ]}
+              />
+            </View>
+          ) : null}
+        </View>
+      </Pressable>
+
+      {/* Primary Actions (Register, Change, Cancel) */}
       {registered ? (
         <View style={styles.actions}>
           {onChange ? (
             <View style={styles.actionFlex}>
               <SecondaryButton
-                title="Change"
+                title="Change Session"
                 onPress={onChange}
                 disabled={busy}
-                accessibilityHint="Pick another day for this class"
+                accessibilityHint="Pick another time for this class"
               />
             </View>
           ) : null}
           {onCancel ? (
             <View style={styles.actionFlex}>
               <SecondaryButton
-                title="Cancel"
+                title="Cancel Spot"
                 onPress={onCancel}
                 destructive
                 disabled={busy}
-                accessibilityHint="Cancel your registration for this class"
+                accessibilityHint="Cancel your registration"
               />
             </View>
           ) : null}
         </View>
       ) : onRegister ? (
         <PrimaryButton
-          title={isPaid ? `Book & Pay ${priceDisplay}` : 'Register (Free)'}
+          title={
+            full
+              ? 'Session is Full'
+              : isPaid
+              ? `Book & Pay ${priceDisplay}`
+              : registrationRequired
+              ? 'Reserve My Spot (Free)'
+              : 'Register (Free)'
+          }
           onPress={onRegister}
           disabled={full || busy}
           loading={busy}
           accessibilityHint={
             isPaid
-              ? `Book this paid session for ${priceDisplay}`
-              : 'Register for this class. Included with your membership.'
+              ? `Book this session for ${priceDisplay}`
+              : 'Register for this class included with your YMCA membership'
           }
         />
       ) : null}
 
+      {/* Class Forum Button */}
       {onOpenForum ? (
         <Pressable
           onPress={onOpenForum}
           style={[
             styles.forumBtn,
             {
-              backgroundColor: isDark ? '#1E1B4B' : '#FAF5FF',
-              borderColor: '#C084FC',
+              backgroundColor: isDark ? '#0C2A4A' : '#EFF6FF',
+              borderColor: isDark ? '#1E3A8A' : '#BFDBFE',
             },
           ]}
           accessibilityRole="button"
-          accessibilityLabel={`Open class community forum and chat for ${title}`}
+          accessibilityLabel={`Open class community chat for ${title}`}
         >
-          <Ionicons name="chatbubbles" size={15} color="#7C3AED" />
-          <AppText style={[styles.forumBtnText, { color: '#7C3AED' }]}>
+          <Ionicons name="chatbubbles" size={14} color={colors.primary} />
+          <AppText style={[styles.forumBtnText, { color: colors.primary }]}>
             Class Community Forum & Chat ›
           </AppText>
         </Pressable>
@@ -219,54 +358,50 @@ export function ClassCard({
 const styles = StyleSheet.create({
   card: {
     ...cardStyle,
-    gap: spacing.sm,
-    marginBottom: spacing.md,
+    padding: 12,
+    gap: 6,
+    marginBottom: 10,
     minWidth: 280,
+    borderRadius: radii.card,
+    borderWidth: 1.5,
   },
-  forumBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginTop: 4,
-  },
-  forumBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
+  pressableArea: {
+    gap: 6,
   },
   badgeRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  badgeLeftGroup: {
+    flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginBottom: 4,
+    flex: 1,
+    paddingRight: 8,
   },
   pill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
     borderWidth: 1,
   },
   pillText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   pillIncluded: {
     backgroundColor: colors.successBg,
     borderColor: '#BBF7D0',
   },
-  pillIncludedText: {
-    color: colors.success,
-  },
   pillPaid: {
     backgroundColor: colors.paidBadgeBg,
     borderColor: '#BFDBFE',
-  },
-  pillPaidText: {
-    color: colors.paidBadge,
   },
   pillSpecial: {
     backgroundColor: colors.goldBg,
@@ -279,8 +414,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryLight,
     borderColor: '#BAE6FD',
   },
-  pillSeniorText: {
-    color: colors.primary,
+  starHit: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   topRow: {
     flexDirection: 'row',
@@ -288,70 +426,122 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   timeBlock: {
-    minWidth: 74,
+    minWidth: 84,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
   },
   time: {
     ...typography.bodyStrong,
     color: colors.primary,
-    fontSize: 16,
+    fontSize: 14,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  durationPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  durationText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   body: {
     flex: 1,
-    gap: 3,
+    gap: 5,
   },
   title: {
     ...typography.title,
-    fontSize: 19,
-    color: colors.nearBlack,
+    fontSize: 18,
+    fontWeight: '800',
+    lineHeight: 22,
   },
-  meta: {
-    ...typography.caption,
-    color: colors.muted,
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
   },
-  starHit: {
-    minWidth: tapTarget,
-    minHeight: tapTarget,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  star: {
-    fontSize: 28,
-    color: colors.muted,
-  },
-  starActive: {
-    color: colors.gold,
-  },
-  statusRow: {
+  metaChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
-  badge: {
-    backgroundColor: colors.successBg,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+  metaChipText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
-  badgeText: {
-    ...typography.label,
-    color: colors.success,
+  capacitySection: {
+    gap: 4,
+  },
+  capacityStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  registeredPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  registeredPillText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   spots: {
-    ...typography.caption,
-    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '600',
   },
   spotsLow: {
-    color: colors.gold,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   spotsFull: {
-    color: colors.danger,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  detailsPrompt: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  miniTrack: {
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  miniFill: {
+    height: '100%',
+    borderRadius: 2,
   },
   actions: {
     flexDirection: 'row',
     gap: spacing.sm,
+    marginTop: 2,
   },
   actionFlex: {
     flex: 1,
+  },
+  forumBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 2,
+  },
+  forumBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

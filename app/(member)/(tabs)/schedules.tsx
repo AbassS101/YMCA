@@ -1,17 +1,19 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Dimensions,
   FlatList,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
 import { ClassCard } from '@/components/ClassCard';
+import { ClassDetailModal } from '@/components/ClassDetailModal';
 import { ClassForumModal } from '@/components/ClassForumModal';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { PaymentCheckoutModal } from '@/components/PaymentCheckoutModal';
@@ -20,26 +22,49 @@ import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { getDemoToday } from '@/domain/demoClock';
-import type { ClassRegistration, Membership, ScheduleCategory, ScheduleItem } from '@/domain/types';
+import type { ClassRegistration, Membership, ScheduleItem } from '@/domain/types';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { registrationRepo } from '@/repositories/registrationRepo';
 import { savedClassesRepo } from '@/repositories/savedClassesRepo';
 import { scheduleRepo } from '@/repositories/scheduleRepo';
 import { colors } from '@/theme/colors';
-import { radii, spacing, tapTarget, typography } from '@/theme/typography';
+import { radii, spacing, typography } from '@/theme/typography';
 
 const BRANCH_ID = 'silver-spring';
-const SCREEN_WIDTH = Dimensions.get('window').width;
 
-type FilterKey = ScheduleCategory | 'all';
+type FilterChipKey =
+  | 'all'
+  | 'myBookings'
+  | 'favorites'
+  | 'regRequired'
+  | 'swim'
+  | 'groupEx'
+  | 'mindBody'
+  | 'seniors'
+  | 'gym'
+  | 'pool'
+  | 'freeweight'
+  | 'studio'
+  | 'circuit'
+  | 'event'
+  | 'childWatch';
 
-const FILTERS: { key: FilterKey; label: string }[] = [
+const FILTER_CHIPS: { key: FilterChipKey; label: string; icon?: any }[] = [
   { key: 'all', label: 'All Classes' },
-  { key: 'seniors', label: 'Seniors / AOA' },
-  { key: 'groupEx', label: 'Group Exercise' },
-  { key: 'swim', label: 'Swim & Aquatics' },
-  { key: 'event', label: 'Events' },
-  { key: 'childWatch', label: 'Child Watch' },
+  { key: 'myBookings', label: 'My Bookings', icon: 'checkmark-circle' },
+  { key: 'favorites', label: 'Favorites', icon: 'star' },
+  { key: 'regRequired', label: '⚠️ Reg Required' },
+  { key: 'swim', label: '🏊 Aquatics & Pool' },
+  { key: 'groupEx', label: '🏋️ Group Fitness' },
+  { key: 'mindBody', label: '🧘 Yoga & Mind' },
+  { key: 'seniors', label: '🌟 Seniors / AOA' },
+  { key: 'gym', label: '🏀 Gym' },
+  { key: 'pool', label: '🏊 Indoor Pool' },
+  { key: 'freeweight', label: '🏋️ Free Weight 2' },
+  { key: 'studio', label: '✨ Studio' },
+  { key: 'circuit', label: '⚙️ Circuit Room' },
+  { key: 'event', label: '🏆 Events' },
+  { key: 'childWatch', label: '🧸 Child Watch' },
 ];
 
 function addDays(isoDate: string, days: number): string {
@@ -63,22 +88,36 @@ function formatDayLabel(isoDate: string): string {
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
-function formatDayPill(isoDate: string): string {
+function formatDayPillShort(isoDate: string): string {
   const d = new Date(`${isoDate}T12:00:00`);
-  return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
+  const dayName = d.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase();
+  const dayNum = d.getDate();
+  return `${dayName} ${dayNum}`;
 }
 
 function dayKey(isoStart: string): string {
   return isoStart.slice(0, 10);
 }
 
+function formatDurationStr(startIso: string, endIso: string): string {
+  try {
+    const s = new Date(startIso).getTime();
+    const e = new Date(endIso).getTime();
+    const mins = Math.round((e - s) / 60000);
+    if (mins > 0) return `${mins} min`;
+  } catch {
+    // fallback
+  }
+  return '60 min';
+}
+
 export default function MemberSchedulesScreen() {
   const router = useRouter();
   const { session, api } = useSession();
-  const { colors, isDark } = useTheme();
+  const { colors: tc, isDark } = useTheme();
   const memberId = session?.userId ?? '';
 
-  const [category, setCategory] = useState<FilterKey>('all');
+  // Data state
   const [items, setItems] = useState<ScheduleItem[]>([]);
   const [allWeekItems, setAllWeekItems] = useState<ScheduleItem[]>([]);
   const [registrations, setRegistrations] = useState<ClassRegistration[]>([]);
@@ -88,9 +127,17 @@ export default function MemberSchedulesScreen() {
   const [dayIndex, setDayIndex] = useState(0);
   const [error, setError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  // Filters & Search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeChip, setActiveChip] = useState<FilterChipKey>('all');
+
+  // Modals
   const [checkoutItem, setCheckoutItem] = useState<ScheduleItem | null>(null);
   const [selectedForumClass, setSelectedForumClass] = useState<ScheduleItem | null>(null);
   const [forumModalVisible, setForumModalVisible] = useState(false);
+  const [detailItem, setDetailItem] = useState<ScheduleItem | null>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
 
   const weekDays = useMemo(() => {
     const today = getDemoToday();
@@ -105,13 +152,7 @@ export default function MemberSchedulesScreen() {
       setError(false);
       const today = getDemoToday();
       const to = addDays(today, 6);
-      const [schedules, weekSchedules, regs, saved, mem] = await Promise.all([
-        scheduleRepo.list(api, {
-          branchId: BRANCH_ID,
-          from: today,
-          to,
-          category: category === 'all' ? undefined : category,
-        }),
+      const [weekSchedules, regs, saved, mem] = await Promise.all([
         scheduleRepo.list(api, {
           branchId: BRANCH_ID,
           from: today,
@@ -121,9 +162,8 @@ export default function MemberSchedulesScreen() {
         savedClassesRepo.list(memberId),
         membershipRepo.getMembership(api, memberId),
       ]);
-      schedules.sort((a, b) => a.start.localeCompare(b.start));
       weekSchedules.sort((a, b) => a.start.localeCompare(b.start));
-      setItems(schedules);
+      setItems(weekSchedules);
       setAllWeekItems(weekSchedules);
       setRegistrations(regs);
       setSavedIds(new Set(saved.map((s) => s.scheduleItemId)));
@@ -140,7 +180,7 @@ export default function MemberSchedulesScreen() {
     } catch {
       setError(true);
     }
-  }, [api, category, memberId]);
+  }, [api, memberId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -151,7 +191,9 @@ export default function MemberSchedulesScreen() {
   const registeredMap = useMemo(() => {
     const map = new Map<string, ClassRegistration>();
     for (const r of registrations) {
-      map.set(r.scheduleItemId, r);
+      if (r.status === 'registered') {
+        map.set(r.scheduleItemId, r);
+      }
     }
     return map;
   }, [registrations]);
@@ -162,10 +204,110 @@ export default function MemberSchedulesScreen() {
   };
 
   const activeDay = weekDays[dayIndex];
-  const currentDayItems = useMemo(
-    () => items.filter((i) => dayKey(i.start) === activeDay),
-    [items, activeDay]
-  );
+
+  // Filtering pipeline
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      const itemDay = dayKey(item.start);
+
+      // Match selected day
+      if (itemDay !== activeDay) return false;
+
+      // Filter by active chip
+      if (activeChip === 'myBookings') {
+        if (!registeredMap.has(item.id)) return false;
+      } else if (activeChip === 'favorites') {
+        if (!savedIds.has(item.id)) return false;
+      } else if (activeChip === 'regRequired') {
+        if (!item.registrationRequired) return false;
+      } else if (activeChip === 'swim') {
+        const titleL = item.title.toLowerCase();
+        const isSwim =
+          item.category === 'swim' ||
+          item.location.toLowerCase().includes('pool') ||
+          titleL.includes('water') ||
+          titleL.includes('aqua');
+        if (!isSwim) return false;
+      } else if (activeChip === 'mindBody') {
+        const titleL = item.title.toLowerCase();
+        const isMind =
+          titleL.includes('yoga') ||
+          titleL.includes('tai chi') ||
+          titleL.includes('qigong') ||
+          titleL.includes('balance') ||
+          titleL.includes('pilates');
+        if (!isMind) return false;
+      } else if (activeChip === 'seniors') {
+        const isSenior = item.category === 'seniors' || Boolean(item.seniorFriendly);
+        if (!isSenior) return false;
+      } else if (activeChip === 'groupEx') {
+        if (item.category !== 'groupEx') return false;
+      } else if (activeChip === 'gym') {
+        if (!item.location.toLowerCase().includes('gym')) return false;
+      } else if (activeChip === 'pool') {
+        if (!item.location.toLowerCase().includes('pool')) return false;
+      } else if (activeChip === 'freeweight') {
+        if (!item.location.toLowerCase().includes('free weight')) return false;
+      } else if (activeChip === 'studio') {
+        const locL = item.location.toLowerCase();
+        if (!(locL === 'studio' || locL.includes('studio b'))) return false;
+      } else if (activeChip === 'circuit') {
+        if (!item.location.toLowerCase().includes('circuit')) return false;
+      } else if (activeChip === 'event') {
+        if (item.category !== 'event' && !item.isSpecialEvent) return false;
+      } else if (activeChip === 'childWatch') {
+        if (item.category !== 'childWatch') return false;
+      }
+
+      // Text search query
+      if (searchQuery.trim().length > 0) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesTitle = item.title.toLowerCase().includes(q);
+        const matchesInstructor = item.instructorName.toLowerCase().includes(q);
+        const matchesLocation = item.location.toLowerCase().includes(q);
+        if (!matchesTitle && !matchesInstructor && !matchesLocation) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [items, activeDay, activeChip, searchQuery, registeredMap, savedIds]);
+
+  // Day indicators (dots for booking or saved class)
+  const dayStats = useMemo(() => {
+    const stats: Record<string, { count: number; hasRegistered: boolean; hasSaved: boolean }> = {};
+    for (const d of weekDays) {
+      stats[d] = { count: 0, hasRegistered: false, hasSaved: false };
+    }
+    for (const item of allWeekItems) {
+      const d = dayKey(item.start);
+      if (stats[d]) {
+        stats[d].count += 1;
+        if (registeredMap.has(item.id)) {
+          stats[d].hasRegistered = true;
+        }
+        if (savedIds.has(item.id)) {
+          stats[d].hasSaved = true;
+        }
+      }
+    }
+    return stats;
+  }, [weekDays, allWeekItems, registeredMap, savedIds]);
+
+  // Active day statistics
+  const activeDaySummary = useMemo(() => {
+    const dayClasses = allWeekItems.filter((i) => dayKey(i.start) === activeDay);
+    const poolCount = dayClasses.filter((i) => i.location.toLowerCase().includes('pool')).length;
+    const regReqCount = dayClasses.filter((i) => i.registrationRequired).length;
+    const myCountToday = dayClasses.filter((i) => registeredMap.has(i.id)).length;
+    return {
+      total: dayClasses.length,
+      poolCount,
+      regReqCount,
+      myCountToday,
+    };
+  }, [allWeekItems, activeDay, registeredMap]);
 
   const onToggleStar = async (scheduleItemId: string) => {
     if (memberId === '') {
@@ -178,23 +320,21 @@ export default function MemberSchedulesScreen() {
   const handleBookingPress = (item: ScheduleItem) => {
     const isPaid = (item.priceCents ?? 0) > 0;
     if (isPaid) {
-      // Open Payment Checkout Modal
       setCheckoutItem(item);
     } else {
-      // Free included class registration
       confirmFreeRegister(item);
     }
   };
 
   const confirmFreeRegister = (item: ScheduleItem) => {
     dialog.show({
-      title: 'Register for class?',
-      message: `${item.title}\n${formatDayLabel(dayKey(item.start))} at ${formatClassTime(item.start)}\n\nIncluded with your membership ($0.00).`,
+      title: item.registrationRequired ? 'Reserve Spot in Class?' : 'Register for Class?',
+      message: `${item.title}\n${formatDayLabel(dayKey(item.start))} · ${formatClassTime(item.start)}\nInstructor: ${item.instructorName} · ${item.location}\n\nIncluded with your YMCA membership ($0.00).`,
       icon: 'calendar',
       buttons: [
         { text: 'Not now', style: 'cancel' },
         {
-          text: 'Register Free',
+          text: item.registrationRequired ? 'Reserve Spot' : 'Register Free',
           style: 'default',
           onPress: () => void doRegister(item),
         },
@@ -214,14 +354,14 @@ export default function MemberSchedulesScreen() {
       if (isPaid) {
         dialog.show({
           title: 'Booking & Payment Confirmed!',
-          message: `You are booked for ${item.title}!\nPayment of $${((item.priceCents ?? 0) / 100).toFixed(2)} charged to ${membership?.paymentBrand ?? 'Card'} ending in ••${membership?.paymentLast4 ?? '4242'}.\n\nA confirmation receipt has been added to your account.`,
+          message: `You are booked for ${item.title}!\nPayment of $${((item.priceCents ?? 0) / 100).toFixed(2)} charged to ${membership?.paymentBrand ?? 'Card'} ending in ••${membership?.paymentLast4 ?? '4242'}.\n\nA confirmation receipt has been saved to your account.`,
           icon: 'checkmark',
           buttons: [{ text: 'Great!', style: 'default' }],
         });
       } else {
         dialog.show({
-          title: 'Registration Confirmed!',
-          message: `You are registered for ${item.title} on ${formatDayLabel(dayKey(item.start))} at ${formatClassTime(item.start)}.`,
+          title: item.registrationRequired ? 'Spot Reserved!' : 'Registration Confirmed!',
+          message: `You are confirmed for ${item.title} on ${formatDayLabel(dayKey(item.start))} at ${formatClassTime(item.start)}.\nLocation: ${item.location}.`,
           icon: 'checkmark',
           buttons: [{ text: 'Awesome', style: 'default' }],
         });
@@ -244,15 +384,15 @@ export default function MemberSchedulesScreen() {
     const wasPaid = paidAmountCents > 0;
 
     dialog.show({
-      title: wasPaid ? 'Cancel Paid Booking?' : 'Cancel Registration?',
+      title: wasPaid ? 'Cancel Paid Booking?' : 'Cancel Reservation?',
       message: wasPaid
-        ? `Cancel your booking for ${item.title} on ${formatDayLabel(dayKey(item.start))}?\n\nA full refund of $${(paidAmountCents / 100).toFixed(2)} will be credited back to your ${reg?.paymentLast4 ? `card ending in ••${reg.paymentLast4}` : 'card on file'}.`
-        : `Remove yourself from ${item.title} on ${formatDayLabel(dayKey(item.start))}?`,
+        ? `Cancel your booking for ${item.title} on ${formatDayLabel(dayKey(item.start))}?\n\nA full refund of $${(paidAmountCents / 100).toFixed(2)} will be credited back to your card on file.`
+        : `Remove yourself from ${item.title} on ${formatDayLabel(dayKey(item.start))}? This will open up your spot for other members.`,
       icon: 'trash',
       buttons: [
         { text: 'Keep Reservation', style: 'cancel' },
         {
-          text: wasPaid ? 'Cancel & Refund' : 'Cancel Registration',
+          text: wasPaid ? 'Cancel & Refund' : 'Cancel Reservation',
           style: 'destructive',
           onPress: () => void doCancel(item),
         },
@@ -336,113 +476,179 @@ export default function MemberSchedulesScreen() {
     }
   };
 
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setActiveChip('all');
+  };
+
+  const hasActiveFilters = searchQuery.trim().length > 0 || activeChip !== 'all';
+
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+    <View style={[styles.screen, { backgroundColor: tc.background }]}>
       <YHeader subtitle="Class & Program Schedules" />
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
 
-      {/* Category Filter Chips */}
-      <View style={styles.filters}>
-        {FILTERS.map((f) => {
-          const active = f.key === category;
-          return (
-            <Pressable
-              key={f.key}
-              onPress={() => setCategory(f.key)}
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: active ? colors.primary : colors.cardBg,
-                  borderColor: active ? colors.primary : colors.border,
-                },
-              ]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={f.label}
-            >
-              <Text
-                style={[
-                  styles.chipText,
-                  { color: active ? '#FFFFFF' : colors.text },
-                  active && { fontWeight: '700' },
-                ]}
-                allowFontScaling
-              >
-                {f.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {/* ========================================================= */}
+      {/* PINNED COMPACT TOP SECTION (Maximized Class List Height) */}
+      {/* ========================================================= */}
+      <View style={[styles.pinnedHeader, { backgroundColor: tc.cardBg, borderBottomColor: tc.border }]}>
+        {/* Compact Day Selector Bar */}
+        <View style={styles.dayStripRow}>
+          <Pressable
+            onPress={() => goDay(dayIndex - 1)}
+            disabled={dayIndex === 0}
+            style={[styles.arrowBtn, dayIndex === 0 && styles.arrowBtnDisabled]}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Previous day"
+          >
+            <Ionicons name="chevron-back" size={20} color={dayIndex === 0 ? tc.border : tc.primary} />
+          </Pressable>
 
-      {/* Dedicated General Community Forum Callout */}
-      <Pressable
-        onPress={() => router.push('/(member)/community-forum')}
-        style={[
-          styles.generalForumBanner,
-          { backgroundColor: colors.cardBg, borderColor: colors.border },
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel="Looking for General Community Forum? Open General Forum"
-      >
-        <View style={[styles.generalForumIconWrap, { backgroundColor: isDark ? '#1E3A8A' : '#E0F2FE' }]}>
-          <Ionicons name="chatbubbles" size={20} color={colors.primary} />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.dayStripScroll}
+          >
+            {weekDays.map((d, idx) => {
+              const active = idx === dayIndex;
+              const stat = dayStats[d] ?? { count: 0, hasRegistered: false, hasSaved: false };
+              const isToday = idx === 0;
+
+              return (
+                <Pressable
+                  key={d}
+                  onPress={() => goDay(idx)}
+                  style={[
+                    styles.dayPill,
+                    {
+                      backgroundColor: active ? tc.primary : isDark ? '#1E293B' : '#F1F5F9',
+                      borderColor: active ? tc.primary : tc.border,
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`${formatDayLabel(d)}, ${stat.count} classes scheduled`}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text
+                      style={[
+                        styles.dayPillText,
+                        { color: active ? '#FFFFFF' : tc.text },
+                        active && { fontWeight: '800' },
+                      ]}
+                    >
+                      {formatDayPillShort(d)}
+                    </Text>
+                    {isToday ? (
+                      <View
+                        style={[
+                          styles.todayDotBadge,
+                          { backgroundColor: active ? '#FFFFFF' : tc.primary },
+                        ]}
+                      />
+                    ) : null}
+                  </View>
+
+                  {/* Indicator Dots under day */}
+                  <View style={styles.pillDotsRow}>
+                    {stat.hasRegistered ? (
+                      <View style={[styles.pillDot, { backgroundColor: active ? '#86EFAC' : tc.success }]} />
+                    ) : null}
+                    {stat.hasSaved ? (
+                      <View style={[styles.pillDot, { backgroundColor: active ? '#FDE047' : colors.gold }]} />
+                    ) : null}
+                    <Text
+                      style={[
+                        styles.pillCount,
+                        { color: active ? '#E2E8F0' : tc.textMuted },
+                      ]}
+                    >
+                      {stat.count}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <Pressable
+            onPress={() => goDay(dayIndex + 1)}
+            disabled={dayIndex === 6}
+            style={[styles.arrowBtn, dayIndex === 6 && styles.arrowBtnDisabled]}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Next day"
+          >
+            <Ionicons name="chevron-forward" size={20} color={dayIndex === 6 ? tc.border : tc.primary} />
+          </Pressable>
         </View>
-        <View style={{ flex: 1, gap: 2 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={[styles.generalForumBannerTitle, { color: colors.text }]}>
-              General Community Forum
-            </Text>
-            <View style={[styles.generalForumBadge, { backgroundColor: colors.primaryLight }]}>
-              <Text style={[styles.generalForumBadgeText, { color: colors.primary }]}>BRANCH-WIDE</Text>
-            </View>
+
+        {/* Compact Search & Filter Row */}
+        <View style={styles.searchAndChipsRow}>
+          <View style={[styles.compactSearchBox, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC', borderColor: tc.border }]}>
+            <Ionicons name="search" size={15} color={tc.textMuted} />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search classes, Chris, Sue, Gym, Pool..."
+              placeholderTextColor={tc.textMuted}
+              style={[styles.compactSearchInput, { color: tc.text }]}
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+            {searchQuery.length > 0 ? (
+              <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                <Ionicons name="close-circle" size={15} color={tc.textMuted} />
+              </Pressable>
+            ) : null}
           </View>
-          <Text style={[styles.generalForumBannerSub, { color: colors.textMuted }]} numberOfLines={1}>
-            Looking for non-class chat? Visit General Forum for tips & @ staff
-          </Text>
         </View>
-        <Text style={[styles.generalForumAction, { color: colors.primary }]}>Open ›</Text>
-      </Pressable>
 
-      {/* Quick Day Selector Tabs */}
-      <View style={styles.dayTabsWrapper}>
+        {/* Unified Horizontal Filter Scroll */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.dayTabsScroll}
+          contentContainerStyle={styles.unifiedFilterScroll}
         >
-          {weekDays.map((d, idx) => {
-            const active = idx === dayIndex;
+          {FILTER_CHIPS.map((chip) => {
+            const active = activeChip === chip.key;
+            let countLabel = '';
+            if (chip.key === 'myBookings') countLabel = ` (${registrations.length})`;
+            if (chip.key === 'favorites') countLabel = ` (${savedIds.size})`;
+
             return (
               <Pressable
-                key={d}
-                onPress={() => goDay(idx)}
+                key={chip.key}
+                onPress={() => setActiveChip(chip.key)}
                 style={[
-                  styles.dayTab,
+                  styles.filterChip,
                   {
-                    backgroundColor: active ? colors.primaryLight : colors.cardBg,
-                    borderColor: active ? colors.primary : colors.border,
+                    backgroundColor: active ? tc.primary : isDark ? '#1E293B' : '#F1F5F9',
+                    borderColor: active ? tc.primary : tc.border,
                   },
                 ]}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
-                accessibilityLabel={formatDayLabel(d)}
+                accessibilityLabel={`${chip.label}${countLabel}`}
               >
+                {chip.icon ? (
+                  <Ionicons
+                    name={chip.icon}
+                    size={12}
+                    color={active ? '#FFFFFF' : chip.key === 'myBookings' ? tc.success : colors.gold}
+                  />
+                ) : null}
                 <Text
                   style={[
-                    styles.dayTabText,
-                    {
-                      color: active
-                        ? isDark
-                          ? colors.primary
-                          : colors.primaryDark
-                        : colors.text,
-                      fontWeight: active ? '700' : '600',
-                    },
+                    styles.filterChipText,
+                    { color: active ? '#FFFFFF' : tc.text },
+                    active && { fontWeight: '700' },
                   ]}
-                  allowFontScaling
                 >
-                  {idx === 0 ? 'Today' : formatDayPill(d)}
+                  {chip.label}
+                  {countLabel}
                 </Text>
               </Pressable>
             );
@@ -450,76 +656,134 @@ export default function MemberSchedulesScreen() {
         </ScrollView>
       </View>
 
-      {/* Accessible Day Navigation Bar */}
-      <View style={styles.dayNav}>
-        <Pressable
-          onPress={() => goDay(dayIndex - 1)}
-          disabled={dayIndex === 0}
-          style={[
-            styles.dayBtn,
-            { backgroundColor: colors.cardBg, borderColor: colors.border },
-            dayIndex === 0 && styles.dayBtnDisabled,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Previous day"
-        >
-          <Text style={[styles.dayBtnText, { color: colors.primary }]} allowFontScaling>
-            ‹ Prev Day
-          </Text>
-        </Pressable>
-
-        <View style={styles.dayLabelBlock}>
-          {dayIndex === 0 ? (
-            <View style={[styles.todayPill, { backgroundColor: colors.primaryLight }]}>
-              <Text style={[styles.todayPillText, { color: colors.primary }]}>TODAY</Text>
-            </View>
-          ) : null}
-          <Text
-            style={[styles.dayLabel, { color: colors.text }]}
-            allowFontScaling
-            accessibilityRole="header"
-          >
-            {formatDayLabel(activeDay)}
-          </Text>
-        </View>
-
-        <Pressable
-          onPress={() => goDay(dayIndex + 1)}
-          disabled={dayIndex === 6}
-          style={[
-            styles.dayBtn,
-            { backgroundColor: colors.cardBg, borderColor: colors.border },
-            dayIndex === 6 && styles.dayBtnDisabled,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Next day"
-        >
-          <Text style={[styles.dayBtnText, { color: colors.primary }]} allowFontScaling>
-            Next Day ›
-          </Text>
-        </Pressable>
-      </View>
-
-      {/* Smooth Vertical Class Schedule List */}
+      {/* ========================================================= */}
+      {/* EXPANSIVE SCROLLING CLASS LIST (HERO VIEWPORT)            */}
+      {/* ========================================================= */}
       <FlatList
-        data={currentDayItems}
+        data={filteredItems}
         keyExtractor={(i) => i.id}
         style={styles.classList}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator
+        ListHeaderComponent={
+          <View style={styles.listHeaderWrapper}>
+            {/* Fall 1 Official Schedule Banner (Responsive, Zero-Overlap) */}
+            <View
+              style={[
+                styles.sessionBanner,
+                { backgroundColor: isDark ? '#0F172A' : '#F8FAFC', borderColor: tc.border },
+              ]}
+            >
+              <View style={styles.sessionBannerTop}>
+                <View style={styles.sessionBadgeRow}>
+                  <View style={[styles.sessionBadge, { backgroundColor: tc.primaryLight }]}>
+                    <Text style={[styles.sessionBadgeText, { color: tc.primaryDark }]}>
+                      FALL 1 SCHEDULE
+                    </Text>
+                  </View>
+                  <Text style={[styles.sessionDateText, { color: tc.textMuted }]}>
+                    Aug 24 – Nov 11
+                  </Text>
+                </View>
+
+                <View style={[styles.sessionCountTagWrap, { backgroundColor: isDark ? '#1E293B' : '#EDF2F7' }]}>
+                  <Ionicons name="calendar-outline" size={12} color={tc.primary} />
+                  <Text style={[styles.sessionCountTag, { color: tc.text }]}>
+                    {allWeekItems.length} Weekly Sessions
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.sessionBranchRow}>
+                <Ionicons name="location-outline" size={12} color={tc.textMuted} />
+                <Text style={[styles.sessionBranchText, { color: tc.textMuted }]} numberOfLines={1}>
+                  YMCA Silver Spring · 9800 Hastings Dr · Group Fitness
+                </Text>
+              </View>
+            </View>
+
+            {/* Day Header & Session Highlights Strip */}
+            <View style={[styles.daySummaryBox, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC', borderColor: tc.border }]}>
+              <View style={styles.daySummaryMain}>
+                <Text style={[styles.activeDayTitle, { color: tc.text }]}>
+                  {formatDayLabel(activeDay)}
+                </Text>
+                <Text style={[styles.activeDaySub, { color: tc.textMuted }]}>
+                  {activeDaySummary.total} sessions scheduled · {activeDaySummary.poolCount} pool · {activeDaySummary.regReqCount} reg required
+                </Text>
+              </View>
+
+              {activeDaySummary.myCountToday > 0 ? (
+                <View style={[styles.enrolledBadge, { backgroundColor: tc.successBg }]}>
+                  <Ionicons name="checkmark-circle" size={13} color={tc.success} />
+                  <Text style={[styles.enrolledBadgeText, { color: tc.success }]}>
+                    {activeDaySummary.myCountToday} Booked
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            {/* Quick Community Forum Banner (Scrolls naturally with list) */}
+            <Pressable
+              onPress={() => router.push('/(member)/community-forum')}
+              style={[
+                styles.slimForumBanner,
+                { backgroundColor: tc.cardBg, borderColor: tc.border },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Open Branch Community Forum"
+            >
+              <View style={[styles.slimForumIconWrap, { backgroundColor: isDark ? '#1E3A8A' : '#E0F2FE' }]}>
+                <Ionicons name="chatbubbles" size={14} color={tc.primary} />
+              </View>
+              <Text style={[styles.slimForumText, { color: tc.text }]} numberOfLines={1}>
+                Have a question or looking to connect? <Text style={{ color: tc.primary, fontWeight: '700' }}>Open Community Forum ›</Text>
+              </Text>
+            </Pressable>
+
+            {/* Filter Status Reset Pill if filters are active */}
+            {hasActiveFilters ? (
+              <View style={styles.activeFilterNoticeRow}>
+                <Text style={[styles.activeFilterNoticeText, { color: tc.textMuted }]}>
+                  Showing {filteredItems.length} matching {activeChip !== 'all' ? `"${activeChip}"` : ''}{searchQuery ? ` "${searchQuery}"` : ''}
+                </Text>
+                <Pressable onPress={clearAllFilters} hitSlop={6}>
+                  <Text style={[styles.clearFilterText, { color: tc.primary }]}>Clear filters</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+        }
         ListEmptyComponent={
           <View
             style={[
               styles.emptyContainer,
-              { backgroundColor: colors.cardBg, borderColor: colors.border },
+              { backgroundColor: tc.cardBg, borderColor: tc.border },
             ]}
           >
-            <Text style={[styles.emptyTitle, { color: colors.text }]} allowFontScaling>
-              No sessions scheduled
+            <Ionicons name="calendar-outline" size={42} color={tc.textMuted} />
+            <Text style={[styles.emptyTitle, { color: tc.text }]}>
+              No Classes Matching Filter
             </Text>
-            <Text style={[styles.empty, { color: colors.textMuted }]} allowFontScaling>
-              There are no sessions for this filter on {formatDayLabel(activeDay)}. Try selecting "All Classes" or another day.
+            <Text style={[styles.empty, { color: tc.textMuted }]}>
+              {hasActiveFilters
+                ? 'Try clearing your search query or selecting "All Classes" to see everything scheduled.'
+                : `There are no scheduled sessions for ${formatDayLabel(activeDay)}.`}
             </Text>
+
+            {hasActiveFilters ? (
+              <Pressable
+                onPress={clearAllFilters}
+                style={[styles.resetBtn, { backgroundColor: tc.primaryLight, borderColor: tc.primary }]}
+                accessibilityRole="button"
+                accessibilityLabel="Reset all filters"
+              >
+                <Ionicons name="refresh" size={15} color={tc.primary} />
+                <Text style={[styles.resetBtnText, { color: tc.primary }]}>
+                  Show All Classes
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         }
         renderItem={({ item }) => {
@@ -527,6 +791,8 @@ export default function MemberSchedulesScreen() {
           const registered = reg != null && reg.status === 'registered';
           const taken = rosterCounts[item.id] ?? 0;
           const spotsLeft = Math.max(0, item.capacity - taken);
+          const durationStr = formatDurationStr(item.start, item.end);
+
           return (
             <View style={styles.cardItem}>
               <ClassCard
@@ -535,16 +801,24 @@ export default function MemberSchedulesScreen() {
                 location={item.location}
                 instructor={item.instructorName}
                 spotsLeft={spotsLeft}
+                capacity={item.capacity}
                 registered={registered}
                 starred={savedIds.has(item.id)}
                 priceCents={item.priceCents}
                 isSpecialEvent={item.isSpecialEvent}
                 seniorFriendly={item.seniorFriendly}
+                registrationRequired={item.registrationRequired}
+                intensity={item.intensity}
+                durationStr={durationStr}
                 paidAmountCents={reg?.paidAmountCents}
                 onToggleStar={() => void onToggleStar(item.id)}
                 onRegister={() => handleBookingPress(item)}
                 onChange={() => confirmChange(item)}
                 onCancel={() => confirmCancel(item)}
+                onPressCard={() => {
+                  setDetailItem(item);
+                  setDetailModalVisible(true);
+                }}
                 onOpenForum={() => {
                   setSelectedForumClass(item);
                   setForumModalVisible(true);
@@ -553,6 +827,34 @@ export default function MemberSchedulesScreen() {
               />
             </View>
           );
+        }}
+      />
+
+      {/* Enterprise Class Details Modal */}
+      <ClassDetailModal
+        visible={detailModalVisible}
+        item={detailItem}
+        dayLabel={detailItem ? formatDayLabel(dayKey(detailItem.start)) : ''}
+        timeLabel={detailItem ? formatClassTime(detailItem.start) : ''}
+        registered={detailItem ? registeredMap.has(detailItem.id) : false}
+        spotsLeft={detailItem ? Math.max(0, detailItem.capacity - (rosterCounts[detailItem.id] ?? 0)) : 0}
+        totalBooked={detailItem ? rosterCounts[detailItem.id] ?? 0 : 0}
+        starred={detailItem ? savedIds.has(detailItem.id) : false}
+        busy={busyId === detailItem?.id}
+        onClose={() => setDetailModalVisible(false)}
+        onRegister={() => {
+          if (detailItem) {
+            handleBookingPress(detailItem);
+          }
+        }}
+        onChange={detailItem && registeredMap.has(detailItem.id) ? () => confirmChange(detailItem) : undefined}
+        onCancel={detailItem && registeredMap.has(detailItem.id) ? () => confirmCancel(detailItem) : undefined}
+        onToggleStar={detailItem ? () => void onToggleStar(detailItem.id) : undefined}
+        onOpenForum={() => {
+          if (detailItem) {
+            setSelectedForumClass(detailItem);
+            setForumModalVisible(true);
+          }
         }}
       />
 
@@ -575,7 +877,7 @@ export default function MemberSchedulesScreen() {
         onClose={() => setCheckoutItem(null)}
       />
 
-      {/* CLASS FORUM & COMMUNITY CHAT MODAL */}
+      {/* Class Forum & Community Discussion Modal */}
       <ClassForumModal
         visible={forumModalVisible}
         onClose={() => setForumModalVisible(false)}
@@ -588,190 +890,276 @@ export default function MemberSchedulesScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.offWhite,
   },
-  filters: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+  pinnedHeader: {
+    borderBottomWidth: 1,
+    paddingBottom: 8,
+    gap: 6,
   },
-  chip: {
-    minHeight: 46,
-    paddingHorizontal: 14,
-    borderRadius: radii.chip,
-    backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  chipText: {
-    ...typography.bodyStrong,
-    fontSize: 15,
-    color: colors.nearBlack,
-  },
-  chipTextActive: {
-    color: colors.white,
-    fontWeight: '700',
-  },
-  dayNav: {
+  dayStripRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    gap: 8,
+    paddingHorizontal: 4,
+    paddingTop: 4,
   },
-  dayBtn: {
-    minHeight: tapTarget,
-    minWidth: 92,
-    paddingHorizontal: 12,
-    borderRadius: radii.button,
-    backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.border,
+  arrowBtn: {
+    width: 28,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayBtnDisabled: {
-    opacity: 0.35,
+  arrowBtnDisabled: {
+    opacity: 0.25,
   },
-  dayBtnText: {
-    ...typography.bodyStrong,
-    fontSize: 15,
-    color: colors.primary,
+  dayStripScroll: {
+    paddingHorizontal: 4,
+    gap: 6,
+    alignItems: 'center',
   },
-  dayLabelBlock: {
-    flex: 1,
+  dayPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    minWidth: 64,
     gap: 2,
   },
-  todayPill: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  todayPillText: {
+  dayPillText: {
     fontSize: 11,
     fontWeight: '700',
-    color: colors.primary,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
-  dayLabel: {
-    ...typography.bodyStrong,
-    fontSize: 16,
-    color: colors.nearBlack,
-    textAlign: 'center',
+  todayDotBadge: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
-  dayTabsWrapper: {
-    paddingBottom: spacing.xs,
-  },
-  dayTabsScroll: {
-    paddingHorizontal: spacing.md,
-    gap: 8,
-  },
-  dayTab: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: radii.chip,
-    backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.border,
+  pillDotsRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 3,
   },
-  dayTabActive: {
-    backgroundColor: colors.primaryLight,
-    borderColor: colors.primary,
+  pillDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
-  dayTabText: {
-    ...typography.bodyStrong,
-    fontSize: 14,
-    color: colors.nearBlack,
+  pillCount: {
+    fontSize: 9,
+    fontWeight: '600',
   },
-  dayTabTextActive: {
-    color: colors.primaryDark,
-    fontWeight: '700',
+  searchAndChipsRow: {
+    paddingHorizontal: spacing.md,
+  },
+  compactSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: Platform.OS === 'ios' ? 7 : 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  compactSearchInput: {
+    flex: 1,
+    fontSize: 12,
+    padding: 0,
+  },
+  unifiedFilterScroll: {
+    paddingHorizontal: spacing.md,
+    gap: 6,
+    paddingTop: 2,
+    alignItems: 'center',
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radii.chip,
+    borderWidth: 1,
+  },
+  filterChipText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   classList: {
     flex: 1,
   },
-  list: {
+  listContent: {
     paddingHorizontal: spacing.md,
-    paddingBottom: spacing.xl,
+    paddingTop: 8,
+    paddingBottom: 110,
+    gap: 6,
+  },
+  listHeaderWrapper: {
+    gap: 8,
+    marginBottom: 6,
+  },
+  sessionBanner: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 6,
+  },
+  sessionBannerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  sessionBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
+  },
+  sessionBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    flexShrink: 0,
+  },
+  sessionBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  sessionDateText: {
+    fontSize: 11,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  sessionCountTagWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    flexShrink: 0,
+  },
+  sessionCountTag: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  sessionBranchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  sessionBranchText: {
+    fontSize: 11,
+    flex: 1,
+  },
+  daySummaryBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 8,
+  },
+  daySummaryMain: {
+    gap: 2,
+    flex: 1,
+    minWidth: 0,
+  },
+  activeDayTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  activeDaySub: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  enrolledBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    flexShrink: 0,
+  },
+  enrolledBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  slimForumBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+  },
+  slimForumIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  slimForumText: {
+    fontSize: 11,
+    flex: 1,
+  },
+  activeFilterNoticeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  activeFilterNoticeText: {
+    fontSize: 11,
+  },
+  clearFilterText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   cardItem: {
-    marginBottom: spacing.sm,
+    marginBottom: 4,
   },
   emptyContainer: {
-    backgroundColor: colors.white,
     borderRadius: radii.card,
     padding: spacing.xl,
     marginVertical: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
-    gap: 6,
+    gap: 8,
   },
   emptyTitle: {
     ...typography.title,
-    fontSize: 18,
-    color: colors.nearBlack,
+    fontSize: 16,
+    fontWeight: '800',
   },
   empty: {
-    ...typography.body,
-    fontSize: 15,
-    color: colors.muted,
+    fontSize: 12,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 17,
   },
-  generalForumBanner: {
+  resetBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: spacing.md,
-    marginTop: 8,
-    marginBottom: 4,
+    gap: 6,
+    paddingVertical: 7,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    gap: 10,
-  },
-  generalForumIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  generalForumBannerTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  generalForumBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
     borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 4,
   },
-  generalForumBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  generalForumBannerSub: {
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  generalForumAction: {
-    fontSize: 13,
+  resetBtnText: {
+    fontSize: 12,
     fontWeight: '700',
   },
 });

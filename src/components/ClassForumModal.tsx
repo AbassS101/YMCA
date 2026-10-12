@@ -315,15 +315,15 @@ export function ClassForumModal({
           style={[
             styles.generalForumNotice,
             {
-              backgroundColor: isDark ? '#1E1B4B' : '#F5F3FF',
-              borderColor: isDark ? '#4338CA' : '#DDD6FE',
+              backgroundColor: isDark ? '#0C2A4A' : '#EFF6FF',
+              borderColor: isDark ? '#1E3A8A' : '#BFDBFE',
             },
           ]}
           accessibilityRole="button"
           accessibilityLabel="Looking for general community discussions? Open General Community Forum"
         >
-          <Ionicons name="chatbubbles" size={16} color="#7C3AED" />
-          <Text style={[styles.generalForumNoticeText, { color: isDark ? '#C4B5FD' : '#6D28D9' }]}>
+          <Ionicons name="chatbubbles" size={16} color={colors.primary} />
+          <Text style={[styles.generalForumNoticeText, { color: isDark ? '#93C5FD' : '#00609C' }]}>
             This chat is for {scheduleItem.title}. Looking for general YMCA topics? <Text style={{ fontWeight: '800', textDecorationLine: 'underline' }}>Open General Forum ›</Text>
           </Text>
         </Pressable>

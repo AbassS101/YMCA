@@ -2,10 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -41,10 +43,10 @@ type FilterTab =
   | 'all'
   | 'interested'
   | 'recently_chatted'
-  | 'my_topics'
-  | 'chatted_or_created'
+  | 'staff_answered'
   | 'staff_asked'
-  | 'staff_answered';
+  | 'my_topics'
+  | 'chatted_or_created';
 
 type ClassFilterTab = 'all' | 'interested' | 'recently_chatted';
 type SpaceMode = 'general' | 'classes';
@@ -86,7 +88,8 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
   });
   const [recentlyChattedClassIds, setRecentlyChattedClassIds] = useState<string[]>([]);
   const [unreadForumNotifs, setUnreadForumNotifs] = useState<AppNotification[]>([]);
-  const [showInterestsSelector, setShowInterestsSelector] = useState(false);
+  const [showInterestsModal, setShowInterestsModal] = useState(false);
+  const [dismissedNotifBanner, setDismissedNotifBanner] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -100,6 +103,7 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
 
   // Modals
   const [newTopicModalVisible, setNewTopicModalVisible] = useState(false);
+  const [initialTemplateId, setInitialTemplateId] = useState<string | undefined>(undefined);
   const [selectedTopic, setSelectedTopic] = useState<ForumTopic | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedClassItem, setSelectedClassItem] = useState<ScheduleItem | null>(null);
@@ -230,7 +234,7 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
     [currentUserId]
   );
 
-  // Recently chatted topics list (sorted by most recent chat by current user)
+  // Recently chatted topics list
   const recentlyChattedTopics = useMemo(() => {
     if (!currentUserId) return [];
     return topics
@@ -254,7 +258,7 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
   // Filtered topics
   const filteredTopics = useMemo(() => {
     const list = topics.filter((topic) => {
-      // Category bar filter
+      // Category filter
       if (selectedCategory === 'interested') {
         if (!isTopicInterested(topic)) return false;
       } else if (selectedCategory === 'recently_chatted') {
@@ -484,11 +488,10 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
     return topics.filter((t) => t.authorId === currentUserId).length;
   }, [topics, currentUserId]);
 
-  const chattedOrCreatedCount = useMemo(() => {
-    return topics.filter(
-      (t) => t.authorId === currentUserId || hasUserChattedInTopic(t)
-    ).length;
-  }, [topics, currentUserId, hasUserChattedInTopic]);
+  const openNewTopicWithTemplate = (templateId?: string) => {
+    setInitialTemplateId(templateId);
+    setNewTopicModalVisible(true);
+  };
 
   return (
     <View style={[styles.screen, { backgroundColor: tc.background }]}>
@@ -516,17 +519,17 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
           <View style={{ flex: 1 }}>
             <Text style={[styles.stackHeaderTitle, { color: tc.text }]}>YMCA Community Space</Text>
             <Text style={[styles.stackHeaderSub, { color: tc.textMuted }]}>
-              General Forum, Discussions & Staff Desk Q&A
+              Silver Spring Branch • Members & Staff Desk
             </Text>
           </View>
           {spaceMode === 'general' ? (
             <Pressable
-              onPress={() => setNewTopicModalVisible(true)}
+              onPress={() => openNewTopicWithTemplate()}
               style={[styles.headerNewBtn, { backgroundColor: colors.primary }]}
               accessibilityRole="button"
               accessibilityLabel="Create new topic"
             >
-              <Ionicons name="add" size={18} color="#FFFFFF" />
+              <Ionicons name="add" size={17} color="#FFFFFF" />
               <Text style={styles.headerNewBtnText}>Post</Text>
             </Pressable>
           ) : null}
@@ -535,49 +538,50 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
         <YHeader subtitle="YMCA Community Space" />
       )}
 
-      {/* Unread Replies & @Mentions Notification Banner */}
-      {unreadForumNotifs.length > 0 ? (
+      {/* Slim Unread Notifications Toast */}
+      {unreadForumNotifs.length > 0 && !dismissedNotifBanner ? (
         <Pressable
           onPress={() => void handleOpenNotifItem(unreadForumNotifs[0])}
           style={[
             styles.notifBanner,
             {
-              backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF',
-              borderColor: isDark ? '#4338CA' : '#818CF8',
+              backgroundColor: isDark ? '#0C2A4A' : '#EFF6FF',
+              borderColor: isDark ? '#1E3A8A' : '#BFDBFE',
             },
           ]}
           accessibilityRole="button"
           accessibilityLabel={`Unread forum notification: ${unreadForumNotifs[0].title}`}
         >
-          <View style={[styles.notifIconCircle, { backgroundColor: '#4F46E5' }]}>
+          <View style={[styles.notifIconCircle, { backgroundColor: colors.primary }]}>
             <Ionicons
               name={unreadForumNotifs[0].type === 'forum_mention' ? 'at' : 'chatbubbles'}
-              size={15}
+              size={13}
               color="#FFFFFF"
             />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.notifBannerTitle, { color: isDark ? '#E0E7FF' : '#312E81' }]} numberOfLines={1}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.notifBannerTitle, { color: isDark ? '#E0F2FE' : '#002855' }]} numberOfLines={1}>
               {unreadForumNotifs[0].title}
               {unreadForumNotifs.length > 1 ? ` (+${unreadForumNotifs.length - 1} more)` : ''}
             </Text>
-            <Text style={[styles.notifBannerBody, { color: isDark ? '#A5B4FC' : '#4338CA' }]} numberOfLines={1}>
+            <Text style={[styles.notifBannerBody, { color: isDark ? '#93C5FD' : '#00609C' }]} numberOfLines={1}>
               {unreadForumNotifs[0].body}
             </Text>
           </View>
           <Pressable
             onPress={(e) => {
               e.stopPropagation();
-              router.push('/(member)/notifications');
+              setDismissedNotifBanner(true);
             }}
-            style={styles.notifViewAllBtn}
+            hitSlop={8}
+            style={styles.notifDismissBtn}
           >
-            <Text style={styles.notifViewAllText}>Inbox ›</Text>
+            <Ionicons name="close" size={16} color={tc.textMuted} />
           </Pressable>
         </Pressable>
       ) : null}
 
-      {/* Mode Switcher: General Forum vs Class Discussions */}
+      {/* Segmented Mode Switcher: Discussions vs Class Chats */}
       <View style={[styles.spaceSwitcherWrap, { backgroundColor: tc.cardBg, borderBottomColor: tc.border }]}>
         <View style={[styles.spaceSwitcher, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
           <Pressable
@@ -585,11 +589,11 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
             style={[
               styles.spaceSwitchBtn,
               spaceMode === 'general' && {
-                backgroundColor: colors.primary,
+                backgroundColor: isDark ? '#00609C' : '#FFFFFF',
                 shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.15,
-                shadowRadius: 2,
+                shadowOffset: { width: 0, height: 1.5 },
+                shadowOpacity: 0.1,
+                shadowRadius: 2.5,
                 elevation: 2,
               },
             ]}
@@ -599,15 +603,18 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
             <Ionicons
               name="chatbubbles"
               size={15}
-              color={spaceMode === 'general' ? '#FFFFFF' : colors.primary}
+              color={spaceMode === 'general' ? (isDark ? '#FFFFFF' : colors.primary) : tc.textMuted}
             />
             <Text
               style={[
                 styles.spaceSwitchBtnText,
-                { color: spaceMode === 'general' ? '#FFFFFF' : tc.text },
+                {
+                  color: spaceMode === 'general' ? (isDark ? '#FFFFFF' : colors.primaryDark) : tc.textMuted,
+                  fontWeight: spaceMode === 'general' ? '800' : '600',
+                },
               ]}
             >
-              General Forum ({topics.length})
+              Discussions ({topics.length})
             </Text>
           </Pressable>
 
@@ -616,11 +623,11 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
             style={[
               styles.spaceSwitchBtn,
               spaceMode === 'classes' && {
-                backgroundColor: colors.primary,
+                backgroundColor: isDark ? '#00609C' : '#FFFFFF',
                 shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.15,
-                shadowRadius: 2,
+                shadowOffset: { width: 0, height: 1.5 },
+                shadowOpacity: 0.1,
+                shadowRadius: 2.5,
                 elevation: 2,
               },
             ]}
@@ -630,12 +637,15 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
             <Ionicons
               name="calendar"
               size={15}
-              color={spaceMode === 'classes' ? '#FFFFFF' : colors.primary}
+              color={spaceMode === 'classes' ? (isDark ? '#FFFFFF' : colors.primary) : tc.textMuted}
             />
             <Text
               style={[
                 styles.spaceSwitchBtnText,
-                { color: spaceMode === 'classes' ? '#FFFFFF' : tc.text },
+                {
+                  color: spaceMode === 'classes' ? (isDark ? '#FFFFFF' : colors.primaryDark) : tc.textMuted,
+                  fontWeight: spaceMode === 'classes' ? '800' : '600',
+                },
               ]}
             >
               Class Chats ({classes.length})
@@ -647,272 +657,321 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
       {/* ===================== GENERAL COMMUNITY FORUM MODE ===================== */}
       {spaceMode === 'general' ? (
         <>
-          {/* Top Banner & Call to Action */}
-          <View style={[styles.topBar, { backgroundColor: tc.cardBg, borderColor: tc.border }]}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Ionicons name="people" size={18} color={colors.primary} />
-                <Text style={[styles.topTitle, { color: tc.text }]}>YMCA General Community Space</Text>
-              </View>
-              <Text style={[styles.topSubtitle, { color: tc.textMuted }]}>
-                Select forums you are interested in, jump into recently chatted threads, and tag members or staff with @.
-              </Text>
+          {/* Streamlined Search & Feed Preferences Bar */}
+          <View style={[styles.searchControlRow, { backgroundColor: tc.cardBg }]}>
+            <View style={[styles.searchInputWrapper, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: tc.border }]}>
+              <Ionicons name="search-outline" size={17} color={tc.textMuted} />
+              <TextInput
+                style={[styles.searchInput, { color: tc.text }]}
+                placeholder="Search topics, questions, @mentions..."
+                placeholderTextColor={tc.textMuted}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery ? (
+                <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                  <Ionicons name="close-circle" size={17} color={tc.textMuted} />
+                </Pressable>
+              ) : null}
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Pressable
-                onPress={() => setShowInterestsSelector((prev) => !prev)}
+
+            {/* Interests & Following Sheet Trigger */}
+            <Pressable
+              onPress={() => setShowInterestsModal(true)}
+              style={[
+                styles.interestsPillBtn,
+                {
+                  backgroundColor: interests.categories.length + interests.topicIds.length > 0
+                    ? isDark ? '#2E2211' : '#FEF3C7'
+                    : isDark ? '#1E293B' : '#F1F5F9',
+                  borderColor: interests.categories.length + interests.topicIds.length > 0
+                    ? isDark ? '#B45309' : '#FDE68A'
+                    : tc.border,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Manage following interests"
+            >
+              <Ionicons
+                name={interests.categories.length + interests.topicIds.length > 0 ? 'star' : 'star-outline'}
+                size={14}
+                color={interests.categories.length + interests.topicIds.length > 0 ? '#D97706' : tc.textMuted}
+              />
+              <Text
                 style={[
-                  styles.interestsBtn,
+                  styles.interestsPillText,
                   {
-                    backgroundColor: showInterestsSelector
-                      ? '#FEF3C7'
-                      : isDark
-                        ? '#1E293B'
-                        : '#F8FAFC',
-                    borderColor: '#F59E0B',
+                    color: interests.categories.length + interests.topicIds.length > 0
+                      ? isDark ? '#FBBF24' : '#92400E'
+                      : tc.text,
                   },
                 ]}
-                accessibilityRole="button"
-                accessibilityLabel="Select forums you are interested in"
               >
-                <Ionicons name="star" size={15} color="#D97706" />
-                <Text style={[styles.interestsBtnText, { color: '#B45309' }]}>
-                  Interests ({interests.categories.length + interests.topicIds.length})
+                Interests ({interests.categories.length + interests.topicIds.length})
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Unified Horizontal Quick Filters Ribbon */}
+          <View style={[styles.filterBarContainer, { backgroundColor: tc.cardBg, borderBottomColor: tc.border }]}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterBarContent}
+            >
+              {/* All Topics */}
+              <Pressable
+                onPress={() => {
+                  setActiveFilterTab('all');
+                  setSelectedCategory('all');
+                }}
+                style={[
+                  styles.filterPill,
+                  activeFilterTab === 'all' && selectedCategory === 'all'
+                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
+                ]}
+              >
+                <Ionicons
+                  name="apps-outline"
+                  size={13}
+                  color={activeFilterTab === 'all' && selectedCategory === 'all' ? '#FFFFFF' : colors.primary}
+                />
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    {
+                      color: activeFilterTab === 'all' && selectedCategory === 'all' ? '#FFFFFF' : tc.text,
+                    },
+                  ]}
+                >
+                  All ({topics.length})
                 </Text>
               </Pressable>
 
+              {/* Followed / Interested */}
               <Pressable
-                onPress={() => setNewTopicModalVisible(true)}
-                style={[styles.newTopicBtn, { backgroundColor: colors.primary }]}
-                accessibilityRole="button"
-                accessibilityLabel="Create new forum topic"
+                onPress={() => {
+                  setActiveFilterTab('interested');
+                  setSelectedCategory('all');
+                }}
+                style={[
+                  styles.filterPill,
+                  activeFilterTab === 'interested'
+                    ? { backgroundColor: '#D97706', borderColor: '#D97706' }
+                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
+                ]}
               >
-                <Ionicons name="add" size={18} color="#FFFFFF" />
-                <Text style={styles.newTopicBtnText}>New Topic</Text>
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Select Interested Forums Panel */}
-          {showInterestsSelector ? (
-            <View
-              style={[
-                styles.interestsPanel,
-                {
-                  backgroundColor: isDark ? '#1E293B' : '#FFFBEB',
-                  borderColor: '#FCD34D',
-                },
-              ]}
-            >
-              <View style={styles.interestsPanelHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="star" size={16} color="#D97706" />
-                  <Text style={[styles.interestsPanelTitle, { color: tc.text }]}>
-                    Select Forums You Are Interested In
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => {
-                    setActiveFilterTab('interested');
-                    setShowInterestsSelector(false);
-                  }}
+                <Ionicons
+                  name="star"
+                  size={13}
+                  color={activeFilterTab === 'interested' ? '#FFFFFF' : '#D97706'}
+                />
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    { color: activeFilterTab === 'interested' ? '#FFFFFF' : tc.text },
+                  ]}
                 >
-                  <Text style={[styles.filterNowLink, { color: colors.primary }]}>
-                    Filter by Interests ›
-                  </Text>
-                </Pressable>
-              </View>
-              <Text style={[styles.interestsPanelSub, { color: tc.textMuted }]}>
-                Tap forum categories below to follow them (or star individual topics). You will also be notified when people reply in forums you follow.
-              </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.interestsCategoryList}
-              >
-                {FORUM_CATEGORIES.map((cat) => {
-                  const isInterestedCat = interests.categories.includes(cat.id);
-                  return (
-                    <Pressable
-                      key={cat.id}
-                      onPress={() => void handleToggleInterestedCategory(cat.id)}
-                      style={[
-                        styles.interestCatChip,
-                        {
-                          backgroundColor: isInterestedCat
-                            ? '#D97706'
-                            : isDark
-                              ? tc.cardBg
-                              : '#FFFFFF',
-                          borderColor: isInterestedCat ? '#B45309' : tc.border,
-                        },
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${cat.label} forum interest`}
-                    >
-                      <Ionicons
-                        name={isInterestedCat ? 'star' : (cat.icon as any)}
-                        size={13}
-                        color={isInterestedCat ? '#FFFFFF' : cat.color}
-                      />
-                      <Text
-                        style={[
-                          styles.interestCatChipText,
-                          { color: isInterestedCat ? '#FFFFFF' : tc.text },
-                        ]}
-                      >
-                        {cat.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          ) : null}
-
-          {/* Search Bar */}
-          <View style={[styles.searchRow, { backgroundColor: tc.cardBg, borderColor: tc.border }]}>
-            <Ionicons name="search-outline" size={18} color={tc.textMuted} />
-            <TextInput
-              style={[styles.searchInput, { color: tc.text }]}
-              placeholder="Search discussions, topics, @mentions..."
-              placeholderTextColor={tc.textMuted}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery ? (
-              <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-                <Ionicons name="close-circle" size={18} color={tc.textMuted} />
+                  Followed ({interestedCount})
+                </Text>
               </Pressable>
-            ) : null}
-          </View>
 
-          {/* Primary Filter Tabs */}
-          <View style={styles.filterTabsRow}>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={[
-                { id: 'all', label: `All (${topics.length})`, icon: 'chatbubbles' },
-                { id: 'interested', label: `Interested (${interestedCount})`, icon: 'star' },
-                {
-                  id: 'recently_chatted',
-                  label: `Recently Chatted (${recentlyChattedTopics.length})`,
-                  icon: 'time',
-                },
-                { id: 'my_topics', label: `Created by Me (${myTopicsCount})`, icon: 'create' },
-                {
-                  id: 'chatted_or_created',
-                  label: `Chatted & Created (${chattedOrCreatedCount})`,
-                  icon: 'flame',
-                },
-                { id: 'staff_asked', label: '@ Staff Asked', icon: 'at' },
-                { id: 'staff_answered', label: '✓ Staff Answered', icon: 'checkmark-circle' },
-              ]}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.filterTabsContent}
-              renderItem={({ item }) => {
-                const isSelected = activeFilterTab === item.id;
+              {/* Staff Answered */}
+              <Pressable
+                onPress={() => {
+                  setActiveFilterTab('staff_answered');
+                  setSelectedCategory('all');
+                }}
+                style={[
+                  styles.filterPill,
+                  activeFilterTab === 'staff_answered'
+                    ? { backgroundColor: '#15803D', borderColor: '#15803D' }
+                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
+                ]}
+              >
+                <Ionicons
+                  name="shield-checkmark"
+                  size={13}
+                  color={activeFilterTab === 'staff_answered' ? '#FFFFFF' : '#15803D'}
+                />
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    { color: activeFilterTab === 'staff_answered' ? '#FFFFFF' : tc.text },
+                  ]}
+                >
+                  Staff Answered
+                </Text>
+              </Pressable>
+
+              {/* Recent Activity */}
+              <Pressable
+                onPress={() => {
+                  setActiveFilterTab('recently_chatted');
+                  setSelectedCategory('all');
+                }}
+                style={[
+                  styles.filterPill,
+                  activeFilterTab === 'recently_chatted'
+                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
+                ]}
+              >
+                <Ionicons
+                  name="time-outline"
+                  size={13}
+                  color={activeFilterTab === 'recently_chatted' ? '#FFFFFF' : colors.primary}
+                />
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    { color: activeFilterTab === 'recently_chatted' ? '#FFFFFF' : tc.text },
+                  ]}
+                >
+                  Recent Activity ({recentlyChattedTopics.length})
+                </Text>
+              </Pressable>
+
+              {/* My Posts */}
+              <Pressable
+                onPress={() => {
+                  setActiveFilterTab('my_topics');
+                  setSelectedCategory('all');
+                }}
+                style={[
+                  styles.filterPill,
+                  activeFilterTab === 'my_topics'
+                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
+                ]}
+              >
+                <Ionicons
+                  name="create-outline"
+                  size={13}
+                  color={activeFilterTab === 'my_topics' ? '#FFFFFF' : colors.primary}
+                />
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    { color: activeFilterTab === 'my_topics' ? '#FFFFFF' : tc.text },
+                  ]}
+                >
+                  My Posts ({myTopicsCount})
+                </Text>
+              </Pressable>
+
+              {/* Specific Categories */}
+              {FORUM_CATEGORIES.map((cat) => {
+                const isSelected = selectedCategory === cat.id && activeFilterTab === 'all';
                 return (
                   <Pressable
-                    onPress={() => setActiveFilterTab(item.id as FilterTab)}
+                    key={cat.id}
+                    onPress={() => {
+                      setSelectedCategory(cat.id);
+                      setActiveFilterTab('all');
+                    }}
                     style={[
-                      styles.filterTabPill,
-                      {
-                        backgroundColor: isSelected
-                          ? colors.primary
-                          : isDark
-                            ? tc.cardBg
-                            : '#F1F5F9',
-                        borderColor: isSelected ? colors.primary : tc.border,
-                      },
+                      styles.filterPill,
+                      isSelected
+                        ? { backgroundColor: cat.color, borderColor: cat.color }
+                        : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
                     ]}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Filter by ${item.label}`}
                   >
                     <Ionicons
-                      name={item.icon as any}
-                      size={14}
-                      color={isSelected ? '#FFFFFF' : colors.primary}
+                      name={cat.icon as any}
+                      size={12}
+                      color={isSelected ? '#FFFFFF' : cat.color}
                     />
                     <Text
                       style={[
-                        styles.filterTabText,
+                        styles.filterPillText,
                         { color: isSelected ? '#FFFFFF' : tc.text },
                       ]}
                     >
-                      {item.label}
+                      {cat.label}
                     </Text>
                   </Pressable>
                 );
-              }}
-            />
+              })}
+            </ScrollView>
           </View>
 
-          {/* Category Chips Scroll (includes Interested, Recently Chatted, Created by Me, plus Forum Categories) */}
-          <View style={styles.categoriesBar}>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={[
-                { id: 'all', label: 'All Categories', icon: 'apps-outline', color: colors.primary },
-                { id: 'interested', label: '⭐ Interested Forums', icon: 'star', color: '#D97706' },
-                {
-                  id: 'recently_chatted',
-                  label: '💬 Recently Chatted',
-                  icon: 'chatbubbles',
-                  color: '#4F46E5',
-                },
-                { id: 'my_topics', label: '✍️ Created by Me', icon: 'create', color: '#15803D' },
-                ...FORUM_CATEGORIES,
-              ]}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.categoriesContent}
-              renderItem={({ item }) => {
-                const isSelected = selectedCategory === item.id;
-                const isCatInterested = interests.categories.includes(item.id as ForumTopicCategory);
-                return (
-                  <Pressable
-                    onPress={() => setSelectedCategory(item.id as any)}
-                    style={[
-                      styles.categoryChip,
-                      {
-                        backgroundColor: isSelected
-                          ? isDark
-                            ? '#1E293B'
-                            : '#E0F2FE'
-                          : isDark
-                            ? tc.cardBg
-                            : '#FFFFFF',
-                        borderColor: isSelected
-                          ? colors.primary
-                          : isCatInterested
-                            ? '#F59E0B'
-                            : tc.border,
-                      },
-                    ]}
-                  >
-                    {isCatInterested ? (
-                      <Ionicons name="star" size={11} color="#D97706" />
-                    ) : null}
-                    <Text
-                      style={[
-                        styles.categoryChipText,
-                        {
-                          color: isSelected ? colors.primary : tc.text,
-                          fontWeight: isSelected || isCatInterested ? '700' : '500',
-                        },
-                      ]}
-                    >
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                );
-              }}
-            />
+          {/* Quick Action Prompt Bar (Speed & Productivity) */}
+          <View style={[styles.quickPromptContainer, { backgroundColor: isDark ? '#0C2A4A' : '#F0F7FF', borderColor: isDark ? '#1E3A8A' : '#D0E3F0' }]}>
+            <View style={styles.promptHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="chatbubble-ellipses" size={15} color={colors.primary} />
+                <Text style={[styles.promptTitle, { color: isDark ? '#E0F2FE' : '#002855' }]}>
+                  Start a Community Discussion:
+                </Text>
+              </View>
+              <Pressable onPress={() => openNewTopicWithTemplate()}>
+                <Text style={[styles.promptNewText, { color: colors.primary }]}>+ Custom Post</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.promptChipsRow}>
+              <Pressable
+                onPress={() => openNewTopicWithTemplate('ask_staff')}
+                style={[styles.promptChip, { backgroundColor: isDark ? tc.cardBg : '#FFFFFF', borderColor: isDark ? '#1E3A8A' : '#BFDBFE' }]}
+              >
+                <Ionicons name="help-circle" size={13} color="#DB2777" />
+                <Text style={[styles.promptChipText, { color: tc.text }]}>Ask Staff Desk</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => openNewTopicWithTemplate('workout_tip')}
+                style={[styles.promptChip, { backgroundColor: isDark ? tc.cardBg : '#FFFFFF', borderColor: isDark ? '#1E3A8A' : '#BFDBFE' }]}
+              >
+                <Ionicons name="barbell" size={13} color="#15803D" />
+                <Text style={[styles.promptChipText, { color: tc.text }]}>Workout Advice</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => openNewTopicWithTemplate('pool_question')}
+                style={[styles.promptChip, { backgroundColor: isDark ? tc.cardBg : '#FFFFFF', borderColor: isDark ? '#1E3A8A' : '#BFDBFE' }]}
+              >
+                <Ionicons name="water" size={13} color="#00609C" />
+                <Text style={[styles.promptChipText, { color: tc.text }]}>Lap Pool Hours</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => openNewTopicWithTemplate('find_partner')}
+                style={[styles.promptChip, { backgroundColor: isDark ? tc.cardBg : '#FFFFFF', borderColor: isDark ? '#1E3A8A' : '#BFDBFE' }]}
+              >
+                <Ionicons name="people" size={13} color="#7C3AED" />
+                <Text style={[styles.promptChipText, { color: tc.text }]}>Find Partner</Text>
+              </Pressable>
+            </ScrollView>
           </View>
 
-          {/* Topic List */}
+          {/* Active Filter Clear Tag (if any) */}
+          {(searchQuery || activeFilterTab !== 'all' || selectedCategory !== 'all') && (
+            <View style={styles.activeFilterTagRow}>
+              <Text style={[styles.activeFilterTagText, { color: tc.textMuted }]}>
+                Filtered by:{' '}
+                <Text style={{ fontWeight: '700', color: tc.text }}>
+                  {searchQuery ? `"${searchQuery}"` : ''}
+                  {activeFilterTab !== 'all' ? ` [${activeFilterTab.replace('_', ' ')}]` : ''}
+                  {selectedCategory !== 'all' ? ` [${selectedCategory}]` : ''}
+                </Text>{' '}
+                ({filteredTopics.length} {filteredTopics.length === 1 ? 'topic' : 'topics'})
+              </Text>
+              <Pressable
+                onPress={() => {
+                  setSearchQuery('');
+                  setActiveFilterTab('all');
+                  setSelectedCategory('all');
+                }}
+                hitSlop={6}
+              >
+                <Text style={[styles.clearFilterLink, { color: colors.primary }]}>Clear All</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Topic Feed */}
           <FlatList
             data={filteredTopics}
             keyExtractor={(item) => item.id}
@@ -921,69 +980,8 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
             }
             contentContainerStyle={[
               styles.listContent,
-              { paddingBottom: Math.max(insets.bottom, 24) + 80 },
+              { paddingBottom: Math.max(insets.bottom, 24) + 90 },
             ]}
-            ListHeaderComponent={
-              recentlyChattedTopics.length > 0 &&
-              activeFilterTab !== 'recently_chatted' &&
-              selectedCategory !== 'recently_chatted' ? (
-                <View
-                  style={[
-                    styles.recentChattedSection,
-                    {
-                      backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF',
-                      borderColor: isDark ? '#3730A3' : '#C7D2FE',
-                    },
-                  ]}
-                >
-                  <View style={styles.recentChattedHeader}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Ionicons name="chatbubbles" size={15} color="#4F46E5" />
-                      <Text style={[styles.recentChattedTitle, { color: isDark ? '#E0E7FF' : '#312E81' }]}>
-                        Recently Chatted In ({recentlyChattedTopics.length})
-                      </Text>
-                    </View>
-                    <Pressable onPress={() => setActiveFilterTab('recently_chatted')}>
-                      <Text style={styles.recentChattedFilterLink}>Filter All ›</Text>
-                    </Pressable>
-                  </View>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.recentChattedScroll}
-                  >
-                    {recentlyChattedTopics.map((rt) => (
-                      <Pressable
-                        key={rt.id}
-                        onPress={() => openTopicDetail(rt)}
-                        style={[
-                          styles.recentChattedChip,
-                          {
-                            backgroundColor: isDark ? tc.cardBg : '#FFFFFF',
-                            borderColor: isDark ? '#4338CA' : '#A5B4FC',
-                          },
-                        ]}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Recently chatted forum: ${rt.title}`}
-                      >
-                        <Text
-                          style={[styles.recentChattedChipTitle, { color: tc.text }]}
-                          numberOfLines={1}
-                        >
-                          {rt.title}
-                        </Text>
-                        <View style={styles.recentChattedChipMeta}>
-                          <Ionicons name="chatbubble-ellipses" size={11} color="#4F46E5" />
-                          <Text style={styles.recentChattedChipReplies}>
-                            {rt.replyCount} {rt.replyCount === 1 ? 'reply' : 'replies'}
-                          </Text>
-                        </View>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-              ) : null
-            }
             ListEmptyComponent={
               loading ? (
                 <View style={styles.emptyContainer}>
@@ -992,27 +990,21 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
                 </View>
               ) : (
                 <View style={[styles.emptyCard, { backgroundColor: tc.cardBg, borderColor: tc.border }]}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={44} color={tc.textMuted} />
+                  <Ionicons name="chatbubbles-outline" size={48} color={tc.textMuted} />
                   <Text style={[styles.emptyTitle, { color: tc.text }]}>No Topics Found</Text>
                   <Text style={[styles.emptySub, { color: tc.textMuted }]}>
                     {searchQuery
-                      ? `No topics match "${searchQuery}". Try different keywords.`
-                      : activeFilterTab === 'interested' || selectedCategory === 'interested'
-                        ? 'You have no matching interested forums yet. Tap "Interests" above or star topics you want to follow!'
-                        : activeFilterTab === 'recently_chatted' || selectedCategory === 'recently_chatted'
-                          ? "You haven't chatted in any forum threads yet. Reply to a discussion to see it here!"
-                          : activeFilterTab === 'chatted_or_created'
-                            ? "You haven't chatted in or created any topics yet."
-                            : activeFilterTab === 'staff_asked'
-                              ? 'No topics currently tag staff for inquiries.'
-                              : activeFilterTab === 'staff_answered'
-                                ? 'No topics have staff responses yet.'
-                                : activeFilterTab === 'my_topics' || selectedCategory === 'my_topics'
-                                  ? "You haven't posted any topics yet. Start a discussion!"
-                                  : 'Be the first to start a conversation in our YMCA community!'}
+                      ? `No discussions match "${searchQuery}". Try different keywords.`
+                      : activeFilterTab === 'interested'
+                        ? 'You have not followed any topics or categories yet. Tap "Interests" above or star topics you like!'
+                        : activeFilterTab === 'recently_chatted'
+                          ? "You haven't chatted in any topics yet. Reply to a thread to see it here!"
+                          : activeFilterTab === 'my_topics'
+                            ? "You haven't created any topics yet. Start a discussion!"
+                            : 'Be the first to start a conversation in our YMCA community!'}
                   </Text>
                   <Pressable
-                    onPress={() => setNewTopicModalVisible(true)}
+                    onPress={() => openNewTopicWithTemplate()}
                     style={[styles.emptyActionBtn, { backgroundColor: colors.primary }]}
                   >
                     <Ionicons name="add" size={16} color="#FFFFFF" />
@@ -1036,94 +1028,125 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
               />
             )}
           />
+
+          {/* Floating Action Button (FAB) for Instant Post */}
+          <Pressable
+            onPress={() => openNewTopicWithTemplate()}
+            style={[
+              styles.floatingFab,
+              {
+                backgroundColor: colors.primary,
+                bottom: isTabScreen ? 16 : Math.max(insets.bottom, 16),
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Create new discussion"
+          >
+            <Ionicons name="add" size={22} color="#FFFFFF" />
+            <Text style={styles.floatingFabText}>New Post</Text>
+          </Pressable>
         </>
       ) : (
         /* ===================== CLASS DISCUSSIONS MODE ===================== */
         <>
-          {/* Class Discussions Top Banner */}
-          <View style={[styles.topBar, { backgroundColor: tc.cardBg, borderColor: tc.border }]}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Ionicons name="fitness" size={18} color={colors.primary} />
-                <Text style={[styles.topTitle, { color: tc.text }]}>Class Chats & Announcements</Text>
-              </View>
-              <Text style={[styles.topSubtitle, { color: tc.textMuted }]}>
-                Filter by classes you are interested in or recently chatted in, and tag instructors or classmates with @.
-              </Text>
+          {/* Class Search Bar */}
+          <View style={[styles.searchControlRow, { backgroundColor: tc.cardBg }]}>
+            <View style={[styles.searchInputWrapper, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: tc.border }]}>
+              <Ionicons name="search-outline" size={17} color={tc.textMuted} />
+              <TextInput
+                style={[styles.searchInput, { color: tc.text }]}
+                placeholder="Search class name, instructor, or room..."
+                placeholderTextColor={tc.textMuted}
+                value={classSearch}
+                onChangeText={setClassSearch}
+              />
+              {classSearch ? (
+                <Pressable onPress={() => setClassSearch('')} hitSlop={8}>
+                  <Ionicons name="close-circle" size={17} color={tc.textMuted} />
+                </Pressable>
+              ) : null}
             </View>
           </View>
 
-          {/* Class Search Bar */}
-          <View style={[styles.searchRow, { backgroundColor: tc.cardBg, borderColor: tc.border }]}>
-            <Ionicons name="search-outline" size={18} color={tc.textMuted} />
-            <TextInput
-              style={[styles.searchInput, { color: tc.text }]}
-              placeholder="Search classes, instructors, or rooms..."
-              placeholderTextColor={tc.textMuted}
-              value={classSearch}
-              onChangeText={setClassSearch}
-            />
-            {classSearch ? (
-              <Pressable onPress={() => setClassSearch('')} hitSlop={8}>
-                <Ionicons name="close-circle" size={18} color={tc.textMuted} />
-              </Pressable>
-            ) : null}
-          </View>
-
           {/* Class Filter Tabs */}
-          <View style={styles.filterTabsRow}>
-            <FlatList
+          <View style={[styles.filterBarContainer, { backgroundColor: tc.cardBg, borderBottomColor: tc.border }]}>
+            <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              data={[
-                { id: 'all', label: `All Classes (${classes.length})`, icon: 'calendar' },
-                {
-                  id: 'interested',
-                  label: `Interested (${interests.classIds.length})`,
-                  icon: 'star',
-                },
-                {
-                  id: 'recently_chatted',
-                  label: `Recently Chatted (${recentlyChattedClassIds.length})`,
-                  icon: 'chatbubbles',
-                },
-              ]}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.filterTabsContent}
-              renderItem={({ item }) => {
-                const isSelected = activeClassFilterTab === item.id;
-                return (
-                  <Pressable
-                    onPress={() => setActiveClassFilterTab(item.id as ClassFilterTab)}
-                    style={[
-                      styles.filterTabPill,
-                      {
-                        backgroundColor: isSelected
-                          ? colors.primary
-                          : isDark
-                            ? tc.cardBg
-                            : '#F1F5F9',
-                        borderColor: isSelected ? colors.primary : tc.border,
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name={item.icon as any}
-                      size={14}
-                      color={isSelected ? '#FFFFFF' : colors.primary}
-                    />
-                    <Text
-                      style={[
-                        styles.filterTabText,
-                        { color: isSelected ? '#FFFFFF' : tc.text },
-                      ]}
-                    >
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                );
-              }}
-            />
+              contentContainerStyle={styles.filterBarContent}
+            >
+              <Pressable
+                onPress={() => setActiveClassFilterTab('all')}
+                style={[
+                  styles.filterPill,
+                  activeClassFilterTab === 'all'
+                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
+                ]}
+              >
+                <Ionicons
+                  name="calendar"
+                  size={13}
+                  color={activeClassFilterTab === 'all' ? '#FFFFFF' : colors.primary}
+                />
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    { color: activeClassFilterTab === 'all' ? '#FFFFFF' : tc.text },
+                  ]}
+                >
+                  All Classes ({classes.length})
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setActiveClassFilterTab('interested')}
+                style={[
+                  styles.filterPill,
+                  activeClassFilterTab === 'interested'
+                    ? { backgroundColor: '#D97706', borderColor: '#D97706' }
+                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
+                ]}
+              >
+                <Ionicons
+                  name="star"
+                  size={13}
+                  color={activeClassFilterTab === 'interested' ? '#FFFFFF' : '#D97706'}
+                />
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    { color: activeClassFilterTab === 'interested' ? '#FFFFFF' : tc.text },
+                  ]}
+                >
+                  Starred ({interests.classIds.length})
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setActiveClassFilterTab('recently_chatted')}
+                style={[
+                  styles.filterPill,
+                  activeClassFilterTab === 'recently_chatted'
+                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
+                ]}
+              >
+                <Ionicons
+                  name="chatbubbles"
+                  size={13}
+                  color={activeClassFilterTab === 'recently_chatted' ? '#FFFFFF' : colors.primary}
+                />
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    { color: activeClassFilterTab === 'recently_chatted' ? '#FFFFFF' : tc.text },
+                  ]}
+                >
+                  Recently Chatted ({recentlyChattedClassIds.length})
+                </Text>
+              </Pressable>
+            </ScrollView>
           </View>
 
           {/* Class List */}
@@ -1137,60 +1160,6 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
               styles.listContent,
               { paddingBottom: Math.max(insets.bottom, 24) + 80 },
             ]}
-            ListHeaderComponent={
-              recentlyChattedClasses.length > 0 && activeClassFilterTab !== 'recently_chatted' ? (
-                <View
-                  style={[
-                    styles.recentChattedSection,
-                    {
-                      backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF',
-                      borderColor: isDark ? '#3730A3' : '#C7D2FE',
-                    },
-                  ]}
-                >
-                  <View style={styles.recentChattedHeader}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Ionicons name="chatbubbles" size={15} color="#4F46E5" />
-                      <Text style={[styles.recentChattedTitle, { color: isDark ? '#E0E7FF' : '#312E81' }]}>
-                        Recently Chatted Classes ({recentlyChattedClasses.length})
-                      </Text>
-                    </View>
-                    <Pressable onPress={() => setActiveClassFilterTab('recently_chatted')}>
-                      <Text style={styles.recentChattedFilterLink}>Filter All ›</Text>
-                    </Pressable>
-                  </View>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.recentChattedScroll}
-                  >
-                    {recentlyChattedClasses.map((rc) => (
-                      <Pressable
-                        key={rc.id}
-                        onPress={() => openClassForum(rc)}
-                        style={[
-                          styles.recentChattedChip,
-                          {
-                            backgroundColor: isDark ? tc.cardBg : '#FFFFFF',
-                            borderColor: isDark ? '#4338CA' : '#A5B4FC',
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[styles.recentChattedChipTitle, { color: tc.text }]}
-                          numberOfLines={1}
-                        >
-                          {rc.title}
-                        </Text>
-                        <Text style={styles.recentChattedChipReplies} numberOfLines={1}>
-                          {rc.instructorName}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-              ) : null
-            }
             ListEmptyComponent={
               loading ? (
                 <View style={styles.emptyContainer}>
@@ -1203,10 +1172,10 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
                   <Text style={[styles.emptyTitle, { color: tc.text }]}>No Classes Found</Text>
                   <Text style={[styles.emptySub, { color: tc.textMuted }]}>
                     {activeClassFilterTab === 'interested'
-                      ? 'Star classes you are interested in to filter them here.'
+                      ? 'Star classes to filter them here for quick access.'
                       : activeClassFilterTab === 'recently_chatted'
                         ? "You haven't posted in any class chats yet."
-                        : 'No class discussions match your search.'}
+                        : 'No class chats match your search query.'}
                   </Text>
                 </View>
               )
@@ -1221,24 +1190,43 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
                     styles.classCard,
                     {
                       backgroundColor: tc.cardBg,
-                      borderColor: isClassInterested ? '#F59E0B' : tc.cardBorder,
-                      borderWidth: isClassInterested ? 1.5 : 1,
+                      borderColor: tc.cardBorder,
+                      borderWidth: 1,
                     },
                   ]}
                   accessibilityRole="button"
                   accessibilityLabel={`Open chat for ${item.title}`}
                 >
                   <View style={styles.classCardLeft}>
-                    <View style={[styles.classIconCircle, { backgroundColor: colors.primaryLight }]}>
-                      <Ionicons name="chatbubble-ellipses" size={20} color={colors.primary} />
+                    <View style={[styles.classIconCircle, { backgroundColor: isDark ? '#0C2A4A' : '#EFF6FF' }]}>
+                      <Ionicons name="chatbubbles" size={20} color={colors.primary} />
                     </View>
                     <View style={{ flex: 1, gap: 2 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <Text style={[styles.classCardTitle, { color: tc.text }]}>{item.title}</Text>
                         {hasChattedClass ? (
-                          <View style={[styles.classChattedBadge, { backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF' }]}>
-                            <Ionicons name="chatbubbles" size={10} color="#4F46E5" />
-                            <Text style={styles.classChattedBadgeText}>Recently Chatted</Text>
+                          <View
+                            style={[
+                              styles.classChattedBadge,
+                              {
+                                backgroundColor: isDark ? '#0C2A4A' : '#EFF6FF',
+                                borderColor: isDark ? '#1E3A8A' : '#BFDBFE',
+                              },
+                            ]}
+                          >
+                            <Ionicons
+                              name="chatbubbles"
+                              size={10}
+                              color={isDark ? '#60A5FA' : '#1D4ED8'}
+                            />
+                            <Text
+                              style={[
+                                styles.classChattedBadgeText,
+                                { color: isDark ? '#60A5FA' : '#1D4ED8' },
+                              ]}
+                            >
+                              Active
+                            </Text>
                           </View>
                         ) : null}
                       </View>
@@ -1262,12 +1250,16 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
                         {
                           backgroundColor: isClassInterested
                             ? isDark
-                              ? '#422006'
+                              ? '#2E2211'
                               : '#FEF3C7'
                             : isDark
                               ? '#1E293B'
                               : '#F8FAFC',
-                          borderColor: isClassInterested ? '#F59E0B' : tc.border,
+                          borderColor: isClassInterested
+                            ? isDark
+                              ? '#B45309'
+                              : '#FDE68A'
+                            : tc.border,
                         },
                       ]}
                       accessibilityRole="button"
@@ -1277,11 +1269,14 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
                     >
                       <Ionicons
                         name={isClassInterested ? 'star' : 'star-outline'}
-                        size={14}
+                        size={15}
                         color={isClassInterested ? '#D97706' : tc.textMuted}
                       />
                     </Pressable>
-                    <Text style={[styles.classCardActionText, { color: colors.primary }]}>Open Chat ›</Text>
+                    <View style={styles.classOpenBtn}>
+                      <Text style={[styles.classCardActionText, { color: colors.primary }]}>Open</Text>
+                      <Ionicons name="chevron-forward" size={13} color={colors.primary} />
+                    </View>
                   </View>
                 </Pressable>
               );
@@ -1290,11 +1285,96 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
         </>
       )}
 
+      {/* FEED PREFERENCES & INTERESTS MODAL */}
+      <Modal
+        visible={showInterestsModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowInterestsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.interestsModalCard, { backgroundColor: tc.cardBg, borderColor: tc.border }]}>
+            <View style={styles.interestsModalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="star" size={20} color="#D97706" />
+                <Text style={[styles.interestsModalTitle, { color: tc.text }]}>
+                  Community Feed Preferences
+                </Text>
+              </View>
+              <Pressable onPress={() => setShowInterestsModal(false)} hitSlop={8}>
+                <Ionicons name="close" size={22} color={tc.textMuted} />
+              </Pressable>
+            </View>
+
+            <Text style={[styles.interestsModalSub, { color: tc.textMuted }]}>
+              Follow topics and categories to customize your feed. You'll receive alerts when members or YMCA staff post updates.
+            </Text>
+
+            <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ gap: 10, paddingVertical: 8 }}>
+              {FORUM_CATEGORIES.map((cat) => {
+                const isCatInterested = interests.categories.includes(cat.id);
+                return (
+                  <Pressable
+                    key={cat.id}
+                    onPress={() => void handleToggleInterestedCategory(cat.id)}
+                    style={[
+                      styles.interestSettingRow,
+                      {
+                        backgroundColor: isCatInterested
+                          ? isDark ? '#2E2211' : '#FFFBEB'
+                          : isDark ? '#1E293B' : '#F8FAFC',
+                        borderColor: isCatInterested
+                          ? isDark ? '#B45309' : '#FDE68A'
+                          : tc.border,
+                      },
+                    ]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                      <Ionicons
+                        name={cat.icon as any}
+                        size={18}
+                        color={isCatInterested ? '#D97706' : cat.color}
+                      />
+                      <Text
+                        style={[
+                          styles.interestSettingLabel,
+                          { color: tc.text, fontWeight: isCatInterested ? '800' : '600' },
+                        ]}
+                      >
+                        {cat.label}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={isCatInterested ? 'checkbox' : 'square-outline'}
+                      size={20}
+                      color={isCatInterested ? '#D97706' : tc.textMuted}
+                    />
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.interestsModalActions}>
+              <Pressable
+                onPress={() => {
+                  setActiveFilterTab('interested');
+                  setShowInterestsModal(false);
+                }}
+                style={[styles.interestsFilterNowBtn, { backgroundColor: colors.primary }]}
+              >
+                <Text style={styles.interestsFilterNowBtnText}>View Followed Feed</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* NEW TOPIC MODAL */}
       <NewTopicModal
         visible={newTopicModalVisible}
         onClose={() => setNewTopicModalVisible(false)}
         canPin={canManage}
+        initialTemplateId={initialTemplateId}
         onSubmit={handleCreateTopic}
       />
 
@@ -1370,7 +1450,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 12,
+    paddingHorizontal: 13,
     paddingVertical: 7,
     borderRadius: 18,
   },
@@ -1384,16 +1464,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     marginHorizontal: 16,
-    marginTop: 10,
+    marginTop: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
     borderWidth: 1,
   },
   notifIconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1405,24 +1485,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 1,
   },
-  notifViewAllBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  notifViewAllText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#4F46E5',
+  notifDismissBtn: {
+    padding: 4,
   },
   spaceSwitcherWrap: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   spaceSwitcher: {
     flexDirection: 'row',
-    borderRadius: 12,
-    padding: 4,
+    borderRadius: 10,
+    padding: 3,
     gap: 4,
   },
   spaceSwitchBtn: {
@@ -1431,73 +1505,59 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 9,
-    borderRadius: 9,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
   spaceSwitchBtnText: {
     fontSize: 13,
-    fontWeight: '700',
   },
-  topBar: {
+  searchControlRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 12,
+    paddingTop: 10,
+    paddingBottom: 6,
+    gap: 8,
   },
-  topTitle: {
-    fontSize: 15,
-    fontWeight: '800',
+  searchInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    minHeight: 40,
+    gap: 8,
   },
-  topSubtitle: {
-    fontSize: 12,
-    lineHeight: 16,
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    paddingVertical: 0,
   },
-  interestsBtn: {
+  interestsPillBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 11,
-    paddingVertical: 8,
-    borderRadius: 18,
-    borderWidth: 1,
-  },
-  interestsBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  interestsPanel: {
-    marginHorizontal: 16,
-    marginTop: 10,
-    padding: 12,
+    paddingVertical: 9,
     borderRadius: 12,
     borderWidth: 1,
-    gap: 6,
+    minHeight: 40,
   },
-  interestsPanelHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  interestsPanelTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  filterNowLink: {
+  interestsPillText: {
     fontSize: 12,
     fontWeight: '700',
   },
-  interestsPanelSub: {
-    fontSize: 11,
-    lineHeight: 15,
+  filterBarContainer: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 6,
   },
-  interestsCategoryList: {
-    gap: 8,
-    paddingTop: 4,
+  filterBarContent: {
+    paddingHorizontal: 16,
+    gap: 6,
   },
-  interestCatChip: {
+  filterPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
@@ -1506,135 +1566,67 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
   },
-  interestCatChipText: {
+  filterPillText: {
     fontSize: 12,
     fontWeight: '700',
   },
-  newTopicBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  newTopicBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  quickPromptContainer: {
     marginHorizontal: 16,
-    marginTop: 10,
+    marginTop: 8,
     marginBottom: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: radii.button,
-    borderWidth: 1,
-    minHeight: 46,
-    gap: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    paddingVertical: 0,
-  },
-  filterTabsRow: {
-    paddingTop: 8,
-  },
-  filterTabsContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  filterTabPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 13,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  filterTabText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  categoriesBar: {
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  categoriesContent: {
-    paddingHorizontal: 16,
-    gap: 6,
-  },
-  categoryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  categoryChipText: {
-    fontSize: 11,
-  },
-  recentChattedSection: {
-    padding: 12,
+    padding: 10,
     borderRadius: 12,
     borderWidth: 1,
-    gap: 8,
-    marginBottom: 4,
+    gap: 6,
   },
-  recentChattedHeader: {
+  promptHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  recentChattedTitle: {
-    fontSize: 13,
+  promptTitle: {
+    fontSize: 12,
     fontWeight: '800',
   },
-  recentChattedFilterLink: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#4F46E5',
+  promptNewText: {
+    fontSize: 11,
+    fontWeight: '800',
   },
-  recentChattedScroll: {
-    gap: 8,
+  promptChipsRow: {
+    gap: 6,
+    paddingTop: 2,
   },
-  recentChattedChip: {
-    width: 195,
-    paddingHorizontal: 11,
-    paddingVertical: 9,
-    borderRadius: 10,
-    borderWidth: 1,
-    gap: 4,
-  },
-  recentChattedChipTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  recentChattedChipMeta: {
+  promptChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
   },
-  recentChattedChipReplies: {
+  promptChipText: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#4F46E5',
+    fontWeight: '700',
+  },
+  activeFilterTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  activeFilterTagText: {
+    fontSize: 12,
+  },
+  clearFilterLink: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   listContent: {
-    padding: 16,
-    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    gap: 10,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -1649,20 +1641,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     gap: 10,
     marginTop: 16,
   },
   emptyTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   emptySub: {
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 18,
-    maxWidth: 280,
+    maxWidth: 290,
   },
   emptyActionBtn: {
     flexDirection: 'row',
@@ -1678,13 +1670,32 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+  floatingFab: {
+    position: 'absolute',
+    right: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 26,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+  floatingFabText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
   classCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: 14,
     gap: 12,
   },
   classCardLeft: {
@@ -1694,15 +1705,15 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   classIconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   classCardTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   classChattedBadge: {
     flexDirection: 'row',
@@ -1715,14 +1726,14 @@ const styles = StyleSheet.create({
   classChattedBadgeText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#4F46E5',
   },
   classCardInstructor: {
     fontSize: 12,
+    fontWeight: '500',
   },
   classCardTime: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: 2,
   },
   classCardRight: {
@@ -1738,8 +1749,64 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  classOpenBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
   classCardActionText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  interestsModalCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 18,
+    gap: 12,
+  },
+  interestsModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  interestsModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  interestsModalSub: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  interestSettingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  interestSettingLabel: {
+    fontSize: 13,
+  },
+  interestsModalActions: {
+    paddingTop: 8,
+  },
+  interestsFilterNowBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  interestsFilterNowBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
   },
 });

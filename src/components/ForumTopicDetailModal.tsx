@@ -7,6 +7,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -42,17 +43,24 @@ type ForumTopicDetailModalProps = {
   onTopicDeleted?: (topicId: string) => void;
 };
 
+const QUICK_REACTION_TEMPLATES = [
+  'Thanks for the info! 🙌',
+  'Great tip, will try tomorrow! 💪',
+  'See you there! 👍',
+  'Count me in! 🎾',
+];
+
 function roleBadge(role?: UserRole | StaffRole | string) {
   if (role === 'admin' || role === 'it_admin' || role === 'staff_admin') {
-    return { label: 'STAFF ADMIN', bg: '#EDE9FE', text: '#6D28D9', icon: 'shield-checkmark' };
+    return { label: 'STAFF ADMIN', bg: '#EDE9FE', text: '#6D28D9', icon: 'shield-checkmark', isStaff: true };
   }
   if (role === 'trainer') {
-    return { label: 'TRAINER', bg: '#DCFCE7', text: '#15803D', icon: 'barbell' };
+    return { label: 'TRAINER', bg: '#DCFCE7', text: '#15803D', icon: 'barbell', isStaff: true };
   }
   if (role === 'staff' || role === 'desk') {
-    return { label: 'STAFF DESK', bg: '#E0F2FE', text: '#0284C7', icon: 'business' };
+    return { label: 'STAFF DESK', bg: '#E0F2FE', text: '#0284C7', icon: 'business', isStaff: true };
   }
-  return { label: 'MEMBER', bg: '#F1F5F9', text: '#475569', icon: 'person' };
+  return { label: 'MEMBER', bg: '#F1F5F9', text: '#475569', icon: 'person', isStaff: false };
 }
 
 function formatTime(iso: string) {
@@ -212,13 +220,12 @@ export function ForumTopicDetailModal({
     }
   };
 
-  const handleSendReply = async () => {
-    const text = replyText.trim();
+  const handleSendReply = async (customText?: string) => {
+    const text = (customText ?? replyText).trim();
     if (!text || !api || !currentUserId) return;
 
     setSubmittingReply(true);
     try {
-      // Check for mentioned staff in reply
       const mentionedStaffIds: string[] = [];
       const lower = text.toLowerCase();
       if (lower.includes('@alex') || lower.includes('@staff-alex')) mentionedStaffIds.push('staff-alex');
@@ -352,8 +359,17 @@ export function ForumTopicDetailModal({
           </Pressable>
 
           <View style={styles.headerTitleWrap}>
-            <View style={[styles.headerCategoryPill, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
-              <Ionicons name={categoryConfig.icon as any} size={11} color={categoryConfig.color} />
+            <View
+              style={[
+                styles.headerCategoryPill,
+                {
+                  backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+                  borderColor: isDark ? '#334155' : '#E2E8F0',
+                  borderWidth: 1,
+                },
+              ]}
+            >
+              <Ionicons name={categoryConfig.icon as any} size={12} color={categoryConfig.color} />
               <Text style={[styles.headerCategoryText, { color: categoryConfig.color }]}>
                 {categoryConfig.label}
               </Text>
@@ -364,10 +380,13 @@ export function ForumTopicDetailModal({
             <Pressable
               onPress={() => void handleToggleTopicInterested()}
               hitSlop={8}
-              style={styles.headerActionBtn}
+              style={[
+                styles.headerActionBtn,
+                isTopicInterested && { backgroundColor: isDark ? '#2E2211' : '#FEF3C7', borderRadius: 8 },
+              ]}
               accessibilityRole="button"
               accessibilityLabel={
-                isTopicInterested ? 'Remove from Interested' : 'Mark topic as Interested'
+                isTopicInterested ? 'Remove from Interested' : 'Bookmark topic as Interested'
               }
             >
               <Ionicons
@@ -416,14 +435,18 @@ export function ForumTopicDetailModal({
             contentContainerStyle={styles.listContent}
             ListHeaderComponent={
               <View style={styles.topicHeaderContainer}>
-                {/* Main Topic Card */}
+                {/* Main Topic Hero Card */}
                 <View
                   style={[
                     styles.topicCard,
                     {
                       backgroundColor: tc.cardBg,
-                      borderColor: currentTopic.pinned ? '#F59E0B' : tc.cardBorder,
-                      borderWidth: currentTopic.pinned ? 1.5 : 1,
+                      borderColor: currentTopic.pinned
+                        ? isDark
+                          ? '#D97706'
+                          : '#FDE68A'
+                        : tc.cardBorder,
+                      borderWidth: 1,
                     },
                   ]}
                 >
@@ -432,31 +455,56 @@ export function ForumTopicDetailModal({
                     <UserAvatar
                       uri={currentTopic.authorAvatarUrl}
                       name={currentTopic.authorName}
-                      size={40}
+                      size={42}
                     />
                     <View style={styles.authorMeta}>
                       <View style={styles.nameAndBadge}>
                         <Text style={[styles.authorName, { color: tc.text }]}>
                           {currentTopic.authorName}
                         </Text>
+                        {topicBadge.isStaff ? (
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={14}
+                            color={colors.primary}
+                          />
+                        ) : null}
                         <View style={[styles.roleBadge, { backgroundColor: topicBadge.bg }]}>
-                          <Ionicons name={topicBadge.icon as any} size={10} color={topicBadge.text} />
+                          <Ionicons name={topicBadge.icon as any} size={9} color={topicBadge.text} />
                           <Text style={[styles.roleBadgeText, { color: topicBadge.text }]}>
                             {topicBadge.label}
                           </Text>
                         </View>
+                      </View>
+                      <View style={styles.timeAndCatSub}>
+                        <Text style={[styles.postDate, { color: tc.textMuted }]}>
+                          {formatTime(currentTopic.createdAt)}
+                        </Text>
                         {hasUserChatted ? (
-                          <View style={[styles.roleBadge, { backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF' }]}>
-                            <Ionicons name="chatbubbles" size={10} color="#4F46E5" />
-                            <Text style={[styles.roleBadgeText, { color: '#4F46E5' }]}>
-                              RECENTLY CHATTED
+                          <View
+                            style={[
+                              styles.roleBadge,
+                              {
+                                backgroundColor: isDark ? '#0C2A4A' : '#EFF6FF',
+                              },
+                            ]}
+                          >
+                            <Ionicons
+                              name="chatbubbles"
+                              size={9}
+                              color={isDark ? '#60A5FA' : '#1D4ED8'}
+                            />
+                            <Text
+                              style={[
+                                styles.roleBadgeText,
+                                { color: isDark ? '#60A5FA' : '#1D4ED8' },
+                              ]}
+                            >
+                              YOU CHATTED HERE
                             </Text>
                           </View>
                         ) : null}
                       </View>
-                      <Text style={[styles.postDate, { color: tc.textMuted }]}>
-                        {formatTime(currentTopic.createdAt)}
-                      </Text>
                     </View>
                   </View>
 
@@ -470,15 +518,17 @@ export function ForumTopicDetailModal({
                       style={[
                         styles.mentionBox,
                         {
-                          backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF',
-                          borderColor: isDark ? '#4338CA' : '#C7D2FE',
+                          backgroundColor: isDark ? '#0C2A4A' : '#EFF6FF',
+                          borderColor: isDark ? '#1E3A8A' : '#DBEAFE',
                         },
                       ]}
                     >
-                      <Ionicons name="at-circle" size={18} color="#4F46E5" />
+                      <Ionicons name="at-circle" size={17} color={colors.primary} />
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.mentionBoxTitle}>Tagged in Thread:</Text>
-                        <Text style={styles.mentionBoxNames}>
+                        <Text style={[styles.mentionBoxTitle, { color: colors.primary }]}>
+                          Tagged Members & Staff:
+                        </Text>
+                        <Text style={[styles.mentionBoxNames, { color: isDark ? '#93C5FD' : '#1D4ED8' }]}>
                           {mentionDisplayNames.join(', ')}
                         </Text>
                       </View>
@@ -486,7 +536,7 @@ export function ForumTopicDetailModal({
                   ) : null}
 
                   {/* Like & Interested Buttons & Stats */}
-                  <View style={[styles.topicFooter, { borderTopColor: tc.border }]}>
+                  <View style={[styles.topicFooter, { borderTopColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <Pressable
                         onPress={() => void handleToggleTopicLike()}
@@ -500,6 +550,7 @@ export function ForumTopicDetailModal({
                               : isDark
                                 ? '#1E293B'
                                 : '#F1F5F9',
+                            borderColor: isTopicLiked ? '#F87171' : tc.border,
                           },
                           pressed && { opacity: 0.8 },
                         ]}
@@ -507,7 +558,7 @@ export function ForumTopicDetailModal({
                       >
                         <Ionicons
                           name={isTopicLiked ? 'heart' : 'heart-outline'}
-                          size={16}
+                          size={15}
                           color={isTopicLiked ? '#DC2626' : tc.textMuted}
                         />
                         <Text style={[styles.likeCount, { color: isTopicLiked ? '#DC2626' : tc.text }]}>
@@ -522,32 +573,43 @@ export function ForumTopicDetailModal({
                           {
                             backgroundColor: isTopicInterested
                               ? isDark
-                                ? '#422006'
-                                : '#FEF3C7'
+                                ? '#2E2211'
+                                : '#FFFBEB'
                               : isDark
                                 ? '#1E293B'
                                 : '#F1F5F9',
+                            borderColor: isTopicInterested
+                              ? isDark
+                                ? '#B45309'
+                                : '#FDE68A'
+                              : tc.border,
                           },
                           pressed && { opacity: 0.8 },
                         ]}
                         hitSlop={8}
                         accessibilityRole="button"
                         accessibilityLabel={
-                          isTopicInterested ? 'Interested in this topic' : 'Mark topic as Interested'
+                          isTopicInterested ? 'Interested in this topic' : 'Bookmark topic as Interested'
                         }
                       >
                         <Ionicons
                           name={isTopicInterested ? 'star' : 'star-outline'}
-                          size={15}
+                          size={14}
                           color={isTopicInterested ? '#D97706' : tc.textMuted}
                         />
                         <Text
                           style={[
                             styles.likeCount,
-                            { color: isTopicInterested ? '#B45309' : tc.text },
+                            {
+                              color: isTopicInterested
+                                ? isDark
+                                  ? '#FBBF24'
+                                  : '#92400E'
+                                : tc.text,
+                            },
                           ]}
                         >
-                          {isTopicInterested ? 'Interested' : 'Mark Interested'}
+                          {isTopicInterested ? 'Following' : 'Follow'}
                         </Text>
                       </Pressable>
                     </View>
@@ -561,17 +623,17 @@ export function ForumTopicDetailModal({
                 {/* Section Header */}
                 <View style={styles.repliesSectionHeader}>
                   <Text style={[styles.repliesSectionTitle, { color: tc.text }]}>
-                    Discussion & Answers
+                    Replies & Discussion ({replies.length})
                   </Text>
                 </View>
               </View>
             }
             ListEmptyComponent={
-              <View style={styles.emptyRepliesBox}>
-                <Ionicons name="chatbubble-ellipses-outline" size={32} color={tc.textMuted} />
+              <View style={[styles.emptyRepliesBox, { backgroundColor: tc.cardBg, borderColor: tc.border }]}>
+                <Ionicons name="chatbubble-ellipses-outline" size={36} color={tc.textMuted} />
                 <Text style={[styles.emptyRepliesTitle, { color: tc.text }]}>No Replies Yet</Text>
                 <Text style={[styles.emptyRepliesSubtitle, { color: tc.textMuted }]}>
-                  Be the first to share an answer, workout tip, or message the community below!
+                  Be the first to share advice, answer questions, or connect with the community below!
                 </Text>
               </View>
             }
@@ -588,9 +650,13 @@ export function ForumTopicDetailModal({
                       backgroundColor: reply.isStaffReply
                         ? isDark
                           ? '#064E3B'
-                          : '#F0FDF4'
+                          : '#ECFDF5'
                         : tc.cardBg,
-                      borderColor: reply.isStaffReply ? '#22C55E' : tc.cardBorder,
+                      borderColor: reply.isStaffReply
+                        ? isDark
+                          ? '#047857'
+                          : '#A7F3D0'
+                        : tc.cardBorder,
                       borderWidth: reply.isStaffReply ? 1.5 : 1,
                     },
                   ]}
@@ -598,21 +664,34 @@ export function ForumTopicDetailModal({
                   {/* Official Staff Response Banner */}
                   {reply.isStaffReply ? (
                     <View style={styles.staffResponseBanner}>
-                      <Ionicons name="shield-checkmark" size={13} color="#16A34A" />
-                      <Text style={styles.staffResponseBannerText}>OFFICIAL YMCA RESPONSE</Text>
+                      <Ionicons
+                        name="shield-checkmark"
+                        size={13}
+                        color={isDark ? '#34D399' : '#047857'}
+                      />
+                      <Text style={[styles.staffResponseBannerText, { color: isDark ? '#34D399' : '#047857' }]}>
+                        OFFICIAL YMCA STAFF RESPONSE
+                      </Text>
                     </View>
                   ) : null}
 
                   {/* Reply Author Row */}
                   <View style={styles.replyAuthorRow}>
-                    <UserAvatar uri={reply.authorAvatarUrl} name={reply.authorName} size={30} />
+                    <UserAvatar uri={reply.authorAvatarUrl} name={reply.authorName} size={32} />
                     <View style={styles.replyAuthorMeta}>
                       <View style={styles.replyNameRow}>
                         <Text style={[styles.replyAuthorName, { color: tc.text }]}>
                           {reply.authorName}
                         </Text>
+                        {replyBadge.isStaff ? (
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={13}
+                            color={colors.primary}
+                          />
+                        ) : null}
                         <View style={[styles.roleBadge, { backgroundColor: replyBadge.bg }]}>
-                          <Ionicons name={replyBadge.icon as any} size={9} color={replyBadge.text} />
+                          <Ionicons name={replyBadge.icon as any} size={8} color={replyBadge.text} />
                           <Text style={[styles.roleBadgeText, { color: replyBadge.text }]}>
                             {replyBadge.label}
                           </Text>
@@ -653,6 +732,7 @@ export function ForumTopicDetailModal({
                             : isDark
                               ? '#1E293B'
                               : '#F1F5F9',
+                          borderColor: isReplyLiked ? '#F87171' : tc.border,
                         },
                         pressed && { opacity: 0.7 },
                       ]}
@@ -689,16 +769,42 @@ export function ForumTopicDetailModal({
               onSelect={(cand, newText) => setReplyText(newText)}
             />
 
+            {/* Quick 1-Tap Response Chips */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.quickReactionsScroll}
+            >
+              {QUICK_REACTION_TEMPLATES.map((tmpl) => (
+                <Pressable
+                  key={tmpl}
+                  onPress={() => void handleSendReply(tmpl)}
+                  style={[
+                    styles.quickReactionChip,
+                    {
+                      backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+                      borderColor: tc.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.quickReactionChipText, { color: tc.text }]}>{tmpl}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+
             {/* Quick @ mention helper */}
             <View style={styles.quickMentionRow}>
-              <Text style={[styles.quickMentionLabel, { color: tc.textMuted }]}>Quick @:</Text>
-              {['@All Staff Desk', '@Alex Rivera', '@Taylor Brooks', '@Carlos Mendez'].map((mention) => (
+              <Text style={[styles.quickMentionLabel, { color: tc.textMuted }]}>Tag:</Text>
+              {['@All Staff Desk', '@Alex Rivera', '@Marcus Taylor', '@Sarah Davis'].map((mention) => (
                 <Pressable
                   key={mention}
                   onPress={() => setReplyText((prev) => (prev ? `${prev} ${mention} ` : `${mention} `))}
-                  style={[styles.quickMentionChip, { backgroundColor: isDark ? '#1E293B' : '#EEF2FF' }]}
+                  style={[
+                    styles.quickMentionChip,
+                    { backgroundColor: isDark ? '#0C2A4A' : '#EFF6FF', borderColor: isDark ? '#1E3A8A' : '#BFDBFE' },
+                  ]}
                 >
-                  <Text style={styles.quickMentionChipText}>{mention}</Text>
+                  <Text style={[styles.quickMentionChipText, { color: colors.primary }]}>{mention}</Text>
                 </Pressable>
               ))}
             </View>
@@ -719,7 +825,7 @@ export function ForumTopicDetailModal({
                     },
                   ]}
                   accessibilityRole="button"
-                  accessibilityLabel="Put keyboard down"
+                  accessibilityLabel="Dismiss keyboard"
                   hitSlop={8}
                 >
                   <Ionicons name="chevron-down" size={20} color={colors.primary} />
@@ -734,8 +840,8 @@ export function ForumTopicDetailModal({
                   styles.composerInput,
                   {
                     backgroundColor: tc.cardBg,
-                  color: tc.text,
-                  borderColor: tc.border,
+                    color: tc.text,
+                    borderColor: tc.border,
                     fontSize: Math.round(15 * multiplier),
                     lineHeight: Math.round(20 * multiplier),
                   },
@@ -821,11 +927,11 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   headerActionBtn: {
-    minWidth: 44,
-    minHeight: 44,
+    minWidth: 38,
+    minHeight: 38,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -839,12 +945,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   topicCard: {
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
     gap: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -863,9 +969,15 @@ const styles = StyleSheet.create({
     gap: 6,
     flexWrap: 'wrap',
   },
+  timeAndCatSub: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
   authorName: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   roleBadge: {
     flexDirection: 'row',
@@ -882,6 +994,7 @@ const styles = StyleSheet.create({
   },
   postDate: {
     fontSize: 11,
+    fontWeight: '500',
   },
   topicTitle: {
     fontSize: 18,
@@ -904,27 +1017,26 @@ const styles = StyleSheet.create({
   mentionBoxTitle: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#4F46E5',
   },
   mentionBoxNames: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#3730A3',
   },
   topicFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
   },
   likeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 14,
+    borderWidth: 1,
   },
   likeCount: {
     fontSize: 12,
@@ -935,19 +1047,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   repliesSectionHeader: {
-    marginTop: 4,
+    marginTop: 6,
   },
   repliesSectionTitle: {
     fontSize: 15,
-    fontWeight: '700',
-  },
-  centerBox: {
-    alignItems: 'center',
-    paddingVertical: 24,
+    fontWeight: '800',
   },
   emptyRepliesBox: {
     alignItems: 'center',
-    paddingVertical: 32,
+    padding: 24,
+    borderRadius: 14,
+    borderWidth: 1,
     gap: 8,
   },
   emptyRepliesTitle: {
@@ -957,22 +1067,21 @@ const styles = StyleSheet.create({
   emptyRepliesSubtitle: {
     fontSize: 13,
     textAlign: 'center',
-    paddingHorizontal: 24,
     lineHeight: 18,
   },
   replyCard: {
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 14,
+    padding: 13,
     gap: 8,
   },
   staffResponseBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     backgroundColor: '#DCFCE7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 5,
     alignSelf: 'flex-start',
   },
   staffResponseBannerText: {
@@ -1021,17 +1130,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,
+    borderWidth: 1,
   },
   replyLikeText: {
     fontSize: 11,
     fontWeight: '700',
   },
   composerBar: {
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 6,
-    gap: 8,
+    gap: 7,
+  },
+  quickReactionsScroll: {
+    gap: 6,
+    paddingVertical: 2,
+  },
+  quickReactionChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  quickReactionChipText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   quickMentionRow: {
     flexDirection: 'row',
@@ -1039,18 +1163,18 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   quickMentionLabel: {
-    fontSize: 10,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
   },
   quickMentionChip: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,
+    borderWidth: 1,
   },
   quickMentionChipText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#4F46E5',
   },
   composerInputRow: {
     flexDirection: 'row',

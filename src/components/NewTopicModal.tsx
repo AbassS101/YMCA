@@ -26,20 +26,70 @@ type StaffTagOption = {
   id: string;
   name: string;
   roleLabel: string;
+  icon: keyof typeof Ionicons.glyphMap;
 };
 
 const AVAILABLE_STAFF_TAGS: StaffTagOption[] = [
-  { id: 'staff-all', name: 'All Staff Desk', roleLabel: 'Front Desk & Operations' },
-  { id: 'staff-alex', name: 'Alex Rivera', roleLabel: 'Personal Wellness Trainer' },
-  { id: 'staff-sarah', name: 'Sarah Davis', roleLabel: 'Senior Mobility & Aqua' },
-  { id: 'staff-desk', name: 'Marcus Taylor', roleLabel: 'Aquatics & Operations Desk' },
-  { id: 'staff-admin', name: 'Jane Smith', roleLabel: 'Director' },
+  { id: 'staff-all', name: 'All Staff Desk', roleLabel: 'Operations & Welcome Desk', icon: 'business' },
+  { id: 'staff-alex', name: 'Alex Rivera', roleLabel: 'Personal Wellness Trainer', icon: 'barbell' },
+  { id: 'staff-sarah', name: 'Sarah Davis', roleLabel: 'Senior Mobility & Aqua Coach', icon: 'water' },
+  { id: 'staff-desk', name: 'Marcus Taylor', roleLabel: 'Aquatics & Operations Desk', icon: 'people' },
+  { id: 'staff-admin', name: 'Jane Smith', roleLabel: 'Branch Director', icon: 'shield-checkmark' },
+];
+
+type TopicTemplate = {
+  id: string;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  category: ForumTopicCategory;
+  defaultStaffId?: string;
+  titleSuggestion: string;
+  bodySuggestion: string;
+};
+
+const TOPIC_TEMPLATES: TopicTemplate[] = [
+  {
+    id: 'ask_staff',
+    label: 'Ask Staff Desk',
+    icon: 'help-circle-outline',
+    category: 'general',
+    defaultStaffId: 'staff-all',
+    titleSuggestion: 'Question for Front Desk: ',
+    bodySuggestion: 'Hi YMCA team, I had a question regarding facility hours and policies: ',
+  },
+  {
+    id: 'workout_tip',
+    label: 'Workout & Form Advice',
+    icon: 'barbell-outline',
+    category: 'fitness',
+    defaultStaffId: 'staff-alex',
+    titleSuggestion: '@Alex Rivera Form advice on ',
+    bodySuggestion: 'Hey Alex, looking for suggestions or warm-up routines for ',
+  },
+  {
+    id: 'pool_question',
+    label: 'Pool & Lap Swimming',
+    icon: 'water-outline',
+    category: 'swim',
+    defaultStaffId: 'staff-desk',
+    titleSuggestion: '@Marcus Taylor Question about lap pool: ',
+    bodySuggestion: 'Hi Marcus, checking on the pool temperatures and lane availability for ',
+  },
+  {
+    id: 'find_partner',
+    label: 'Find Workout Partner',
+    icon: 'people-outline',
+    category: 'community',
+    titleSuggestion: 'Looking for partner / group for ',
+    bodySuggestion: 'Looking for fellow members to join me for morning sessions at Silver Spring! Details: ',
+  },
 ];
 
 export type NewTopicModalProps = {
   visible: boolean;
   onClose: () => void;
   canPin?: boolean;
+  initialTemplateId?: string;
   onSubmit: (data: {
     title: string;
     content: string;
@@ -54,6 +104,7 @@ export function NewTopicModal({
   visible,
   onClose,
   canPin = false,
+  initialTemplateId,
   onSubmit,
 }: NewTopicModalProps) {
   const insets = useSafeAreaInsets();
@@ -65,6 +116,8 @@ export function NewTopicModal({
   const [category, setCategory] = useState<ForumTopicCategory>('general');
   const [pinned, setPinned] = useState(false);
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
+  const [activeTemplate, setActiveTemplate] = useState<string | null>(null);
+
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
@@ -74,6 +127,12 @@ export function NewTopicModal({
   const scrollRef = useRef<ScrollView>(null);
   const titleInputRef = useRef<TextInput>(null);
   const contentInputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (initialTemplateId && visible) {
+      applyTemplate(initialTemplateId);
+    }
+  }, [initialTemplateId, visible]);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -105,6 +164,18 @@ export function NewTopicModal({
     setKeyboardHeight(0);
   };
 
+  const applyTemplate = (templateId: string) => {
+    const tmpl = TOPIC_TEMPLATES.find((t) => t.id === templateId);
+    if (!tmpl) return;
+    setActiveTemplate(tmpl.id);
+    setCategory(tmpl.category);
+    setTitle(tmpl.titleSuggestion);
+    setContent(tmpl.bodySuggestion);
+    if (tmpl.defaultStaffId && !selectedStaffIds.includes(tmpl.defaultStaffId)) {
+      setSelectedStaffIds([tmpl.defaultStaffId]);
+    }
+  };
+
   const toggleStaffTag = (staff: StaffTagOption) => {
     setSelectedStaffIds((prev) => {
       if (prev.includes(staff.id)) {
@@ -119,11 +190,11 @@ export function NewTopicModal({
     const trimmedContent = content.trim();
 
     if (!trimmedTitle) {
-      setErrorMsg('Please enter a topic title');
+      setErrorMsg('Please enter a discussion title.');
       return;
     }
     if (!trimmedContent) {
-      setErrorMsg('Please enter your topic content');
+      setErrorMsg('Please enter your discussion details or question.');
       return;
     }
 
@@ -149,9 +220,10 @@ export function NewTopicModal({
       setCategory('general');
       setPinned(false);
       setSelectedStaffIds([]);
+      setActiveTemplate(null);
       onClose();
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Failed to create topic');
+      setErrorMsg(err?.message || 'Failed to publish topic.');
     } finally {
       setSubmitting(false);
     }
@@ -190,19 +262,25 @@ export function NewTopicModal({
 
           <Text style={[styles.headerTitle, { color: tc.text }]}>New Discussion</Text>
 
-          {/* Keyboard dismiss or empty placeholder */}
-          {keyboardVisible || isFocused ? (
-            <Pressable
-              onPress={handleDismissKeyboard}
-              style={[styles.dismissKeyHeaderBtn, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}
-              accessibilityRole="button"
-              accessibilityLabel="Put keyboard down"
-            >
-              <Ionicons name="chevron-down" size={18} color={colors.primary} />
-            </Pressable>
-          ) : (
-            <View style={{ width: 44 }} />
-          )}
+          {/* Keyboard dismiss or Submit pill */}
+          <Pressable
+            onPress={() => void handlePublish()}
+            disabled={submitting || !title.trim() || !content.trim()}
+            style={[
+              styles.headerPublishBtn,
+              {
+                backgroundColor: !title.trim() || !content.trim() ? tc.border : colors.primary,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Publish discussion"
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.headerPublishBtnText}>Post</Text>
+            )}
+          </Pressable>
         </View>
 
         {/* Scrollable Form Body */}
@@ -214,7 +292,7 @@ export function NewTopicModal({
             {
               paddingBottom:
                 Math.max(insets.bottom, 24) +
-                (keyboardVisible ? (keyboardHeight > 0 ? keyboardHeight + 60 : 320) : 40),
+                (keyboardVisible ? (keyboardHeight > 0 ? keyboardHeight + 60 : 320) : 60),
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -226,41 +304,111 @@ export function NewTopicModal({
             </View>
           ) : null}
 
+          {/* Quick Starter Templates */}
+          <View style={styles.templateSection}>
+            <View style={styles.sectionHeaderRow}>
+              <Ionicons name="flash-outline" size={15} color={colors.primary} />
+              <Text style={[styles.sectionLabel, { color: tc.text }]}>
+                Quick Starter Templates (Optional)
+              </Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.templateChips}
+            >
+              {TOPIC_TEMPLATES.map((tmpl) => {
+                const isSelected = activeTemplate === tmpl.id;
+                return (
+                  <Pressable
+                    key={tmpl.id}
+                    onPress={() => applyTemplate(tmpl.id)}
+                    style={[
+                      styles.templateChip,
+                      {
+                        backgroundColor: isSelected
+                          ? isDark
+                            ? '#0C2A4A'
+                            : '#EFF6FF'
+                          : isDark
+                            ? tc.cardBg
+                            : '#FFFFFF',
+                        borderColor: isSelected ? colors.primary : tc.border,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={tmpl.icon}
+                      size={14}
+                      color={isSelected ? colors.primary : tc.textMuted}
+                    />
+                    <Text
+                      style={[
+                        styles.templateChipText,
+                        { color: isSelected ? colors.primary : tc.text },
+                      ]}
+                    >
+                      {tmpl.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+
           {/* Category Picker */}
-          <Text style={[styles.sectionLabel, { color: tc.text }]}>Choose Category</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryChips}>
-            {FORUM_CATEGORIES.map((cat) => {
-              const isSelected = category === cat.id;
-              return (
-                <Pressable
-                  key={cat.id}
-                  onPress={() => setCategory(cat.id)}
-                  style={[
-                    styles.catChip,
-                    {
-                      backgroundColor: isSelected ? colors.primary : isDark ? tc.cardBg : '#F1F5F9',
-                      borderColor: isSelected ? colors.primary : tc.border,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name={cat.icon as any}
-                    size={14}
-                    color={isSelected ? '#FFFFFF' : cat.color}
-                  />
-                  <Text style={[styles.catChipText, { color: isSelected ? '#FFFFFF' : tc.text }]}>
-                    {cat.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+          <View style={styles.formSection}>
+            <Text style={[styles.sectionLabel, { color: tc.text }]}>Select Category</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryChips}
+            >
+              {FORUM_CATEGORIES.map((cat) => {
+                const isSelected = category === cat.id;
+                return (
+                  <Pressable
+                    key={cat.id}
+                    onPress={() => {
+                      setCategory(cat.id);
+                      setActiveTemplate(null);
+                    }}
+                    style={[
+                      styles.catChip,
+                      {
+                        backgroundColor: isSelected
+                          ? colors.primary
+                          : isDark
+                            ? tc.cardBg
+                            : '#FFFFFF',
+                        borderColor: isSelected ? colors.primary : tc.border,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={cat.icon as any}
+                      size={14}
+                      color={isSelected ? '#FFFFFF' : cat.color}
+                    />
+                    <Text
+                      style={[
+                        styles.catChipText,
+                        { color: isSelected ? '#FFFFFF' : tc.text },
+                      ]}
+                    >
+                      {cat.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
 
           {/* Title Input */}
           <TextField
             ref={titleInputRef}
             label="Topic Title"
-            placeholder="e.g. Question about morning lap swimming..."
+            placeholder="e.g. Question about morning lap swimming schedule..."
             value={title}
             onChangeText={setTitle}
             maxLength={100}
@@ -272,15 +420,21 @@ export function NewTopicModal({
           <View style={styles.mentionSection}>
             <View style={styles.mentionHeaderRow}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Ionicons name="at-circle" size={18} color="#4F46E5" />
+                <Ionicons name="at-circle" size={17} color={colors.primary} />
                 <Text style={[styles.sectionLabel, { color: tc.text, marginBottom: 0 }]}>
-                  @ Mention Staff (Optional)
+                  Tag Staff or Trainers
                 </Text>
               </View>
-              <Text style={styles.mentionHelperText}>Staff will be notified</Text>
+              <Text style={[styles.mentionHelperText, { color: tc.textMuted }]}>
+                Tagged staff receive alerts
+              </Text>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.staffChips}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.staffChips}
+            >
               {AVAILABLE_STAFF_TAGS.map((staff) => {
                 const isTagged = selectedStaffIds.includes(staff.id);
                 return (
@@ -290,18 +444,28 @@ export function NewTopicModal({
                     style={[
                       styles.staffChip,
                       {
-                        backgroundColor: isTagged ? '#4F46E5' : isDark ? tc.cardBg : '#EEF2FF',
-                        borderColor: isTagged ? '#4338CA' : isDark ? '#3730A3' : '#C7D2FE',
+                        backgroundColor: isTagged
+                          ? colors.primary
+                          : isDark
+                            ? tc.cardBg
+                            : '#FFFFFF',
+                        borderColor: isTagged ? colors.primary : tc.border,
                       },
                     ]}
                   >
-                    <Text style={[styles.staffChipAt, { color: isTagged ? '#FFFFFF' : '#4F46E5' }]}>@</Text>
-                    <Text style={[styles.staffChipName, { color: isTagged ? '#FFFFFF' : '#312E81' }]}>
+                    <Ionicons
+                      name={isTagged ? 'checkmark-circle' : staff.icon}
+                      size={14}
+                      color={isTagged ? '#FFFFFF' : colors.primary}
+                    />
+                    <Text
+                      style={[
+                        styles.staffChipName,
+                        { color: isTagged ? '#FFFFFF' : tc.text },
+                      ]}
+                    >
                       {staff.name}
                     </Text>
-                    {isTagged ? (
-                      <Ionicons name="checkmark-circle" size={14} color="#FFFFFF" />
-                    ) : null}
                   </Pressable>
                 );
               })}
@@ -310,28 +474,36 @@ export function NewTopicModal({
 
           {/* Pin Toggle for Staff/Admin */}
           {canPin ? (
-            <View style={[styles.pinBox, { backgroundColor: isDark ? tc.cardBg : '#FEF3C7', borderColor: '#F59E0B' }]}>
+            <View
+              style={[
+                styles.pinBox,
+                {
+                  backgroundColor: isDark ? '#2E2211' : '#FEF3C7',
+                  borderColor: isDark ? '#78350F' : '#FDE68A',
+                },
+              ]}
+            >
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="pin" size={16} color="#D97706" />
-                  <Text style={[styles.pinTitle, { color: isDark ? tc.text : '#92400E' }]}>
-                    Pin to Top of Forum
+                  <Text style={[styles.pinTitle, { color: isDark ? '#FDE68A' : '#92400E' }]}>
+                    Pin to Top of Feed
                   </Text>
                 </View>
-                <Text style={[styles.pinSubtitle, { color: isDark ? tc.textMuted : '#B45309' }]}>
-                  Keep visible at top of community feed
+                <Text style={[styles.pinSubtitle, { color: isDark ? '#FCD34D' : '#B45309' }]}>
+                  Staff priority announcement
                 </Text>
               </View>
               <Switch
                 value={pinned}
                 onValueChange={setPinned}
-                trackColor={{ false: '#E2E8F0', true: '#F59E0B' }}
+                trackColor={{ false: '#E2E8F0', true: '#D97706' }}
                 thumbColor={pinned ? '#FFFFFF' : '#F4F3F4'}
               />
             </View>
           ) : null}
 
-          {/* Body Content Input */}
+          {/* Discussion Content */}
           <View style={{ gap: 8 }}>
             <MentionAutocomplete
               text={content}
@@ -345,8 +517,8 @@ export function NewTopicModal({
 
             <TextField
               ref={contentInputRef}
-              label="Discussion Content"
-              placeholder="Share details, ask your question, or start the conversation (type @ to mention)..."
+              label="Discussion Details & Questions"
+              placeholder="Share details, ask questions, or coordinate with members (type @ to tag)..."
               value={content}
               onChangeText={setContent}
               multiline
@@ -361,26 +533,27 @@ export function NewTopicModal({
             />
           </View>
 
-          {/* Publish Action Button */}
+          {/* Big Publish Button */}
           <Pressable
             onPress={() => void handlePublish()}
             disabled={submitting || !title.trim() || !content.trim()}
             style={({ pressed }) => [
               styles.publishBtn,
               {
-                backgroundColor: !title.trim() || !content.trim() ? tc.border : colors.primary,
+                backgroundColor:
+                  !title.trim() || !content.trim() ? tc.border : colors.primary,
               },
               pressed && { opacity: 0.9 },
             ]}
             accessibilityRole="button"
-            accessibilityLabel="Publish topic"
+            accessibilityLabel="Publish discussion topic"
           >
             {submitting ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
               <>
-                <Ionicons name="paper-plane" size={18} color="#FFFFFF" />
-                <Text style={styles.publishBtnText}>Publish Topic</Text>
+                <Ionicons name="paper-plane" size={17} color="#FFFFFF" />
+                <Text style={styles.publishBtnText}>Publish Discussion</Text>
               </>
             )}
           </Pressable>
@@ -399,24 +572,27 @@ export function NewTopicModal({
                     ? keyboardHeight
                     : keyboardVisible && Platform.OS === 'android'
                       ? 280
-                      : 0,
+                      : Math.max(insets.bottom, 10),
               },
             ]}
           >
+            <View style={styles.keyboardBarLeft}>
+              <Text style={[styles.keyboardBarHelper, { color: tc.textMuted }]}>
+                {title.length}/100 • {content.length} chars
+              </Text>
+            </View>
             <Pressable
               onPress={handleDismissKeyboard}
-              style={[styles.dismissBarBtn, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}
+              style={[
+                styles.floatingDismissBtn,
+                { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' },
+              ]}
               accessibilityRole="button"
-              accessibilityLabel="Put keyboard down"
+              accessibilityLabel="Dismiss keyboard"
             >
-              <Ionicons name="chevron-down" size={18} color={colors.primary} />
-              <Text style={[styles.dismissBarBtnText, { color: colors.primary }]}>
-                Put Keyboard Down
-              </Text>
+              <Ionicons name="chevron-down" size={16} color={colors.primary} />
+              <Text style={[styles.floatingDismissText, { color: colors.primary }]}>Done</Text>
             </Pressable>
-            <Text style={[styles.toolbarCharCount, { color: tc.textMuted }]}>
-              {content.length} characters
-            </Text>
           </View>
         ) : null}
       </View>
@@ -436,13 +612,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
   },
   headerBtn: {
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
   },
   cancelText: {
     fontSize: 15,
@@ -450,45 +625,74 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '800',
   },
-  dismissKeyHeaderBtn: {
-    width: 36,
-    height: 36,
+  headerPublishBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
     borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+  },
+  headerPublishBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
     padding: 16,
-    gap: 12,
+    gap: 16,
   },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    padding: 12,
+    borderRadius: 10,
     backgroundColor: '#FEE2E2',
-    borderColor: '#F87171',
     borderWidth: 1,
-    padding: 10,
-    borderRadius: 8,
+    borderColor: '#FCA5A5',
   },
   errorText: {
+    color: '#DC2626',
     fontSize: 13,
-    color: '#B91C1C',
     fontWeight: '600',
     flex: 1,
   },
+  templateSection: {
+    gap: 8,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   sectionLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
-    marginTop: 4,
+  },
+  templateChips: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  templateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  templateChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  formSection: {
+    gap: 8,
   },
   categoryChips: {
-    flexDirection: 'row',
     gap: 8,
     paddingVertical: 4,
   },
@@ -498,23 +702,15 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
   },
   catChipText: {
     fontSize: 12,
     fontWeight: '700',
   },
-  input: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-  },
   mentionSection: {
     gap: 8,
-    marginTop: 4,
   },
   mentionHeaderRow: {
     flexDirection: 'row',
@@ -523,26 +719,20 @@ const styles = StyleSheet.create({
   },
   mentionHelperText: {
     fontSize: 11,
-    color: '#6366F1',
-    fontWeight: '600',
+    fontWeight: '500',
   },
   staffChips: {
-    flexDirection: 'row',
     gap: 8,
     paddingVertical: 4,
   },
   staffChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 7,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
-  },
-  staffChipAt: {
-    fontSize: 13,
-    fontWeight: '800',
   },
   staffChipName: {
     fontSize: 12,
@@ -553,24 +743,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    marginTop: 4,
   },
   pinTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   pinSubtitle: {
     fontSize: 11,
-  },
-  textArea: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    minHeight: 120,
+    fontWeight: '500',
   },
   publishBtn: {
     flexDirection: 'row',
@@ -578,13 +760,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 14,
     marginTop: 8,
   },
   publishBtnText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '800',
   },
   floatingKeyboardBar: {
     position: 'absolute',
@@ -594,28 +776,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 6,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    zIndex: 999,
   },
-  dismissBarBtn: {
+  keyboardBarLeft: {
+    flex: 1,
+  },
+  keyboardBarHelper: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  floatingDismissBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: 14,
   },
-  dismissBarBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  toolbarCharCount: {
+  floatingDismissText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '700',
   },
 });

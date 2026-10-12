@@ -6,7 +6,7 @@ import { FORUM_CATEGORIES, type ForumTopic, type UserRole, type StaffRole } from
 import { UserAvatar } from '@/components/UserAvatar';
 import { colors } from '@/theme/colors';
 
-type ForumTopicCardProps = {
+export type ForumTopicCardProps = {
   topic: ForumTopic;
   currentUserId: string;
   onPress: () => void;
@@ -21,15 +21,15 @@ type ForumTopicCardProps = {
 
 function roleBadge(role?: UserRole | StaffRole | string) {
   if (role === 'admin' || role === 'it_admin' || role === 'staff_admin') {
-    return { label: 'STAFF ADMIN', bg: '#EDE9FE', text: '#6D28D9', icon: 'shield-checkmark' };
+    return { label: 'STAFF ADMIN', bg: '#EDE9FE', text: '#6D28D9', icon: 'shield-checkmark', isStaff: true };
   }
   if (role === 'trainer') {
-    return { label: 'TRAINER', bg: '#DCFCE7', text: '#15803D', icon: 'barbell' };
+    return { label: 'TRAINER', bg: '#DCFCE7', text: '#15803D', icon: 'barbell', isStaff: true };
   }
   if (role === 'staff' || role === 'desk') {
-    return { label: 'STAFF DESK', bg: '#E0F2FE', text: '#0284C7', icon: 'business' };
+    return { label: 'STAFF DESK', bg: '#E0F2FE', text: '#0284C7', icon: 'business', isStaff: true };
   }
-  return { label: 'MEMBER', bg: '#F1F5F9', text: '#475569', icon: 'person' };
+  return { label: 'MEMBER', bg: '#F1F5F9', text: '#475569', icon: 'person', isStaff: false };
 }
 
 function formatRelativeTime(isoStr: string): string {
@@ -44,6 +44,7 @@ function formatRelativeTime(isoStr: string): string {
   if (diffMin < 1) return 'Just now';
   if (diffMin < 60) return `${diffMin}m ago`;
   if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffDay === 1) return 'Yesterday';
   if (diffDay < 7) return `${diffDay}d ago`;
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
@@ -89,94 +90,56 @@ export function ForumTopicCard({
           backgroundColor: tc.cardBg,
           borderColor: topic.pinned
             ? isDark
-              ? '#F59E0B'
-              : '#FBBF24'
-            : isInterested
-              ? isDark
-                ? '#0284C7'
-                : '#7DD3FC'
-              : tc.cardBorder,
-          borderWidth: topic.pinned || isInterested ? 1.5 : 1,
+              ? '#D97706'
+              : '#FDE68A'
+            : tc.cardBorder,
+          borderWidth: 1,
         },
+        topic.pinned && styles.pinnedGlow,
         pressed && styles.cardPressed,
       ]}
       accessibilityRole="button"
-      accessibilityLabel={`Forum topic: ${topic.title}`}
+      accessibilityLabel={`Forum topic: ${topic.title}. ${topic.replyCount} replies. Tap to open discussion.`}
     >
-      {/* Pinned & Category Header Bar */}
-      <View style={styles.categoryRow}>
-        <View style={styles.categoryLeft}>
-          {topic.pinned ? (
-            <View style={styles.pinnedPill}>
-              <Ionicons name="pin" size={11} color="#B45309" />
-              <Text style={styles.pinnedPillText}>PINNED</Text>
+      {/* Top Meta Bar: Author & Primary Badges */}
+      <View style={styles.topMetaRow}>
+        <View style={styles.authorCluster}>
+          <UserAvatar uri={topic.authorAvatarUrl} name={topic.authorName} size={36} />
+          <View style={styles.authorMeta}>
+            <View style={styles.authorNameRow}>
+              <Text style={[styles.authorName, { color: tc.text }]} numberOfLines={1}>
+                {topic.authorName}
+              </Text>
+              {badge.isStaff ? (
+                <Ionicons
+                  name="checkmark-circle"
+                  size={14}
+                  color={colors.primary}
+                  style={styles.verifiedCheck}
+                />
+              ) : null}
+              <View style={[styles.roleBadge, { backgroundColor: badge.bg }]}>
+                <Ionicons name={badge.icon as any} size={9} color={badge.text} />
+                <Text style={[styles.roleBadgeText, { color: badge.text }]}>{badge.label}</Text>
+              </View>
             </View>
-          ) : null}
-
-          <View style={[styles.categoryPill, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
-            <Ionicons name={categoryConfig.icon as any} size={12} color={categoryConfig.color} />
-            <Text style={[styles.categoryText, { color: categoryConfig.color }]}>
-              {categoryConfig.label}
-            </Text>
+            <View style={styles.timeAndCatRow}>
+              <Text style={[styles.timeAgo, { color: tc.textMuted }]}>
+                {formatRelativeTime(topic.createdAt)}
+              </Text>
+              <Text style={[styles.metaDot, { color: tc.textMuted }]}>•</Text>
+              <View style={styles.inlineCat}>
+                <Ionicons name={categoryConfig.icon as any} size={11} color={categoryConfig.color} />
+                <Text style={[styles.inlineCatText, { color: categoryConfig.color }]}>
+                  {categoryConfig.label}
+                </Text>
+              </View>
+            </View>
           </View>
-
-          {hasRecentlyChatted ? (
-            <View
-              style={[
-                styles.activityBadge,
-                { backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF' },
-              ]}
-            >
-              <Ionicons name="chatbubbles" size={11} color="#4F46E5" />
-              <Text style={[styles.activityBadgeText, { color: '#4F46E5' }]}>
-                Recently Chatted
-              </Text>
-            </View>
-          ) : null}
-
-          {isAuthor ? (
-            <View
-              style={[
-                styles.activityBadge,
-                { backgroundColor: isDark ? '#064E3B' : '#DCFCE7' },
-              ]}
-            >
-              <Ionicons name="create" size={11} color="#15803D" />
-              <Text style={[styles.activityBadgeText, { color: '#15803D' }]}>
-                Created by Me
-              </Text>
-            </View>
-          ) : null}
         </View>
 
-        {topic.hasStaffReply ? (
-          <View style={[styles.staffAnsweredBadge, { backgroundColor: isDark ? '#064E3B' : '#DCFCE7' }]}>
-            <Ionicons name="checkmark-circle" size={12} color="#16A34A" />
-            <Text style={[styles.staffAnsweredText, { color: '#16A34A' }]}>Staff Replied</Text>
-          </View>
-        ) : null}
-      </View>
-
-      {/* Author Row */}
-      <View style={styles.authorRow}>
-        <UserAvatar uri={topic.authorAvatarUrl} name={topic.authorName} size={32} />
-        <View style={styles.authorMeta}>
-          <View style={styles.authorNameRow}>
-            <Text style={[styles.authorName, { color: tc.text }]} numberOfLines={1}>
-              {topic.authorName}
-            </Text>
-            <View style={[styles.roleBadge, { backgroundColor: badge.bg }]}>
-              <Ionicons name={badge.icon as any} size={10} color={badge.text} />
-              <Text style={[styles.roleBadgeText, { color: badge.text }]}>{badge.label}</Text>
-            </View>
-          </View>
-          <Text style={[styles.timeAgo, { color: tc.textMuted }]}>
-            {formatRelativeTime(topic.createdAt)}
-          </Text>
-        </View>
-
-        {/* Action Controls for Author/Staff + Interest Toggle */}
-        <View style={styles.headerActions}>
+        {/* Quick Action Top-Right Controls */}
+        <View style={styles.topRightActions}>
           {onToggleInterested ? (
             <Pressable
               onPress={(e) => {
@@ -185,23 +148,27 @@ export function ForumTopicCard({
               }}
               hitSlop={8}
               style={[
-                styles.interestHeaderBtn,
+                styles.bookmarkBtn,
                 {
                   backgroundColor: isInterested
                     ? isDark
-                      ? '#422006'
+                      ? '#2E2211'
                       : '#FEF3C7'
                     : isDark
                       ? '#1E293B'
                       : '#F8FAFC',
-                  borderColor: isInterested ? '#F59E0B' : tc.border,
+                  borderColor: isInterested
+                    ? isDark
+                      ? '#B45309'
+                      : '#FDE68A'
+                    : tc.border,
                 },
               ]}
               accessibilityRole="button"
               accessibilityLabel={
                 isInterested
                   ? 'Interested in this forum. Tap to unfollow'
-                  : 'Mark as interested to follow and filter'
+                  : 'Bookmark as interested to follow and filter'
               }
             >
               <Ionicons
@@ -209,14 +176,6 @@ export function ForumTopicCard({
                 size={14}
                 color={isInterested ? '#D97706' : tc.textMuted}
               />
-              <Text
-                style={[
-                  styles.interestHeaderBtnText,
-                  { color: isInterested ? '#B45309' : tc.textMuted },
-                ]}
-              >
-                {isInterested ? 'Interested' : 'Interest'}
-              </Text>
             </Pressable>
           ) : null}
 
@@ -232,7 +191,7 @@ export function ForumTopicCard({
             >
               <Ionicons
                 name={topic.pinned ? 'pin' : 'pin-outline'}
-                size={16}
+                size={15}
                 color={topic.pinned ? '#D97706' : tc.textMuted}
               />
             </Pressable>
@@ -248,11 +207,82 @@ export function ForumTopicCard({
               style={styles.iconBtn}
               accessibilityLabel="Delete topic"
             >
-              <Ionicons name="trash-outline" size={16} color={colors.scarlet} />
+              <Ionicons name="trash-outline" size={15} color={colors.scarlet} />
             </Pressable>
           ) : null}
         </View>
       </View>
+
+      {/* Pill Badges Row (Pinned / Staff Answered / Activity) */}
+      {(topic.pinned || topic.hasStaffReply || hasRecentlyChatted || isAuthor) && (
+        <View style={styles.badgeRow}>
+          {topic.pinned ? (
+            <View
+              style={[
+                styles.pinnedPill,
+                {
+                  backgroundColor: isDark ? '#422006' : '#FEF3C7',
+                  borderColor: isDark ? '#78350F' : '#FDE68A',
+                },
+              ]}
+            >
+              <Ionicons name="pin" size={11} color="#B45309" />
+              <Text style={styles.pinnedPillText}>PINNED TO TOP</Text>
+            </View>
+          ) : null}
+
+          {topic.hasStaffReply ? (
+            <View
+              style={[
+                styles.staffAnsweredBadge,
+                {
+                  backgroundColor: isDark ? '#064E3B' : '#ECFDF5',
+                  borderColor: isDark ? '#047857' : '#A7F3D0',
+                },
+              ]}
+            >
+              <Ionicons name="shield-checkmark" size={11} color={isDark ? '#34D399' : '#047857'} />
+              <Text style={[styles.staffAnsweredText, { color: isDark ? '#34D399' : '#047857' }]}>
+                Official Staff Answered
+              </Text>
+            </View>
+          ) : null}
+
+          {hasRecentlyChatted ? (
+            <View
+              style={[
+                styles.activityBadge,
+                {
+                  backgroundColor: isDark ? '#0C2A4A' : '#EFF6FF',
+                  borderColor: isDark ? '#1E3A8A' : '#BFDBFE',
+                },
+              ]}
+            >
+              <Ionicons name="chatbubbles" size={11} color={isDark ? '#60A5FA' : '#1D4ED8'} />
+              <Text style={[styles.activityBadgeText, { color: isDark ? '#60A5FA' : '#1D4ED8' }]}>
+                You Chatted Here
+              </Text>
+            </View>
+          ) : null}
+
+          {isAuthor ? (
+            <View
+              style={[
+                styles.activityBadge,
+                {
+                  backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+                  borderColor: isDark ? '#334155' : '#E2E8F0',
+                },
+              ]}
+            >
+              <Ionicons name="create-outline" size={11} color={isDark ? '#94A3B8' : '#475569'} />
+              <Text style={[styles.activityBadgeText, { color: isDark ? '#94A3B8' : '#475569' }]}>
+                Created by You
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      )}
 
       {/* Topic Title */}
       <Text style={[styles.title, { color: tc.text }]} numberOfLines={2}>
@@ -264,19 +294,30 @@ export function ForumTopicCard({
         {topic.content}
       </Text>
 
-      {/* Highlighted @ Mention Pill */}
+      {/* Highlighted @ Mention Tag Row */}
       {mentionDisplayNames.length > 0 ? (
-        <View style={[styles.mentionContainer, { backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF', borderColor: isDark ? '#4338CA' : '#C7D2FE' }]}>
-          <Ionicons name="at-circle" size={15} color="#4F46E5" />
-          <Text style={styles.mentionLabel}>Tagged:</Text>
-          <Text style={styles.mentionNames} numberOfLines={1}>
+        <View
+          style={[
+            styles.mentionContainer,
+            {
+              backgroundColor: isDark ? '#0C2A4A' : '#F0F7FF',
+              borderColor: isDark ? '#1E3A8A' : '#D0E3F0',
+            },
+          ]}
+        >
+          <Ionicons name="at-circle" size={14} color={colors.primary} />
+          <Text style={[styles.mentionLabel, { color: colors.primary }]}>Tagged:</Text>
+          <Text
+            style={[styles.mentionNames, { color: isDark ? '#93C5FD' : '#004B7A' }]}
+            numberOfLines={1}
+          >
             {mentionDisplayNames.join(', ')}
           </Text>
         </View>
       ) : null}
 
-      {/* Footer Stats Row */}
-      <View style={[styles.footerRow, { borderTopColor: tc.border }]}>
+      {/* Footer Stats & Quick Engagement Bar */}
+      <View style={[styles.footerRow, { borderTopColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
         <View style={styles.statsLeft}>
           {/* Like Button */}
           <Pressable
@@ -294,6 +335,7 @@ export function ForumTopicCard({
                   : isDark
                     ? '#1E293B'
                     : '#F8FAFC',
+                borderColor: isLiked ? '#F87171' : tc.border,
               },
               pressed && styles.btnPressed,
             ]}
@@ -302,7 +344,7 @@ export function ForumTopicCard({
           >
             <Ionicons
               name={isLiked ? 'heart' : 'heart-outline'}
-              size={15}
+              size={14}
               color={isLiked ? '#DC2626' : tc.textMuted}
             />
             <Text
@@ -319,20 +361,25 @@ export function ForumTopicCard({
           <View
             style={[
               styles.statPill,
-              { backgroundColor: isDark ? '#1E293B' : '#F8FAFC' },
+              {
+                backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+                borderColor: tc.border,
+              },
             ]}
           >
-            <Ionicons name="chatbubble-outline" size={14} color={tc.textMuted} />
+            <Ionicons name="chatbubble-outline" size={13} color={tc.textMuted} />
             <Text style={[styles.statCount, { color: tc.text }]}>
               {topic.replyCount} {topic.replyCount === 1 ? 'reply' : 'replies'}
             </Text>
           </View>
         </View>
 
+        {/* View Discussion Prompt Pill */}
         <View style={styles.viewDiscussion}>
           <Text style={[styles.viewDiscussionText, { color: colors.primary }]}>
-            Join Discussion →
+            Join Thread
           </Text>
+          <Ionicons name="arrow-forward" size={13} color={colors.primary} />
         </View>
       </View>
     </Pressable>
@@ -341,100 +388,56 @@ export function ForumTopicCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 14,
-    gap: 10,
+    gap: 9,
     marginBottom: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
     elevation: 2,
+    overflow: 'hidden',
   },
   cardPressed: {
-    opacity: 0.95,
+    opacity: 0.94,
+    transform: [{ scale: 0.995 }],
   },
-  categoryRow: {
+  pinnedGlow: {
+    shadowColor: '#D97706',
+    shadowOpacity: 0.08,
+  },
+  topMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
   },
-  categoryLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
-  },
-  pinnedPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  pinnedPillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#B45309',
-    letterSpacing: 0.5,
-  },
-  categoryPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  categoryText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  activityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  activityBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  staffAnsweredBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  staffAnsweredText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  authorRow: {
+  authorCluster: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    minWidth: 0,
   },
   authorMeta: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   authorNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     flexWrap: 'wrap',
   },
   authorName: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
+    flexShrink: 1,
+  },
+  verifiedCheck: {
+    marginRight: 2,
   },
   roleBadge: {
     flexDirection: 'row',
@@ -449,34 +452,100 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.3,
   },
-  timeAgo: {
-    fontSize: 11,
-  },
-  headerActions: {
+  timeAndCatRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
+    flexWrap: 'wrap',
   },
-  interestHeaderBtn: {
+  timeAgo: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  metaDot: {
+    fontSize: 10,
+  },
+  inlineCat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  inlineCatText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  topRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    borderWidth: 1,
+    flexShrink: 0,
   },
-  interestHeaderBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
+  bookmarkBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   iconBtn: {
-    padding: 4,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  pinnedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  pinnedPillText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#B45309',
+    letterSpacing: 0.5,
+  },
+  staffAnsweredBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  staffAnsweredText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  activityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  activityBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   title: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
     lineHeight: 22,
+    marginTop: 1,
   },
   content: {
     fontSize: 13,
@@ -494,20 +563,18 @@ const styles = StyleSheet.create({
   mentionLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#4F46E5',
   },
   mentionNames: {
     flex: 1,
     fontSize: 11,
     fontWeight: '600',
-    color: '#4338CA',
   },
   footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
     marginTop: 2,
   },
   statsLeft: {
@@ -519,12 +586,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
   },
   btnPressed: {
-    opacity: 0.7,
+    opacity: 0.75,
   },
   statCount: {
     fontSize: 12,
@@ -533,9 +601,12 @@ const styles = StyleSheet.create({
   viewDiscussion: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   viewDiscussionText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 });

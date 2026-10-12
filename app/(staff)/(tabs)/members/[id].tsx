@@ -498,10 +498,10 @@ export default function StaffMemberDetailScreen() {
         {/* CLIENT FITNESS GOALS & HEALTH SAFETY PROFILE              */}
         {/* ========================================================= */}
         <View style={styles.card}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 160 }}>
               <Ionicons name="trophy" size={18} color={colors.primary} />
-              <Text style={styles.sectionTitle}>Fitness Goals & Safety Profile</Text>
+              <Text style={[styles.sectionTitle, { flexShrink: 1 }]}>Fitness Goals & Safety Profile</Text>
             </View>
             <Pressable onPress={() => setGoalModalVisible(true)} style={styles.badgeBtn} accessibilityRole="button">
               <Text style={styles.badgeBtnText}>{fitnessGoal ? 'Edit Goals ›' : '+ Set Goals ›'}</Text>
@@ -632,10 +632,10 @@ export default function StaffMemberDetailScreen() {
         {/* WORKOUT LOGS & PROGRESSION TRACKING                      */}
         {/* ========================================================= */}
         <View style={styles.card}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 160 }}>
               <Ionicons name="barbell" size={18} color={colors.primary} />
-              <Text style={styles.sectionTitle}>
+              <Text style={[styles.sectionTitle, { flexShrink: 1 }]}>
                 Workout History ({workoutLogs.length})
               </Text>
             </View>
@@ -750,10 +750,10 @@ export default function StaffMemberDetailScreen() {
         {/* DIRECT LESSON BOOKING WITH CLIENT                         */}
         {/* ========================================================= */}
         <View style={styles.card}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 160 }}>
               <Ionicons name="calendar" size={18} color={colors.primary} />
-              <Text style={styles.sectionTitle}>1-on-1 Lesson Scheduling</Text>
+              <Text style={[styles.sectionTitle, { flexShrink: 1 }]}>1-on-1 Lesson Scheduling</Text>
             </View>
             <Pressable
               onPress={() => setBookLessonModalVisible(true)}
