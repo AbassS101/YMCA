@@ -858,7 +858,7 @@ export default function MemberTrainersScreen() {
 
                         {log.notes ? (
                           <Text style={{ fontSize: 12, color: colors.textMuted, fontStyle: 'italic' }}>
-                            💡 {isSelf ? 'My Notes' : 'Coach Notes'}: "{log.notes}"
+                            💡 Coach Notes: "{log.notes}"
                           </Text>
                         ) : null}
 

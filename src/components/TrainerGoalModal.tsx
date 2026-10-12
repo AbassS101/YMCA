@@ -524,6 +524,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderBottomWidth: 0,
     ...cardStyle,
+    padding: 0,
   },
   header: {
     flexDirection: 'row',
