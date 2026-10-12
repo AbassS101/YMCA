@@ -7,6 +7,7 @@ export default function StaffLayout() {
       <Stack.Screen name="staff-management" />
       <Stack.Screen name="complaints-suggestions" />
       <Stack.Screen name="announcements" />
+      <Stack.Screen name="surveys" />
       <Stack.Screen name="settings" />
     </Stack>
   );

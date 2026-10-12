@@ -45,6 +45,7 @@ export default function StaffAnnouncementsScreen() {
   const [category, setCategory] = useState<AnnouncementCategory>('facility');
   const [priority, setPriority] = useState<AnnouncementPriority>('normal');
   const [pinned, setPinned] = useState(false);
+  const [popupNotice, setPopupNotice] = useState(false);
   const [actionLabel, setActionLabel] = useState('');
   const [actionUrl, setActionUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -74,6 +75,7 @@ export default function StaffAnnouncementsScreen() {
     setCategory('facility');
     setPriority('normal');
     setPinned(false);
+    setPopupNotice(false);
     setActionLabel('');
     setActionUrl('');
     setModalError(null);
@@ -87,6 +89,7 @@ export default function StaffAnnouncementsScreen() {
     setCategory(item.category);
     setPriority(item.priority);
     setPinned(Boolean(item.pinned));
+    setPopupNotice(Boolean(item.popupNotice));
     setActionLabel(item.actionLabel || '');
     setActionUrl(item.actionUrl || '');
     setModalError(null);
@@ -109,6 +112,7 @@ export default function StaffAnnouncementsScreen() {
           category,
           priority,
           pinned,
+          popupNotice,
           actionLabel: actionLabel.trim() || undefined,
           actionUrl: actionUrl.trim() || undefined,
         });
@@ -122,13 +126,16 @@ export default function StaffAnnouncementsScreen() {
           category,
           priority,
           pinned,
+          popupNotice,
           authorName: staff ? `${staff.name} (${staff.roleLabel})` : 'YMCA Staff',
           actionLabel: actionLabel.trim() || undefined,
           actionUrl: actionUrl.trim() || undefined,
         });
         dialog.alert(
           'Broadcasted!',
-          'Announcement published and instant push alert dispatched to members.',
+          popupNotice
+            ? 'Announcement published and configured to pop up when members open the app!'
+            : 'Announcement published and instant push alert dispatched to members.',
           [{ text: 'OK' }],
           'checkmark'
         );
@@ -158,6 +165,15 @@ export default function StaffAnnouncementsScreen() {
       await load();
     } catch {
       dialog.alert('Error', 'Failed to toggle pinned status.', [{ text: 'OK' }]);
+    }
+  }
+
+  async function handleTogglePopup(item: Announcement) {
+    try {
+      await announcementRepo.update(api, item.id, { popupNotice: !item.popupNotice });
+      await load();
+    } catch {
+      dialog.alert('Error', 'Failed to toggle pop-up notice status.', [{ text: 'OK' }]);
     }
   }
 
@@ -203,7 +219,7 @@ export default function StaffAnnouncementsScreen() {
             <View key={item.id} style={styles.card}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
                     <View
                       style={[
                         styles.badge,
@@ -241,6 +257,11 @@ export default function StaffAnnouncementsScreen() {
                         <Text style={[styles.badgeText, { color: '#854D0E' }]}>📌 PINNED</Text>
                       </View>
                     ) : null}
+                    {item.popupNotice ? (
+                      <View style={[styles.badge, { backgroundColor: '#FEE2E2' }]}>
+                        <Text style={[styles.badgeText, { color: colors.scarlet }]}>🚨 APP POP-UP</Text>
+                      </View>
+                    ) : null}
                   </View>
 
                   <Text style={styles.title}>{item.title}</Text>
@@ -273,6 +294,29 @@ export default function StaffAnnouncementsScreen() {
                 >
                   <Ionicons name="pin" size={15} color={item.pinned ? colors.scarlet : colors.nearBlack} />
                   <Text style={styles.actionBtnText}>{item.pinned ? 'Unpin' : 'Pin'}</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void handleTogglePopup(item)}
+                  style={[
+                    styles.actionBtnOutline,
+                    item.popupNotice && { borderColor: colors.scarlet, backgroundColor: '#FEF2F2' },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.popupNotice ? 'Disable App Open Pop-up' : 'Enable App Open Pop-up'}
+                >
+                  <Ionicons
+                    name="phone-portrait"
+                    size={15}
+                    color={item.popupNotice ? colors.scarlet : colors.nearBlack}
+                  />
+                  <Text
+                    style={[
+                      styles.actionBtnText,
+                      item.popupNotice && { color: colors.scarlet, fontWeight: '700' },
+                    ]}
+                  >
+                    {item.popupNotice ? 'Pop-up: ON' : 'Pop-up: OFF'}
+                  </Text>
                 </Pressable>
                 <Pressable
                   onPress={() => void handleDelete(item.id)}
@@ -364,6 +408,35 @@ export default function StaffAnnouncementsScreen() {
               >
                 <Ionicons name={pinned ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
                 <Text style={{ fontSize: 14, color: colors.nearBlack }}>Pin to Top of Member Feed</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setPopupNotice(!popupNotice)}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                  marginTop: 6,
+                  padding: 10,
+                  borderRadius: radii.sm,
+                  backgroundColor: popupNotice ? '#FEF2F2' : '#F8FAFC',
+                  borderWidth: 1,
+                  borderColor: popupNotice ? colors.scarlet : '#E2E8F0',
+                }}
+              >
+                <Ionicons
+                  name={popupNotice ? 'checkbox' : 'square-outline'}
+                  size={22}
+                  color={popupNotice ? colors.scarlet : colors.muted}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: popupNotice ? colors.scarlet : colors.nearBlack }}>
+                    Pop-up Notice on App Open
+                  </Text>
+                  <Text style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+                    Displays as an instant modal alert when members open or launch the app.
+                  </Text>
+                </View>
               </Pressable>
 
               <View style={{ marginTop: 12 }}>

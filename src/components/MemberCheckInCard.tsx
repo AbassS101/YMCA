@@ -9,7 +9,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '@/components/AppText';
 import { colors } from '@/theme/colors';
 import { radii, spacing, typography } from '@/theme/typography';
-import type { Member } from '@/domain/types';
+import type { Member, MemberStreakProfile } from '@/domain/types';
+import { getFlameTier } from '@/domain/attendanceStreak';
+import { streakRepo } from '@/repositories/streakRepo';
 import {
   boostBrightnessForScanner,
   restoreScreenBrightness,
@@ -35,7 +37,14 @@ export function MemberCheckInCard({
 }: MemberCheckInCardProps) {
   const [isScanModalOpen, setIsScanModalOpen] = useState(initialExpanded);
   const [isBrightnessBoosted, setIsBrightnessBoosted] = useState(false);
+  const [streakProfile, setStreakProfile] = useState<MemberStreakProfile | null>(null);
   const previousBrightnessRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (member?.id) {
+      void streakRepo.getStreakProfile(member.id).then(setStreakProfile);
+    }
+  }, [member?.id]);
 
   // Generate barcode bars from member ID
   const barcodeBars = generateBarcodeBars(member.membershipId, member.homeBranchId);
@@ -62,6 +71,14 @@ export function MemberCheckInCard({
       setIsBrightnessBoosted(false);
     } catch (e) {
       console.warn('Error restoring brightness:', e);
+    }
+    if (member?.id) {
+      try {
+        const res = await streakRepo.recordCheckIn(member.id, { source: 'optical_scanner' });
+        setStreakProfile(res.profile);
+      } catch {
+        // ignore
+      }
     }
     onClose?.();
   };
@@ -102,11 +119,55 @@ export function MemberCheckInCard({
               <AppText style={styles.kicker}>YMCA of Metropolitan Washington</AppText>
               <AppText style={styles.branchName}>Silver Spring Branch</AppText>
             </View>
-            <View style={styles.statusBadge}>
-              <View style={styles.activeDot} />
-              <AppText style={styles.statusText}>
-                {member.status === 'active' ? 'Active' : 'Pending'}
-              </AppText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {streakProfile ? (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 3,
+                    backgroundColor: streakProfile.activeHold?.active
+                      ? '#E0F2FE'
+                      : getFlameTier(streakProfile.currentStreakWeeks).bgColor,
+                    paddingHorizontal: 8,
+                    paddingVertical: 5,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: streakProfile.activeHold?.active
+                      ? '#7DD3FC'
+                      : getFlameTier(streakProfile.currentStreakWeeks).borderColor,
+                  }}
+                >
+                  <Ionicons
+                    name={streakProfile.activeHold?.active ? 'shield-checkmark' : 'flame'}
+                    size={13}
+                    color={
+                      streakProfile.activeHold?.active
+                        ? '#0284C7'
+                        : getFlameTier(streakProfile.currentStreakWeeks).fireColor
+                    }
+                  />
+                  <AppText
+                    style={{
+                      fontSize: 11,
+                      fontWeight: '800',
+                      color: streakProfile.activeHold?.active
+                        ? '#0284C7'
+                        : getFlameTier(streakProfile.currentStreakWeeks).textColor,
+                    }}
+                  >
+                    {streakProfile.activeHold?.active
+                      ? 'ON HOLD'
+                      : `${streakProfile.currentStreakWeeks}w 🔥`}
+                  </AppText>
+                </View>
+              ) : null}
+              <View style={styles.statusBadge}>
+                <View style={styles.activeDot} />
+                <AppText style={styles.statusText}>
+                  {member.status === 'active' ? 'Active' : 'Pending'}
+                </AppText>
+              </View>
             </View>
           </View>
 
@@ -272,9 +333,53 @@ export function MemberCheckInCard({
                   {member.type} Membership · ID #{member.membershipId}
                 </AppText>
               </View>
-              <View style={styles.modalActiveBadge}>
-                <View style={styles.activeDot} />
-                <AppText style={styles.modalActiveText}>ACTIVE</AppText>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {streakProfile ? (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 4,
+                      backgroundColor: streakProfile.activeHold?.active
+                        ? '#E0F2FE'
+                        : getFlameTier(streakProfile.currentStreakWeeks).bgColor,
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: streakProfile.activeHold?.active
+                        ? '#7DD3FC'
+                        : getFlameTier(streakProfile.currentStreakWeeks).borderColor,
+                    }}
+                  >
+                    <Ionicons
+                      name={streakProfile.activeHold?.active ? 'shield-checkmark' : 'flame'}
+                      size={13}
+                      color={
+                        streakProfile.activeHold?.active
+                          ? '#0284C7'
+                          : getFlameTier(streakProfile.currentStreakWeeks).fireColor
+                      }
+                    />
+                    <AppText
+                      style={{
+                        fontSize: 11,
+                        fontWeight: '800',
+                        color: streakProfile.activeHold?.active
+                          ? '#0284C7'
+                          : getFlameTier(streakProfile.currentStreakWeeks).textColor,
+                      }}
+                    >
+                      {streakProfile.activeHold?.active
+                        ? 'PROTECTED'
+                        : `${streakProfile.currentStreakWeeks}w STREAK`}
+                    </AppText>
+                  </View>
+                ) : null}
+                <View style={styles.modalActiveBadge}>
+                  <View style={styles.activeDot} />
+                  <AppText style={styles.modalActiveText}>ACTIVE</AppText>
+                </View>
               </View>
             </View>
 

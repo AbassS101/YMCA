@@ -5,9 +5,12 @@ import {
   YMCA_MEMBERSHIP_PLANS,
   type Announcement,
   type AppNotification,
+  type AttendanceStatus,
   type CancelRequest,
   type ClassForumPost,
   type ClassRegistration,
+  type ClientFitnessGoal,
+  type ClientWorkoutLog,
   type ComplaintSuggestion,
   type Donation,
   type FeedbackStatus,
@@ -24,14 +27,17 @@ import {
   type ScheduleItem,
   type Staff,
   type SupportTicket,
+  type Survey,
+  type SurveyResponse,
   type Thread,
   type TicketCategory,
   type TicketPriority,
   type TicketStatus,
   type TicketType,
+  type UserForumInterests,
   type UserRole,
 } from '@/domain/types';
-import { loadStore, saveStore } from '@/storage/demoStore';
+import { loadStore, saveStore, type DemoState } from '@/storage/demoStore';
 import type { ProtivityPort } from '@/protivity/ProtivityPort';
 
 /** Calendar day from seeded ISO datetimes (YYYY-MM-DD), TZ-independent. */
@@ -45,6 +51,8 @@ function defaultNotificationPreferences(userId: string): NotificationPreferences
     userId,
     mentions: true,
     topicReplies: true,
+    interestedTopicActivity: true,
+    chattedTopicReplies: true,
     classForumAlerts: true,
     staffInquiries: isStaff,
     announcements: true,
@@ -57,6 +65,124 @@ function defaultNotificationPreferences(userId: string): NotificationPreferences
     quietHoursStart: '22:00',
     quietHoursEnd: '07:00',
   };
+}
+
+function defaultForumInterests(userId: string): UserForumInterests {
+  return {
+    userId,
+    categories: [],
+    topicIds: [],
+    classIds: [],
+  };
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractMentionsFromText(
+  text: string,
+  state: DemoState
+): {
+  allIds: string[];
+  allNames: string[];
+  staffIds: string[];
+  staffNames: string[];
+} {
+  if (!text || !text.includes('@')) {
+    return { allIds: [], allNames: [], staffIds: [], staffNames: [] };
+  }
+
+  type Candidate = {
+    id: string;
+    name: string;
+    isStaff: boolean;
+    aliases: string[];
+  };
+
+  const candidates: Candidate[] = [
+    {
+      id: 'staff-all',
+      name: 'All Staff Desk',
+      isStaff: true,
+      aliases: ['all staff desk', 'all staff', 'staff desk', 'staff-all'],
+    },
+  ];
+
+  const seenIds = new Set<string>(['staff-all']);
+
+  for (const s of state.staff ?? []) {
+    if (seenIds.has(s.id)) continue;
+    seenIds.add(s.id);
+    const first = s.name.split(/\s+/)[0]?.toLowerCase() ?? '';
+    const compact = s.name.replace(/\s+/g, '').toLowerCase();
+    candidates.push({
+      id: s.id,
+      name: s.name,
+      isStaff: true,
+      aliases: Array.from(new Set([s.name.toLowerCase(), compact, s.id.toLowerCase(), first].filter(Boolean))),
+    });
+  }
+
+  for (const m of state.members ?? []) {
+    if (seenIds.has(m.id)) continue;
+    seenIds.add(m.id);
+    const first = m.name.split(/\s+/)[0]?.toLowerCase() ?? '';
+    const compact = m.name.replace(/\s+/g, '').toLowerCase();
+    candidates.push({
+      id: m.id,
+      name: m.name,
+      isStaff: false,
+      aliases: Array.from(new Set([m.name.toLowerCase(), compact, m.id.toLowerCase(), first].filter(Boolean))),
+    });
+  }
+
+  // Also include any authors from existing forum topics/replies/class posts
+  const extraAuthors: { id: string; name: string; role: string }[] = [];
+  for (const t of state.forumTopics ?? []) {
+    extraAuthors.push({ id: t.authorId, name: t.authorName, role: String(t.authorRole) });
+  }
+  for (const r of state.forumReplies ?? []) {
+    extraAuthors.push({ id: r.authorId, name: r.authorName, role: String(r.authorRole) });
+  }
+  for (const p of state.classForumPosts ?? []) {
+    extraAuthors.push({ id: p.authorId, name: p.authorName, role: String(p.authorRole) });
+  }
+  for (const a of extraAuthors) {
+    if (!a.id || !a.name || seenIds.has(a.id)) continue;
+    seenIds.add(a.id);
+    const first = a.name.split(/\s+/)[0]?.toLowerCase() ?? '';
+    const compact = a.name.replace(/\s+/g, '').toLowerCase();
+    const isStaff = a.id.startsWith('staff') || a.role !== 'member';
+    candidates.push({
+      id: a.id,
+      name: a.name,
+      isStaff,
+      aliases: Array.from(new Set([a.name.toLowerCase(), compact, a.id.toLowerCase(), first].filter(Boolean))),
+    });
+  }
+
+  const allIds: string[] = [];
+  const allNames: string[] = [];
+  const staffIds: string[] = [];
+  const staffNames: string[] = [];
+
+  for (const cand of candidates) {
+    const matched = cand.aliases.some((alias) => {
+      const pattern = new RegExp(`(?:^|\\s)@${escapeRegex(alias)}(?=$|\\s|[.,!?:;\\)\\]])`, 'i');
+      return pattern.test(text);
+    });
+    if (matched) {
+      allIds.push(cand.id);
+      allNames.push(cand.name);
+      if (cand.isStaff) {
+        staffIds.push(cand.id);
+        staffNames.push(cand.name);
+      }
+    }
+  }
+
+  return { allIds, allNames, staffIds, staffNames };
 }
 
 export class MockProtivityAdapter implements ProtivityPort {
@@ -526,7 +652,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     return state.privateLessons.filter(
       (l) =>
         l.staffId === staffId &&
-        l.status === 'booked' &&
+        l.status !== 'cancelled' &&
         scheduleCalendarDay(l.start) === date
     );
   }
@@ -1257,6 +1383,202 @@ export class MockProtivityAdapter implements ProtivityPort {
   }
 
   // ==========================================
+  // Trainer: Attendance & Session Operations
+  // ==========================================
+  async getClassRegistrations(scheduleItemId: string): Promise<ClassRegistration[]> {
+    const state = await loadStore();
+    return state.classRegistrations.filter(
+      (r) => r.scheduleItemId === scheduleItemId && r.status === 'registered'
+    );
+  }
+
+  async markClassAttendance(
+    scheduleItemId: string,
+    memberId: string,
+    attendanceStatus: AttendanceStatus
+  ): Promise<void> {
+    const state = await loadStore();
+    const reg = state.classRegistrations.find(
+      (r) => r.scheduleItemId === scheduleItemId && r.memberId === memberId && r.status === 'registered'
+    );
+    if (!reg) {
+      throw new Error('Registration not found for this member and class.');
+    }
+    reg.attendanceStatus = attendanceStatus;
+    if (attendanceStatus === 'attended') {
+      reg.checkedInAt = new Date().toISOString();
+    }
+    await saveStore(state);
+  }
+
+  async addWalkInRegistration(
+    scheduleItemId: string,
+    memberId: string
+  ): Promise<ClassRegistration> {
+    const state = await loadStore();
+    const member = state.members.find((m) => m.id === memberId);
+    if (!member) {
+      throw new Error(`Member not found: ${memberId}`);
+    }
+    const sched = state.schedules.find((s) => s.id === scheduleItemId);
+    if (!sched) {
+      throw new Error(`Schedule item not found: ${scheduleItemId}`);
+    }
+    const existing = state.classRegistrations.find(
+      (r) => r.scheduleItemId === scheduleItemId && r.memberId === memberId
+    );
+    if (existing) {
+      existing.status = 'registered';
+      existing.attendanceStatus = 'attended';
+      existing.checkedInAt = new Date().toISOString();
+      await saveStore(state);
+      return existing;
+    }
+    const newReg: ClassRegistration = {
+      id: `reg-walkin-${Date.now()}`,
+      memberId,
+      scheduleItemId,
+      status: 'registered',
+      attendanceStatus: 'attended',
+      checkedInAt: new Date().toISOString(),
+      registeredAt: new Date().toISOString(),
+    };
+    state.classRegistrations.push(newReg);
+    await saveStore(state);
+    return newReg;
+  }
+
+  async markLessonStatus(
+    lessonId: string,
+    status: 'booked' | 'completed' | 'no_show',
+    notes?: string
+  ): Promise<PrivateLesson> {
+    const state = await loadStore();
+    const lesson = state.privateLessons.find((l) => l.id === lessonId);
+    if (!lesson) {
+      throw new Error(`Lesson not found: ${lessonId}`);
+    }
+    lesson.status = status;
+    if (status === 'completed') {
+      lesson.completedAt = new Date().toISOString();
+    }
+    if (notes !== undefined) {
+      lesson.notes = notes;
+    }
+    await saveStore(state);
+    return lesson;
+  }
+
+  async bookLessonForMember(
+    staffId: string,
+    memberId: string,
+    slotIdOrCustom: string | { start: string; end: string; location: string }
+  ): Promise<PrivateLesson> {
+    const state = await loadStore();
+    if (typeof slotIdOrCustom === 'string') {
+      return this.bookPrivateLesson(memberId, slotIdOrCustom);
+    }
+    const newLesson: PrivateLesson = {
+      id: `lesson-custom-${Date.now()}`,
+      memberId,
+      staffId,
+      slotId: `slot-direct-${Date.now()}`,
+      start: slotIdOrCustom.start,
+      end: slotIdOrCustom.end,
+      location: slotIdOrCustom.location,
+      status: 'booked',
+    };
+    state.privateLessons.push(newLesson);
+
+    // Notify member
+    state.notifications.unshift({
+      id: `notif-lesson-booked-${Date.now()}`,
+      userId: memberId,
+      title: 'New Private Session Booked',
+      body: `Your trainer scheduled a private session for ${new Date(slotIdOrCustom.start).toLocaleDateString()} at ${new Date(slotIdOrCustom.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}.`,
+      type: 'general',
+      createdAt: new Date().toISOString(),
+      read: false,
+      link: '/(member)/book-lesson',
+    });
+
+    await saveStore(state);
+    return newLesson;
+  }
+
+  // ==========================================
+  // Trainer: Client Workout Logs & Progression
+  // ==========================================
+  async listClientWorkoutLogs(memberId: string): Promise<ClientWorkoutLog[]> {
+    const state = await loadStore();
+    return (state.workoutLogs || [])
+      .filter((w) => w.memberId === memberId)
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  async logClientWorkout(
+    input: Omit<ClientWorkoutLog, 'id' | 'createdAt'>
+  ): Promise<ClientWorkoutLog> {
+    const state = await loadStore();
+    const newLog: ClientWorkoutLog = {
+      ...input,
+      id: `log-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    if (!state.workoutLogs) state.workoutLogs = [];
+    state.workoutLogs.unshift(newLog);
+    await saveStore(state);
+    return newLog;
+  }
+
+  async updateClientWorkoutLog(
+    logId: string,
+    updates: Partial<ClientWorkoutLog>
+  ): Promise<ClientWorkoutLog> {
+    const state = await loadStore();
+    if (!state.workoutLogs) state.workoutLogs = [];
+    const index = state.workoutLogs.findIndex((w) => w.id === logId);
+    if (index === -1) {
+      throw new Error(`Workout log ${logId} not found`);
+    }
+    const updated: ClientWorkoutLog = {
+      ...state.workoutLogs[index],
+      ...updates,
+      id: logId,
+    };
+    state.workoutLogs[index] = updated;
+    await saveStore(state);
+    return updated;
+  }
+
+  async deleteClientWorkoutLog(logId: string): Promise<void> {
+    const state = await loadStore();
+    if (!state.workoutLogs) return;
+    state.workoutLogs = state.workoutLogs.filter((w) => w.id !== logId);
+    await saveStore(state);
+  }
+
+  // ==========================================
+  // Trainer: Client Fitness Goals
+  // ==========================================
+  async getClientFitnessGoal(memberId: string): Promise<ClientFitnessGoal | null> {
+    const state = await loadStore();
+    return state.clientGoals?.[memberId] ?? null;
+  }
+
+  async saveClientFitnessGoal(goal: ClientFitnessGoal): Promise<ClientFitnessGoal> {
+    const state = await loadStore();
+    if (!state.clientGoals) state.clientGoals = {};
+    const updated = {
+      ...goal,
+      updatedAt: new Date().toISOString(),
+    };
+    state.clientGoals[goal.memberId] = updated;
+    await saveStore(state);
+    return updated;
+  }
+
+  // ==========================================
   // Staff & Trainer Management (Admin)
   // ==========================================
   async createStaff(input: Omit<Staff, 'id'> & { password: string }): Promise<Staff> {
@@ -1454,6 +1776,22 @@ export class MockProtivityAdapter implements ProtivityPort {
     });
   }
 
+  async listRecentlyChattedClassIds(userId: string): Promise<string[]> {
+    const state = await loadStore();
+    const userPosts = (state.classForumPosts ?? [])
+      .filter((p) => p.authorId === userId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const p of userPosts) {
+      if (!seen.has(p.classId)) {
+        seen.add(p.classId);
+        result.push(p.classId);
+      }
+    }
+    return result;
+  }
+
   async createClassForumPost(input: {
     classId: string;
     authorId: string;
@@ -1462,11 +1800,22 @@ export class MockProtivityAdapter implements ProtivityPort {
     authorAvatarUrl?: string;
     content: string;
     pinned?: boolean;
+    mentionedUserIds?: string[];
+    mentionedUserNames?: string[];
   }): Promise<ClassForumPost> {
     const state = await loadStore();
     if (!state.classForumPosts) {
       state.classForumPosts = [];
     }
+
+    const now = new Date().toISOString();
+    const extracted = extractMentionsFromText(input.content, state);
+    const mentionedUserIds = Array.from(
+      new Set([...(input.mentionedUserIds ?? []), ...extracted.allIds])
+    );
+    const mentionedUserNames = Array.from(
+      new Set([...(input.mentionedUserNames ?? []), ...extracted.allNames])
+    );
 
     const post: ClassForumPost = {
       id: `cfp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -1476,11 +1825,80 @@ export class MockProtivityAdapter implements ProtivityPort {
       authorRole: input.authorRole as any,
       authorAvatarUrl: input.authorAvatarUrl,
       content: input.content.trim(),
-      createdAt: new Date().toISOString(),
+      createdAt: now,
       pinned: input.pinned ?? false,
+      mentionedUserIds,
+      mentionedUserNames,
     };
 
+    const existingClassPosts = state.classForumPosts.filter((p) => p.classId === input.classId);
     state.classForumPosts.push(post);
+
+    if (!state.notifications) {
+      state.notifications = [];
+    }
+    const classItem = state.schedules.find((s) => s.id === input.classId);
+    const classTitle = classItem?.title ?? 'Class Chat';
+    const notifiedUsers = new Set<string>([input.authorId]);
+
+    // 1. Notify any @mentioned users in the class chat post
+    for (const rawId of mentionedUserIds) {
+      const isStaffAll = rawId === 'staff-all';
+      const targetUserId = isStaffAll ? 'staff-desk' : rawId;
+      if (notifiedUsers.has(targetUserId)) continue;
+
+      const targetPrefs =
+        state.notificationPreferences?.[targetUserId] ?? defaultNotificationPreferences(targetUserId);
+      const isEnabled = isStaffAll ? targetPrefs.staffInquiries : targetPrefs.mentions;
+      if (!isEnabled) continue;
+
+      notifiedUsers.add(targetUserId);
+      state.notifications.push({
+        id: `notif-cfp-mention-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        userId: targetUserId,
+        title: isStaffAll
+          ? `@ Staff Desk in ${classTitle}: ${input.authorName}`
+          : `Mentioned in ${classTitle} by ${input.authorName}`,
+        body: `"${post.content.slice(0, 80)}${post.content.length > 80 ? '...' : ''}"`,
+        type: isStaffAll ? 'staff_inquiry' : 'forum_mention',
+        createdAt: now,
+        read: false,
+        relatedId: input.classId,
+        link: '/(member)/community-forum',
+      });
+    }
+
+    // 2. Notify users who previously chatted in this class forum or marked it as interested
+    const classParticipantIds = new Set<string>(existingClassPosts.map((p) => p.authorId));
+    for (const [uid, interests] of Object.entries(state.forumInterests ?? {})) {
+      if (interests?.classIds?.includes(input.classId)) {
+        classParticipantIds.add(uid);
+      }
+    }
+    if (classItem?.staffId) {
+      classParticipantIds.add(classItem.staffId);
+    }
+
+    for (const targetUserId of classParticipantIds) {
+      if (notifiedUsers.has(targetUserId)) continue;
+      const targetPrefs =
+        state.notificationPreferences?.[targetUserId] ?? defaultNotificationPreferences(targetUserId);
+      if (!targetPrefs.classForumAlerts) continue;
+
+      notifiedUsers.add(targetUserId);
+      state.notifications.push({
+        id: `notif-cfp-reply-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        userId: targetUserId,
+        title: `New Message in ${classTitle} from ${input.authorName}`,
+        body: `"${post.content.slice(0, 80)}${post.content.length > 80 ? '...' : ''}"`,
+        type: 'class_forum',
+        createdAt: now,
+        read: false,
+        relatedId: input.classId,
+        link: '/(member)/community-forum',
+      });
+    }
+
     await saveStore(state);
     return post;
   }
@@ -1561,21 +1979,55 @@ export class MockProtivityAdapter implements ProtivityPort {
   // ==========================================
   async listForumTopics(filter?: {
     category?: ForumTopicCategory;
+    categories?: ForumTopicCategory[];
     staffMentioned?: boolean;
     authorId?: string;
+    interestedUserId?: string;
+    chattedByUserId?: string;
+    chattedOrCreatedByUserId?: string;
     searchQuery?: string;
   }): Promise<ForumTopic[]> {
     const state = await loadStore();
     let topics = [...(state.forumTopics ?? [])];
+    const replies = state.forumReplies ?? [];
+
+    const hasUserChattedInTopic = (t: ForumTopic, uid: string): boolean => {
+      if ((t.participantIds ?? []).includes(uid)) return true;
+      if (t.lastChattedAtBy?.[uid]) return true;
+      return replies.some((r) => r.topicId === t.id && r.authorId === uid);
+    };
+
+    const isUserInterestedInTopic = (t: ForumTopic, uid: string): boolean => {
+      const userInterests = state.forumInterests?.[uid];
+      if ((t.interestedBy ?? []).includes(uid)) return true;
+      if (userInterests?.topicIds?.includes(t.id)) return true;
+      if (userInterests?.categories?.includes(t.category)) return true;
+      return false;
+    };
 
     if (filter?.category) {
       topics = topics.filter((t) => t.category === filter.category);
+    }
+    if (filter?.categories && filter.categories.length > 0) {
+      topics = topics.filter((t) => filter.categories!.includes(t.category));
     }
     if (filter?.staffMentioned) {
       topics = topics.filter((t) => t.mentionedStaffIds && t.mentionedStaffIds.length > 0);
     }
     if (filter?.authorId) {
       topics = topics.filter((t) => t.authorId === filter.authorId);
+    }
+    if (filter?.interestedUserId) {
+      const uid = filter.interestedUserId;
+      topics = topics.filter((t) => isUserInterestedInTopic(t, uid));
+    }
+    if (filter?.chattedByUserId) {
+      const uid = filter.chattedByUserId;
+      topics = topics.filter((t) => hasUserChattedInTopic(t, uid));
+    }
+    if (filter?.chattedOrCreatedByUserId) {
+      const uid = filter.chattedOrCreatedByUserId;
+      topics = topics.filter((t) => t.authorId === uid || hasUserChattedInTopic(t, uid));
     }
     if (filter?.searchQuery) {
       const q = filter.searchQuery.toLowerCase();
@@ -1585,6 +2037,15 @@ export class MockProtivityAdapter implements ProtivityPort {
           t.content.toLowerCase().includes(q) ||
           t.authorName.toLowerCase().includes(q)
       );
+    }
+
+    if (filter?.chattedByUserId) {
+      const uid = filter.chattedByUserId;
+      return topics.sort((a, b) => {
+        const aTime = a.lastChattedAtBy?.[uid] || a.updatedAt || a.createdAt;
+        const bTime = b.lastChattedAtBy?.[uid] || b.updatedAt || b.createdAt;
+        return bTime.localeCompare(aTime);
+      });
     }
 
     return topics.sort((a, b) => {
@@ -1610,11 +2071,29 @@ export class MockProtivityAdapter implements ProtivityPort {
     pinned?: boolean;
     mentionedStaffIds?: string[];
     mentionedStaffNames?: string[];
+    mentionedUserIds?: string[];
+    mentionedUserNames?: string[];
   }): Promise<ForumTopic> {
     const state = await loadStore();
     if (!state.forumTopics) {
       state.forumTopics = [];
     }
+
+    const combinedText = `${input.title} ${input.content}`;
+    const extracted = extractMentionsFromText(combinedText, state);
+
+    const mentionedStaffIds = Array.from(
+      new Set([...(input.mentionedStaffIds ?? []), ...extracted.staffIds])
+    );
+    const mentionedStaffNames = Array.from(
+      new Set([...(input.mentionedStaffNames ?? []), ...extracted.staffNames])
+    );
+    const mentionedUserIds = Array.from(
+      new Set([...(input.mentionedUserIds ?? []), ...mentionedStaffIds, ...extracted.allIds])
+    );
+    const mentionedUserNames = Array.from(
+      new Set([...(input.mentionedUserNames ?? []), ...mentionedStaffNames, ...extracted.allNames])
+    );
 
     const now = new Date().toISOString();
     const topic: ForumTopic = {
@@ -1629,9 +2108,14 @@ export class MockProtivityAdapter implements ProtivityPort {
       pinned: input.pinned ?? false,
       likes: 0,
       likedBy: [],
+      interestedBy: [],
+      participantIds: [],
+      lastChattedAtBy: {},
       replyCount: 0,
-      mentionedStaffIds: input.mentionedStaffIds ?? [],
-      mentionedStaffNames: input.mentionedStaffNames ?? [],
+      mentionedStaffIds,
+      mentionedStaffNames,
+      mentionedUserIds,
+      mentionedUserNames,
       hasStaffReply: false,
       createdAt: now,
       updatedAt: now,
@@ -1639,23 +2123,30 @@ export class MockProtivityAdapter implements ProtivityPort {
 
     state.forumTopics.unshift(topic);
 
-    // If staff were mentioned, check their notification preferences and create in-app notifications
-    if (input.mentionedStaffIds && input.mentionedStaffIds.length > 0) {
+    // Notify any mentioned users (staff or members), checking their notification preferences
+    if (mentionedUserIds.length > 0) {
       if (!state.notifications) {
         state.notifications = [];
       }
-      for (const staffId of input.mentionedStaffIds) {
-        const targetUserId = staffId === 'staff-all' ? 'staff-desk' : staffId;
-        if (targetUserId === input.authorId) continue;
-        const targetPrefs = state.notificationPreferences?.[targetUserId] ?? defaultNotificationPreferences(targetUserId);
-        const isStaffAll = staffId === 'staff-all';
+      const notifiedTargets = new Set<string>([input.authorId]);
+      for (const rawTargetId of mentionedUserIds) {
+        const isStaffAll = rawTargetId === 'staff-all';
+        const targetUserId = isStaffAll ? 'staff-desk' : rawTargetId;
+        if (notifiedTargets.has(targetUserId)) continue;
+
+        const targetPrefs =
+          state.notificationPreferences?.[targetUserId] ??
+          defaultNotificationPreferences(targetUserId);
         const isEnabled = isStaffAll ? targetPrefs.staffInquiries : targetPrefs.mentions;
         if (!isEnabled) continue;
 
+        notifiedTargets.add(targetUserId);
         state.notifications.push({
           id: `notif-forum-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           userId: targetUserId,
-          title: isStaffAll ? `@ Staff Desk: Question from ${input.authorName}` : `Forum Mention from ${input.authorName}`,
+          title: isStaffAll
+            ? `@ Staff Desk: Question from ${input.authorName}`
+            : `Forum Mention from ${input.authorName}`,
           body: `Tagged in "${input.title}": "${input.content.slice(0, 70)}..."`,
           type: isStaffAll ? 'staff_inquiry' : 'forum_mention',
           createdAt: now,
@@ -1764,6 +2255,125 @@ export class MockProtivityAdapter implements ProtivityPort {
     return topic;
   }
 
+  async toggleInterestedForumTopic(topicId: string, userId: string): Promise<ForumTopic> {
+    const state = await loadStore();
+    if (!state.forumTopics) {
+      throw new Error(`Forum topic not found: ${topicId}`);
+    }
+
+    const idx = state.forumTopics.findIndex((t) => t.id === topicId);
+    if (idx === -1) {
+      throw new Error(`Forum topic not found: ${topicId}`);
+    }
+
+    const topic = state.forumTopics[idx];
+    if (!topic.interestedBy) {
+      topic.interestedBy = [];
+    }
+    if (!state.forumInterests) {
+      state.forumInterests = {};
+    }
+    const userInterests = state.forumInterests[userId] ?? defaultForumInterests(userId);
+
+    const interestedIdx = topic.interestedBy.indexOf(userId);
+    if (interestedIdx >= 0) {
+      topic.interestedBy.splice(interestedIdx, 1);
+      userInterests.topicIds = (userInterests.topicIds ?? []).filter((id) => id !== topicId);
+    } else {
+      topic.interestedBy.push(userId);
+      if (!userInterests.topicIds.includes(topicId)) {
+        userInterests.topicIds = [...userInterests.topicIds, topicId];
+      }
+    }
+
+    state.forumInterests[userId] = userInterests;
+    state.forumTopics[idx] = topic;
+    await saveStore(state);
+    return topic;
+  }
+
+  async getForumInterests(userId: string): Promise<UserForumInterests> {
+    const state = await loadStore();
+    if (!state.forumInterests) {
+      state.forumInterests = {};
+    }
+    if (!state.forumInterests[userId]) {
+      const topicIdsFromTopics = (state.forumTopics ?? [])
+        .filter((t) => (t.interestedBy ?? []).includes(userId))
+        .map((t) => t.id);
+      state.forumInterests[userId] = {
+        ...defaultForumInterests(userId),
+        topicIds: topicIdsFromTopics,
+      };
+      await saveStore(state);
+    }
+    return {
+      userId,
+      categories: [...(state.forumInterests[userId].categories ?? [])],
+      topicIds: [...(state.forumInterests[userId].topicIds ?? [])],
+      classIds: [...(state.forumInterests[userId].classIds ?? [])],
+    };
+  }
+
+  async updateForumInterests(
+    userId: string,
+    updates: Partial<Omit<UserForumInterests, 'userId'>>
+  ): Promise<UserForumInterests> {
+    const state = await loadStore();
+    if (!state.forumInterests) {
+      state.forumInterests = {};
+    }
+    const current = state.forumInterests[userId] ?? defaultForumInterests(userId);
+    const updated: UserForumInterests = {
+      userId,
+      categories: updates.categories !== undefined ? [...updates.categories] : [...(current.categories ?? [])],
+      topicIds: updates.topicIds !== undefined ? [...updates.topicIds] : [...(current.topicIds ?? [])],
+      classIds: updates.classIds !== undefined ? [...updates.classIds] : [...(current.classIds ?? [])],
+    };
+    state.forumInterests[userId] = updated;
+
+    // Sync topic.interestedBy if topicIds was updated
+    if (updates.topicIds !== undefined && state.forumTopics) {
+      const topicIdSet = new Set(updated.topicIds);
+      for (const t of state.forumTopics) {
+        const set = new Set(t.interestedBy ?? []);
+        if (topicIdSet.has(t.id)) {
+          set.add(userId);
+        } else {
+          set.delete(userId);
+        }
+        t.interestedBy = Array.from(set);
+      }
+    }
+
+    await saveStore(state);
+    return updated;
+  }
+
+  async toggleInterestedForumCategory(
+    userId: string,
+    category: ForumTopicCategory
+  ): Promise<UserForumInterests> {
+    const current = await this.getForumInterests(userId);
+    const exists = current.categories.includes(category);
+    const nextCategories = exists
+      ? current.categories.filter((c) => c !== category)
+      : [...current.categories, category];
+    return this.updateForumInterests(userId, { categories: nextCategories });
+  }
+
+  async toggleInterestedClassForum(
+    userId: string,
+    classId: string
+  ): Promise<UserForumInterests> {
+    const current = await this.getForumInterests(userId);
+    const exists = current.classIds.includes(classId);
+    const nextClassIds = exists
+      ? current.classIds.filter((c) => c !== classId)
+      : [...current.classIds, classId];
+    return this.updateForumInterests(userId, { classIds: nextClassIds });
+  }
+
   async listForumReplies(topicId: string): Promise<ForumReply[]> {
     const state = await loadStore();
     const replies = (state.forumReplies ?? []).filter((r) => r.topicId === topicId);
@@ -1779,11 +2389,24 @@ export class MockProtivityAdapter implements ProtivityPort {
     authorAvatarUrl?: string;
     isStaffReply: boolean;
     mentionedStaffIds?: string[];
+    mentionedUserIds?: string[];
+    mentionedUserNames?: string[];
   }): Promise<ForumReply> {
     const state = await loadStore();
     if (!state.forumReplies) {
       state.forumReplies = [];
     }
+
+    const extracted = extractMentionsFromText(input.content, state);
+    const mentionedStaffIds = Array.from(
+      new Set([...(input.mentionedStaffIds ?? []), ...extracted.staffIds])
+    );
+    const mentionedUserIds = Array.from(
+      new Set([...(input.mentionedUserIds ?? []), ...mentionedStaffIds, ...extracted.allIds])
+    );
+    const mentionedUserNames = Array.from(
+      new Set([...(input.mentionedUserNames ?? []), ...extracted.allNames])
+    );
 
     const now = new Date().toISOString();
     const reply: ForumReply = {
@@ -1795,31 +2418,81 @@ export class MockProtivityAdapter implements ProtivityPort {
       authorRole: input.authorRole as any,
       authorAvatarUrl: input.authorAvatarUrl,
       isStaffReply: input.isStaffReply,
-      mentionedStaffIds: input.mentionedStaffIds ?? [],
+      mentionedStaffIds,
+      mentionedUserIds,
+      mentionedUserNames,
       likes: 0,
       likedBy: [],
       createdAt: now,
     };
 
+    const previousReplies = state.forumReplies.filter((r) => r.topicId === input.topicId);
     state.forumReplies.push(reply);
 
-    // Update parent topic
+    // Update parent topic with replyCount, updatedAt, participantIds, and lastChattedAtBy
     const topic = (state.forumTopics ?? []).find((t) => t.id === input.topicId);
+    const previousParticipantIds = new Set<string>([
+      ...(topic?.participantIds ?? []),
+      ...previousReplies.map((r) => r.authorId),
+    ]);
+
     if (topic) {
       topic.replyCount = (topic.replyCount ?? 0) + 1;
       topic.updatedAt = now;
       if (input.isStaffReply) {
         topic.hasStaffReply = true;
       }
+      const nextParticipants = new Set<string>(previousParticipantIds);
+      nextParticipants.add(input.authorId);
+      topic.participantIds = Array.from(nextParticipants);
+      topic.lastChattedAtBy = {
+        ...(topic.lastChattedAtBy ?? {}),
+        [input.authorId]: now,
+      };
     }
 
-    // 1. Notify the original topic author if replied by someone else and author has topicReplies enabled
-    if (topic && topic.authorId !== input.authorId) {
-      const authorPrefs = state.notificationPreferences?.[topic.authorId] ?? defaultNotificationPreferences(topic.authorId);
+    if (!state.notifications) {
+      state.notifications = [];
+    }
+    const notifiedUsers = new Set<string>([input.authorId]);
+
+    // 1. If any users (staff or members) were @mentioned in the reply, check preferences and notify them first
+    if (mentionedUserIds.length > 0) {
+      for (const rawId of mentionedUserIds) {
+        const isStaffAll = rawId === 'staff-all';
+        const targetUserId = isStaffAll ? 'staff-desk' : rawId;
+        if (notifiedUsers.has(targetUserId)) continue;
+
+        const targetPrefs =
+          state.notificationPreferences?.[targetUserId] ??
+          defaultNotificationPreferences(targetUserId);
+        const isEnabled = isStaffAll ? targetPrefs.staffInquiries : targetPrefs.mentions;
+        if (!isEnabled) continue;
+
+        notifiedUsers.add(targetUserId);
+        state.notifications.push({
+          id: `notif-reply-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          userId: targetUserId,
+          title: isStaffAll
+            ? `@ Staff Desk: Reply from ${input.authorName}`
+            : `Reply Mention from ${input.authorName}`,
+          body: `Tagged in "${topic?.title ?? 'discussion'}": "${input.content.slice(0, 70)}..."`,
+          type: isStaffAll ? 'staff_inquiry' : 'forum_mention',
+          createdAt: now,
+          read: false,
+          relatedId: input.topicId,
+          link: '/(member)/community-forum',
+        });
+      }
+    }
+
+    // 2. Notify the original topic author if replied by someone else and author has topicReplies enabled
+    if (topic && topic.authorId !== input.authorId && !notifiedUsers.has(topic.authorId)) {
+      const authorPrefs =
+        state.notificationPreferences?.[topic.authorId] ??
+        defaultNotificationPreferences(topic.authorId);
       if (authorPrefs.topicReplies) {
-        if (!state.notifications) {
-          state.notifications = [];
-        }
+        notifiedUsers.add(topic.authorId);
         state.notifications.push({
           id: `notif-freply-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           userId: topic.authorId,
@@ -1836,27 +2509,44 @@ export class MockProtivityAdapter implements ProtivityPort {
       }
     }
 
-    // 2. If staff were mentioned in reply, check preferences and notify them
-    if (input.mentionedStaffIds && input.mentionedStaffIds.length > 0) {
-      if (!state.notifications) {
-        state.notifications = [];
+    // 3. Notify other users who recently chatted in this topic or marked this topic as interested
+    if (topic) {
+      const interestedOrParticipantUsers = new Set<string>([
+        ...previousParticipantIds,
+        ...(topic.interestedBy ?? []),
+      ]);
+      for (const [uid, interests] of Object.entries(state.forumInterests ?? {})) {
+        if (interests?.topicIds?.includes(topic.id)) {
+          interestedOrParticipantUsers.add(uid);
+        }
       }
-      for (const staffId of input.mentionedStaffIds) {
-        const targetUserId = staffId === 'staff-all' ? 'staff-desk' : staffId;
-        if (targetUserId === input.authorId) continue;
-        const targetPrefs = state.notificationPreferences?.[targetUserId] ?? defaultNotificationPreferences(targetUserId);
-        const isStaffAll = staffId === 'staff-all';
-        const isEnabled = isStaffAll ? targetPrefs.staffInquiries : targetPrefs.mentions;
-        if (!isEnabled) continue;
 
+      for (const targetUserId of interestedOrParticipantUsers) {
+        if (notifiedUsers.has(targetUserId) || targetUserId === topic.authorId) continue;
+        const targetPrefs =
+          state.notificationPreferences?.[targetUserId] ??
+          defaultNotificationPreferences(targetUserId);
+        if (!targetPrefs.topicReplies) continue;
+
+        const wasParticipant = previousParticipantIds.has(targetUserId);
+        const wasInterested =
+          (topic.interestedBy ?? []).includes(targetUserId) ||
+          Boolean(state.forumInterests?.[targetUserId]?.topicIds?.includes(topic.id));
+
+        if (wasParticipant && targetPrefs.chattedTopicReplies === false) continue;
+        if (!wasParticipant && wasInterested && targetPrefs.interestedTopicActivity === false) continue;
+
+        notifiedUsers.add(targetUserId);
         state.notifications.push({
-          id: `notif-reply-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          id: `notif-fpart-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           userId: targetUserId,
-          title: isStaffAll
-            ? `@ Staff Desk: Reply from ${input.authorName}`
-            : `Reply Mention from ${input.authorName}`,
-          body: `Tagged in "${topic?.title ?? 'discussion'}": "${input.content.slice(0, 70)}..."`,
-          type: isStaffAll ? 'staff_inquiry' : 'forum_mention',
+          title: input.isStaffReply
+            ? `Official YMCA Response: ${input.authorName}`
+            : wasParticipant
+              ? `New Reply in Thread You Chatted In: ${input.authorName}`
+              : `New Reply in Followed Topic: ${input.authorName}`,
+          body: `In "${topic.title}": "${input.content.slice(0, 70)}..."`,
+          type: 'forum_reply',
           createdAt: now,
           read: false,
           relatedId: input.topicId,
@@ -2125,5 +2815,112 @@ export class MockProtivityAdapter implements ProtivityPort {
     await saveStore(state);
     return updated;
   }
+
+  // Member Surveys & Polls
+  async listSurveys(branchId?: string, onlyActive?: boolean): Promise<Survey[]> {
+    const state = await loadStore();
+    let list = state.surveys ?? [];
+    if (branchId) {
+      list = list.filter((s) => !s.branchId || s.branchId === branchId);
+    }
+    if (onlyActive) {
+      list = list.filter((s) => s.isActive);
+    }
+    return [...list].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+
+  async getSurvey(id: string): Promise<Survey | null> {
+    const state = await loadStore();
+    return (state.surveys ?? []).find((s) => s.id === id) ?? null;
+  }
+
+  async createSurvey(
+    input: Omit<Survey, 'id' | 'createdAt' | 'totalResponses'>
+  ): Promise<Survey> {
+    const state = await loadStore();
+    const newSurvey: Survey = {
+      ...input,
+      id: `survey-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: new Date().toISOString(),
+      totalResponses: 0,
+    };
+    state.surveys = [newSurvey, ...(state.surveys ?? [])];
+    await saveStore(state);
+    return newSurvey;
+  }
+
+  async updateSurveyStatus(id: string, isActive: boolean): Promise<Survey> {
+    const state = await loadStore();
+    const list = state.surveys ?? [];
+    const idx = list.findIndex((s) => s.id === id);
+    if (idx === -1) {
+      throw new Error(`Survey not found: ${id}`);
+    }
+    const updated: Survey = {
+      ...list[idx],
+      isActive,
+    };
+    list[idx] = updated;
+    state.surveys = list;
+    await saveStore(state);
+    return updated;
+  }
+
+  async deleteSurvey(id: string): Promise<void> {
+    const state = await loadStore();
+    state.surveys = (state.surveys ?? []).filter((s) => s.id !== id);
+    state.surveyResponses = (state.surveyResponses ?? []).filter(
+      (r) => r.surveyId !== id
+    );
+    await saveStore(state);
+  }
+
+  async listSurveyResponses(surveyId: string): Promise<SurveyResponse[]> {
+    const state = await loadStore();
+    return (state.surveyResponses ?? []).filter((r) => r.surveyId === surveyId);
+  }
+
+  async submitSurveyResponse(
+    input: Omit<SurveyResponse, 'id' | 'submittedAt'>
+  ): Promise<SurveyResponse> {
+    const state = await loadStore();
+    const responses = state.surveyResponses ?? [];
+    const existing = responses.find(
+      (r) => r.surveyId === input.surveyId && r.memberId === input.memberId
+    );
+    if (existing) {
+      throw new Error('You have already submitted a response to this survey/poll.');
+    }
+
+    const newResponse: SurveyResponse = {
+      ...input,
+      id: `sr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      submittedAt: new Date().toISOString(),
+    };
+
+    state.surveyResponses = [...responses, newResponse];
+
+    // Increment totalResponses on survey
+    const surveys = state.surveys ?? [];
+    const sIdx = surveys.findIndex((s) => s.id === input.surveyId);
+    if (sIdx !== -1) {
+      surveys[sIdx] = {
+        ...surveys[sIdx],
+        totalResponses: (surveys[sIdx].totalResponses || 0) + 1,
+      };
+      state.surveys = surveys;
+    }
+
+    await saveStore(state);
+    return newResponse;
+  }
+
+  async getMemberSurveyResponses(memberId: string): Promise<SurveyResponse[]> {
+    const state = await loadStore();
+    return (state.surveyResponses ?? []).filter((r) => r.memberId === memberId);
+  }
 }
+
 

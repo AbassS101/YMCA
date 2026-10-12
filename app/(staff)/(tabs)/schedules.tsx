@@ -13,11 +13,13 @@ import {
   View,
 } from 'react-native';
 
+import { ClassAttendanceModal } from '@/components/ClassAttendanceModal';
 import { ClassForumModal } from '@/components/ClassForumModal';
 import { DateTimeWheelPicker } from '@/components/DateTimeWheelPicker';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { TextField } from '@/components/TextField';
+import { TrainerClientWorkoutModal } from '@/components/TrainerClientWorkoutModal';
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
@@ -25,6 +27,7 @@ import { formatShortDate } from '@/domain/displayDates';
 import { isAdminRole, type LessonSlot, type Member, type PrivateLesson, type ScheduleCategory, type ScheduleItem, type Staff } from '@/domain/types';
 import { registrationRepo } from '@/repositories/registrationRepo';
 import { scheduleRepo } from '@/repositories/scheduleRepo';
+import { trainerRepo } from '@/repositories/trainerRepo';
 import { cardStyle } from '@/theme/card';
 import { colors } from '@/theme/colors';
 import { radii, typography } from '@/theme/typography';
@@ -109,6 +112,14 @@ export default function StaffSchedulesScreen() {
   const [itemToCancel, setItemToCancel] = useState<{ id: string; title: string; type: 'class' | 'lesson' } | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+
+  // Attendance & Check-In Modal
+  const [attendanceModalVisible, setAttendanceModalVisible] = useState(false);
+  const [attendanceItem, setAttendanceItem] = useState<ScheduleItem | null>(null);
+
+  // Workout Logging Modal
+  const [workoutModalVisible, setWorkoutModalVisible] = useState(false);
+  const [selectedWorkoutMember, setSelectedWorkoutMember] = useState<Member | null>(null);
 
   // Roster View Modal
   const [rosterModalVisible, setRosterModalVisible] = useState(false);
@@ -355,18 +366,9 @@ export default function StaffSchedulesScreen() {
     }
   }
 
-  async function openRoster(item: ScheduleItem) {
-    setRosterItem(item);
-    setRosterModalVisible(true);
-    setRosterLoading(true);
-    try {
-      const roster = await registrationRepo.roster(api, item.id);
-      setRosterList(roster);
-    } catch {
-      setRosterList([]);
-    } finally {
-      setRosterLoading(false);
-    }
+  function openRoster(item: ScheduleItem) {
+    setAttendanceItem(item);
+    setAttendanceModalVisible(true);
   }
 
   async function handleRemoveAttendee(memberId: string) {
@@ -564,17 +566,28 @@ export default function StaffSchedulesScreen() {
                     {/* Action Buttons for Admins & Trainers */}
                     <View style={styles.cardActions}>
                       <Pressable
+                        onPress={() => void openRoster(item)}
+                        style={[styles.actionBtnOutline, { borderColor: '#15803D', backgroundColor: '#F0FDF4', flex: 1.1 }]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Take attendance for ${item.title}`}
+                      >
+                        <Ionicons name="clipboard-outline" size={16} color="#15803D" />
+                        <Text style={[styles.actionBtnText, { color: '#15803D' }]}>Attendance</Text>
+                      </Pressable>
+
+                      <Pressable
                         onPress={() => {
                           setSelectedForumClass(item);
                           setForumModalVisible(true);
                         }}
-                        style={[styles.actionBtnOutline, { borderColor: '#C084FC', flex: 1.2 }]}
+                        style={[styles.actionBtnOutline, { borderColor: '#C084FC', flex: 1.1 }]}
                         accessibilityRole="button"
                         accessibilityLabel={`Class forum and chat for ${item.title}`}
                       >
                         <Ionicons name="chatbubbles-outline" size={16} color="#7C3AED" />
-                        <Text style={[styles.actionBtnText, { color: '#7C3AED' }]}>Class Forum</Text>
+                        <Text style={[styles.actionBtnText, { color: '#7C3AED' }]}>Forum</Text>
                       </Pressable>
+
                       <Pressable
                         onPress={() => openEditModal(item)}
                         style={styles.actionBtnOutline}
@@ -583,6 +596,7 @@ export default function StaffSchedulesScreen() {
                         <Ionicons name="create-outline" size={16} color={colors.primary} />
                         <Text style={styles.actionBtnText}>Edit</Text>
                       </Pressable>
+
                       <Pressable
                         onPress={() => promptCancel(item)}
                         style={styles.actionBtnDestructive}
@@ -645,12 +659,48 @@ export default function StaffSchedulesScreen() {
                     {l.status === 'booked' ? (
                       <View style={[styles.cardActions, { marginTop: 12 }]}>
                         <Pressable
+                          onPress={async () => {
+                            try {
+                              await trainerRepo.markLessonStatus(api, l.id, 'completed', 'Completed 1-on-1 private lesson.');
+                              await loadData();
+                              const m = memberMap[l.memberId];
+                              if (m) {
+                                setSelectedWorkoutMember(m);
+                                setWorkoutModalVisible(true);
+                              }
+                            } catch {
+                              dialog.alert('Error', 'Could not complete lesson.');
+                            }
+                          }}
+                          style={[styles.actionBtnOutline, { borderColor: '#15803D', backgroundColor: '#F0FDF4', flex: 1.5 }]}
+                          accessibilityRole="button"
+                        >
+                          <Ionicons name="checkmark-circle-outline" size={16} color="#15803D" />
+                          <Text style={[styles.actionBtnText, { color: '#15803D' }]}>Complete & Log</Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={async () => {
+                            try {
+                              await trainerRepo.markLessonStatus(api, l.id, 'no_show', 'Client did not attend.');
+                              await loadData();
+                            } catch {
+                              dialog.alert('Error', 'Could not mark no-show.');
+                            }
+                          }}
+                          style={[styles.actionBtnOutline, { borderColor: colors.scarlet }]}
+                          accessibilityRole="button"
+                        >
+                          <Text style={[styles.actionBtnText, { color: colors.scarlet }]}>No-Show</Text>
+                        </Pressable>
+
+                        <Pressable
                           onPress={() => promptCancelLesson(l)}
                           style={styles.actionBtnDestructive}
                           accessibilityRole="button"
                         >
                           <Ionicons name="close-circle-outline" size={16} color={colors.scarlet} />
-                          <Text style={[styles.actionBtnText, { color: colors.scarlet }]}>Cancel & Alert Client</Text>
+                          <Text style={[styles.actionBtnText, { color: colors.scarlet }]}>Cancel</Text>
                         </Pressable>
                       </View>
                     ) : null}
@@ -1040,6 +1090,22 @@ export default function StaffSchedulesScreen() {
         visible={forumModalVisible}
         onClose={() => setForumModalVisible(false)}
         scheduleItem={selectedForumClass}
+      />
+
+      {/* CLASS ATTENDANCE & CHECK-IN MODAL */}
+      <ClassAttendanceModal
+        visible={attendanceModalVisible}
+        onClose={() => setAttendanceModalVisible(false)}
+        scheduleItem={attendanceItem}
+        onAttendanceChanged={() => void loadData()}
+      />
+
+      {/* TRAINER WORKOUT LOGGING MODAL */}
+      <TrainerClientWorkoutModal
+        visible={workoutModalVisible}
+        onClose={() => setWorkoutModalVisible(false)}
+        member={selectedWorkoutMember}
+        onSaved={() => void loadData()}
       />
     </View>
   );

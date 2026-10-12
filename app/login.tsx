@@ -71,10 +71,21 @@ const DEMO_PERSONAS = [
     icon: 'shield-checkmark' as const,
     highlights: 'System configuration, staff accounts, IT tickets, tech access',
   },
+  {
+    name: 'Taylor Smith',
+    email: 'guest@silverspring.ymca',
+    roleTitle: 'Guest Pass Holder · Visitor',
+    badge: 'GUEST PASS',
+    badgeBg: '#FEF3C7',
+    badgeColor: '#B45309',
+    borderColor: '#F59E0B',
+    icon: 'ticket' as const,
+    highlights: 'Digital 1-day pass barcode, facility preview, join YMCA membership & giving',
+  },
 ];
 
 function routeForRole(role: UserRole): '/(member)/home' | '/(staff)/today' {
-  return role === 'member' ? '/(member)/home' : '/(staff)/today';
+  return role === 'member' || role === 'guest' ? '/(member)/home' : '/(staff)/today';
 }
 
 export default function LoginScreen() {
@@ -342,6 +353,30 @@ export default function LoginScreen() {
 
           {/* Membership and Giving Shortcuts */}
           <View style={styles.publicLinksSection}>
+            <Pressable
+              onPress={() => void handleDirectLaunch('guest@silverspring.ymca')}
+              style={[
+                styles.joinCard,
+                {
+                  backgroundColor: isDark ? '#2E1F0B' : '#FFFBEB',
+                  borderColor: '#F59E0B',
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Visiting with a Guest Pass? Continue as Guest"
+            >
+              <Ionicons name="ticket-outline" size={20} color="#D97706" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.joinTitle, { color: '#B45309' }]}>
+                  Visiting with a Guest Pass?
+                </Text>
+                <Text style={[styles.joinSub, { color: tc.textMuted }]}>
+                  Digital pass barcode, open classes & learn about the Y
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#D97706" />
+            </Pressable>
+
             <Pressable
               onPress={() => router.push('/(member)/join-membership')}
               style={[

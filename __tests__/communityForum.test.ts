@@ -228,4 +228,174 @@ describe('Dedicated YMCA Community Forum & @ Staff Mentions', () => {
       expect(fetched).toBeNull();
     });
   });
+
+  describe('7. Selecting Interested Forums & Filtering by Interests', () => {
+    it('loads and toggles interested forum categories, topics, and class chats', async () => {
+      const initialInterests = await forumRepo.getInterests(adapter, 'member-jordan');
+      expect(initialInterests.userId).toBe('member-jordan');
+      expect(initialInterests.categories).toContain('fitness');
+      expect(initialInterests.topicIds).toContain('topic-pool-winter');
+
+      // Toggle 'programs' category on
+      const updatedCat = await forumRepo.toggleInterestedCategory(
+        adapter,
+        'member-jordan',
+        'programs'
+      );
+      expect(updatedCat.categories).toContain('programs');
+
+      // Toggle topic interest on 'topic-welcome' for 'member-carlos'
+      const updatedTopic = await forumRepo.toggleInterestedTopic(
+        adapter,
+        'topic-welcome',
+        'member-carlos'
+      );
+      expect(updatedTopic.interestedBy).toContain('member-carlos');
+
+      // Filter topics by interestedUserId
+      const interestedTopics = await forumRepo.listTopics(adapter, {
+        interestedUserId: 'member-carlos',
+      });
+      expect(interestedTopics.some((t) => t.id === 'topic-welcome')).toBe(true);
+
+      // Toggle class chat interest
+      const updatedClassInterests = await forumRepo.toggleInterestedClass(
+        adapter,
+        'member-jordan',
+        'sched-spin'
+      );
+      expect(updatedClassInterests.classIds).toContain('sched-spin');
+    });
+  });
+
+  describe('8. Recently Chatted In & Created by Me Filtering', () => {
+    it('tracks recently chatted topics when a user replies and filters by chattedByUserId and chattedOrCreatedByUserId', async () => {
+      // Initially member-carlos has not chatted in topic-squat-warmup
+      const beforeChatted = await forumRepo.listTopics(adapter, {
+        chattedByUserId: 'member-carlos',
+      });
+      expect(beforeChatted.some((t) => t.id === 'topic-squat-warmup')).toBe(false);
+
+      // Carlos posts a reply in topic-squat-warmup
+      await forumRepo.createReply(adapter, {
+        topicId: 'topic-squat-warmup',
+        content: 'Banded monster walks and ankle dorsiflexion drills work wonders for me!',
+        authorId: 'member-carlos',
+        authorName: 'Carlos Mendez',
+        authorRole: 'member',
+        isStaffReply: false,
+      });
+
+      const afterChatted = await forumRepo.listTopics(adapter, {
+        chattedByUserId: 'member-carlos',
+      });
+      expect(afterChatted.some((t) => t.id === 'topic-squat-warmup')).toBe(true);
+      // Most recently chatted topic should appear first
+      expect(afterChatted[0].id).toBe('topic-squat-warmup');
+
+      // Combined Chatted & Created filter
+      const carlosTopic = await forumRepo.createTopic(adapter, {
+        title: 'Carlos Marathon Training Group',
+        content: 'Anyone training for the fall marathon?',
+        category: 'fitness',
+        authorId: 'member-carlos',
+        authorName: 'Carlos Mendez',
+        authorRole: 'member',
+      });
+
+      const chattedOrCreated = await forumRepo.listTopics(adapter, {
+        chattedOrCreatedByUserId: 'member-carlos',
+      });
+      expect(chattedOrCreated.some((t) => t.id === 'topic-squat-warmup')).toBe(true);
+      expect(chattedOrCreated.some((t) => t.id === carlosTopic.id)).toBe(true);
+    });
+
+    it('tracks recently chatted class forums for a user', async () => {
+      await adapter.createClassForumPost({
+        classId: 'sched-yoga',
+        authorId: 'member-carlos',
+        authorName: 'Carlos Mendez',
+        authorRole: 'member',
+        content: 'Looking forward to morning yoga tomorrow!',
+      });
+
+      const chattedClassIds = await adapter.listRecentlyChattedClassIds('member-carlos');
+      expect(chattedClassIds[0]).toBe('sched-yoga');
+    });
+  });
+
+  describe('9. Notifications for Replies (Chatted/Interested/Created) & Member @Mentions', () => {
+    it('notifies users who recently chatted in a topic or marked it Interested when someone else replies', async () => {
+      // Carlos marks topic-squat-warmup as Interested
+      await forumRepo.toggleInterestedTopic(adapter, 'topic-squat-warmup', 'member-carlos');
+      // Taylor replies in topic-squat-warmup (so Taylor is now a recent chatter)
+      await forumRepo.createReply(adapter, {
+        topicId: 'topic-squat-warmup',
+        content: 'I also do 5 minutes on the rowing machine first.',
+        authorId: 'member-taylor',
+        authorName: 'Taylor Brooks',
+        authorRole: 'member',
+        isStaffReply: false,
+      });
+
+      const carlosBefore = (await adapter.listNotifications('member-carlos')).length;
+      const taylorBefore = (await adapter.listNotifications('member-taylor')).length;
+
+      // Now Priya replies to topic-squat-warmup
+      await forumRepo.createReply(adapter, {
+        topicId: 'topic-squat-warmup',
+        content: 'Thanks everyone for the warmup suggestions!',
+        authorId: 'member-priya',
+        authorName: 'Priya Patel',
+        authorRole: 'member',
+        isStaffReply: false,
+      });
+
+      const carlosAfter = await adapter.listNotifications('member-carlos');
+      const taylorAfter = await adapter.listNotifications('member-taylor');
+
+      // Carlos (interested) and Taylor (recently chatted) both receive a notification
+      expect(carlosAfter.length).toBeGreaterThan(carlosBefore);
+      expect(carlosAfter[0].type).toBe('forum_reply');
+      expect(carlosAfter[0].title).toContain('Priya Patel');
+
+      expect(taylorAfter.length).toBeGreaterThan(taylorBefore);
+      expect(taylorAfter[0].type).toBe('forum_reply');
+      expect(taylorAfter[0].title).toContain('Priya Patel');
+    });
+
+    it('notifies members when they are @ mentioned in a topic, reply, or class chat', async () => {
+      const jordanBefore = (await adapter.listNotifications('member-jordan')).length;
+
+      // Taylor @mentions Jordan Hale in a reply
+      await forumRepo.createReply(adapter, {
+        topicId: 'topic-pickleball',
+        content: 'Hey @Jordan Hale, are you coming to the 7pm pickleball session?',
+        authorId: 'member-taylor',
+        authorName: 'Taylor Brooks',
+        authorRole: 'member',
+        isStaffReply: false,
+      });
+
+      const jordanAfterReply = await adapter.listNotifications('member-jordan');
+      expect(jordanAfterReply.length).toBe(jordanBefore + 1);
+      expect(jordanAfterReply[0].type).toBe('forum_mention');
+      expect(jordanAfterReply[0].title).toContain('Reply Mention from Taylor Brooks');
+
+      // Carlos @mentions Jordan Hale in a class chat
+      await adapter.createClassForumPost({
+        classId: 'sched-hiit',
+        authorId: 'member-carlos',
+        authorName: 'Carlos Mendez',
+        authorRole: 'member',
+        content: '@Jordan Hale save a spot next to the kettlebells!',
+      });
+
+      const jordanAfterClass = await adapter.listNotifications('member-jordan');
+      expect(jordanAfterClass.length).toBe(jordanBefore + 2);
+      expect(jordanAfterClass[0].type).toBe('forum_mention');
+      expect(jordanAfterClass[0].title).toContain('Carlos Mendez');
+    });
+  });
 });
+

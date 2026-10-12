@@ -91,6 +91,8 @@ export default function NotificationSettingsScreen() {
     const defaults: Partial<NotificationPreferences> = {
       mentions: true,
       topicReplies: true,
+      chattedTopicReplies: true,
+      interestedTopicActivity: true,
       classForumAlerts: true,
       staffInquiries: isStaff,
       announcements: true,
@@ -196,7 +198,7 @@ export default function NotificationSettingsScreen() {
               <View style={styles.rowMeta}>
                 <Text style={[styles.rowTitle, { color: tc.text }]}>@ Mentions & Tags</Text>
                 <Text style={[styles.rowSubtitle, { color: tc.textMuted }]}>
-                  Notify me when someone mentions my name in a forum topic or reply
+                  Notify me when anyone @ mentions my name in a forum topic, reply, or class chat
                 </Text>
               </View>
               <Switch
@@ -230,6 +232,48 @@ export default function NotificationSettingsScreen() {
 
             <View style={[styles.divider, { backgroundColor: tc.border }]} />
 
+            {/* Replies in Recently Chatted Threads */}
+            <View style={styles.row}>
+              <View style={[styles.iconWrap, { backgroundColor: '#EEF2FF' }]}>
+                <Ionicons name="time" size={18} color="#4F46E5" />
+              </View>
+              <View style={styles.rowMeta}>
+                <Text style={[styles.rowTitle, { color: tc.text }]}>Recently Chatted Threads</Text>
+                <Text style={[styles.rowSubtitle, { color: tc.textMuted }]}>
+                  Notify me when someone replies in a forum thread I recently chatted in
+                </Text>
+              </View>
+              <Switch
+                value={prefs.chattedTopicReplies ?? true}
+                onValueChange={(val) => updateField('chattedTopicReplies', val)}
+                trackColor={{ false: '#CBD5E1', true: colors.primary }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: tc.border }]} />
+
+            {/* Interested Forum Activity */}
+            <View style={styles.row}>
+              <View style={[styles.iconWrap, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="star" size={18} color="#D97706" />
+              </View>
+              <View style={styles.rowMeta}>
+                <Text style={[styles.rowTitle, { color: tc.text }]}>Interested Forums Activity</Text>
+                <Text style={[styles.rowSubtitle, { color: tc.textMuted }]}>
+                  Notify me when there are new replies in forums or topics I marked as Interested
+                </Text>
+              </View>
+              <Switch
+                value={prefs.interestedTopicActivity ?? true}
+                onValueChange={(val) => updateField('interestedTopicActivity', val)}
+                trackColor={{ false: '#CBD5E1', true: colors.primary }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: tc.border }]} />
+
             {/* Class Chat & Announcements */}
             <View style={styles.row}>
               <View style={[styles.iconWrap, { backgroundColor: '#FEF3C7' }]}>
@@ -238,7 +282,7 @@ export default function NotificationSettingsScreen() {
               <View style={styles.rowMeta}>
                 <Text style={[styles.rowTitle, { color: tc.text }]}>Class Chats & Announcements</Text>
                 <Text style={[styles.rowSubtitle, { color: tc.textMuted }]}>
-                  Alerts for instructor updates and messages in classes I attend
+                  Alerts for instructor updates and messages in classes I attend or follow
                 </Text>
               </View>
               <Switch

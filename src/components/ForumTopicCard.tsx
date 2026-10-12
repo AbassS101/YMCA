@@ -11,6 +11,9 @@ type ForumTopicCardProps = {
   currentUserId: string;
   onPress: () => void;
   onToggleLike: () => void;
+  onToggleInterested?: () => void;
+  isInterested?: boolean;
+  hasRecentlyChatted?: boolean;
   onTogglePin?: () => void;
   onDelete?: () => void;
   canManage?: boolean;
@@ -50,6 +53,9 @@ export function ForumTopicCard({
   currentUserId,
   onPress,
   onToggleLike,
+  onToggleInterested,
+  isInterested: isInterestedProp,
+  hasRecentlyChatted: hasRecentlyChattedProp,
   onTogglePin,
   onDelete,
   canManage = false,
@@ -57,9 +63,22 @@ export function ForumTopicCard({
   const { colors: tc, isDark } = useTheme();
 
   const isLiked = (topic.likedBy ?? []).includes(currentUserId);
+  const isInterested =
+    isInterestedProp ?? Boolean(currentUserId && (topic.interestedBy ?? []).includes(currentUserId));
+  const hasRecentlyChatted =
+    hasRecentlyChattedProp ??
+    Boolean(
+      currentUserId &&
+        ((topic.participantIds ?? []).includes(currentUserId) ||
+          Boolean(topic.lastChattedAtBy?.[currentUserId]))
+    );
   const categoryConfig = FORUM_CATEGORIES.find((c) => c.id === topic.category) ?? FORUM_CATEGORIES[0];
   const badge = roleBadge(topic.authorRole);
-  const isAuthor = topic.authorId === currentUserId;
+  const isAuthor = Boolean(currentUserId && topic.authorId === currentUserId);
+
+  const mentionDisplayNames = Array.from(
+    new Set([...(topic.mentionedStaffNames ?? []), ...(topic.mentionedUserNames ?? [])])
+  );
 
   return (
     <Pressable
@@ -68,8 +87,16 @@ export function ForumTopicCard({
         styles.card,
         {
           backgroundColor: tc.cardBg,
-          borderColor: topic.pinned ? (isDark ? '#F59E0B' : '#FBBF24') : tc.cardBorder,
-          borderWidth: topic.pinned ? 1.5 : 1,
+          borderColor: topic.pinned
+            ? isDark
+              ? '#F59E0B'
+              : '#FBBF24'
+            : isInterested
+              ? isDark
+                ? '#0284C7'
+                : '#7DD3FC'
+              : tc.cardBorder,
+          borderWidth: topic.pinned || isInterested ? 1.5 : 1,
         },
         pressed && styles.cardPressed,
       ]}
@@ -92,6 +119,34 @@ export function ForumTopicCard({
               {categoryConfig.label}
             </Text>
           </View>
+
+          {hasRecentlyChatted ? (
+            <View
+              style={[
+                styles.activityBadge,
+                { backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF' },
+              ]}
+            >
+              <Ionicons name="chatbubbles" size={11} color="#4F46E5" />
+              <Text style={[styles.activityBadgeText, { color: '#4F46E5' }]}>
+                Recently Chatted
+              </Text>
+            </View>
+          ) : null}
+
+          {isAuthor ? (
+            <View
+              style={[
+                styles.activityBadge,
+                { backgroundColor: isDark ? '#064E3B' : '#DCFCE7' },
+              ]}
+            >
+              <Ionicons name="create" size={11} color="#15803D" />
+              <Text style={[styles.activityBadgeText, { color: '#15803D' }]}>
+                Created by Me
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         {topic.hasStaffReply ? (
@@ -120,8 +175,51 @@ export function ForumTopicCard({
           </Text>
         </View>
 
-        {/* Action Controls for Author/Staff */}
+        {/* Action Controls for Author/Staff + Interest Toggle */}
         <View style={styles.headerActions}>
+          {onToggleInterested ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                onToggleInterested();
+              }}
+              hitSlop={8}
+              style={[
+                styles.interestHeaderBtn,
+                {
+                  backgroundColor: isInterested
+                    ? isDark
+                      ? '#422006'
+                      : '#FEF3C7'
+                    : isDark
+                      ? '#1E293B'
+                      : '#F8FAFC',
+                  borderColor: isInterested ? '#F59E0B' : tc.border,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={
+                isInterested
+                  ? 'Interested in this forum. Tap to unfollow'
+                  : 'Mark as interested to follow and filter'
+              }
+            >
+              <Ionicons
+                name={isInterested ? 'star' : 'star-outline'}
+                size={14}
+                color={isInterested ? '#D97706' : tc.textMuted}
+              />
+              <Text
+                style={[
+                  styles.interestHeaderBtnText,
+                  { color: isInterested ? '#B45309' : tc.textMuted },
+                ]}
+              >
+                {isInterested ? 'Interested' : 'Interest'}
+              </Text>
+            </Pressable>
+          ) : null}
+
           {canManage && onTogglePin ? (
             <Pressable
               onPress={(e) => {
@@ -166,13 +264,13 @@ export function ForumTopicCard({
         {topic.content}
       </Text>
 
-      {/* Highlighted @ Staff Mention Pill */}
-      {topic.mentionedStaffNames && topic.mentionedStaffNames.length > 0 ? (
+      {/* Highlighted @ Mention Pill */}
+      {mentionDisplayNames.length > 0 ? (
         <View style={[styles.mentionContainer, { backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF', borderColor: isDark ? '#4338CA' : '#C7D2FE' }]}>
           <Ionicons name="at-circle" size={15} color="#4F46E5" />
-          <Text style={styles.mentionLabel}>Asked:</Text>
+          <Text style={styles.mentionLabel}>Tagged:</Text>
           <Text style={styles.mentionNames} numberOfLines={1}>
-            {topic.mentionedStaffNames.join(', ')}
+            {mentionDisplayNames.join(', ')}
           </Text>
         </View>
       ) : null}
@@ -295,6 +393,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
+  activityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  activityBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
   staffAnsweredBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -346,6 +456,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  interestHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  interestHeaderBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   iconBtn: {
     padding: 4,

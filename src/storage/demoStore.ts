@@ -20,8 +20,13 @@ import type {
   ScheduleItem,
   Staff,
   SupportTicket,
+  Survey,
+  SurveyResponse,
   Thread,
   TrainerAssignment,
+  ClientFitnessGoal,
+  ClientWorkoutLog,
+  UserForumInterests,
   UserRole,
 } from '@/domain/types';
 
@@ -47,9 +52,14 @@ export type DemoState = {
   classForumPosts: ClassForumPost[];
   forumTopics: ForumTopic[];
   forumReplies: ForumReply[];
+  forumInterests?: Record<string, UserForumInterests>;
   notificationPreferences: Record<string, NotificationPreferences>;
   supportTickets: SupportTicket[];
   complaintsSuggestions: ComplaintSuggestion[];
+  workoutLogs: ClientWorkoutLog[];
+  clientGoals: Record<string, ClientFitnessGoal>;
+  surveys: Survey[];
+  surveyResponses: SurveyResponse[];
 };
 
 function cloneSeed(): DemoState {
@@ -86,6 +96,22 @@ function migrateState(raw: DemoState): DemoState {
     }
   }
 
+  let mergedMembers = raw.members ?? seed.members;
+  if (!mergedMembers.some((m) => m.id === 'guest-taylor')) {
+    const guestMember = seed.members.find((m) => m.id === 'guest-taylor');
+    if (guestMember) {
+      mergedMembers = [...mergedMembers, guestMember];
+    }
+  }
+
+  let mergedMemberships = raw.memberships ?? seed.memberships;
+  if (!mergedMemberships.some((m) => m.memberId === 'guest-taylor')) {
+    const guestMembership = seed.memberships.find((m) => m.memberId === 'guest-taylor');
+    if (guestMembership) {
+      mergedMemberships = [...mergedMemberships, guestMembership];
+    }
+  }
+
   let mergedCreds = (raw.credentials ?? seed.credentials).map((c) => {
     const seedCred = seed.credentials.find((sc) => sc.email === c.email);
     return seedCred ? { ...c, role: c.role ?? seedCred.role } : c;
@@ -102,11 +128,57 @@ function migrateState(raw: DemoState): DemoState {
       mergedCreds = [itCred, ...mergedCreds];
     }
   }
+  if (!mergedCreds.some((c) => c.email === 'guest@silverspring.ymca')) {
+    const guestCred = seed.credentials.find((c) => c.email === 'guest@silverspring.ymca');
+    if (guestCred) {
+      mergedCreds = [...mergedCreds, guestCred];
+    }
+  }
+
+  const forumReplies = raw.forumReplies ?? seed.forumReplies ?? [];
+  const forumInterests = raw.forumInterests ?? seed.forumInterests ?? {};
+  const rawTopics = raw.forumTopics ?? seed.forumTopics ?? [];
+
+  const forumTopics = rawTopics.map((topic) => {
+    const seedTopic = seed.forumTopics.find((st) => st.id === topic.id);
+    const topicReplies = forumReplies
+      .filter((r) => r.topicId === topic.id)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+    const participantSet = new Set<string>(topic.participantIds ?? seedTopic?.participantIds ?? []);
+    const lastChattedAtBy: Record<string, string> = {
+      ...(seedTopic?.lastChattedAtBy ?? {}),
+      ...(topic.lastChattedAtBy ?? {}),
+    };
+
+    for (const r of topicReplies) {
+      participantSet.add(r.authorId);
+      const prev = lastChattedAtBy[r.authorId];
+      if (!prev || r.createdAt > prev) {
+        lastChattedAtBy[r.authorId] = r.createdAt;
+      }
+    }
+
+    const interestedSet = new Set<string>(topic.interestedBy ?? seedTopic?.interestedBy ?? []);
+    for (const [uid, prefs] of Object.entries(forumInterests)) {
+      if (prefs?.topicIds?.includes(topic.id)) {
+        interestedSet.add(uid);
+      }
+    }
+
+    return {
+      ...topic,
+      interestedBy: Array.from(interestedSet),
+      participantIds: Array.from(participantSet),
+      lastChattedAtBy,
+    };
+  });
 
   return {
     ...seed,
     ...raw,
-    members: raw.members ?? seed.members,
+    members: mergedMembers,
+    memberships: mergedMemberships,
     staff: mergedStaff,
     schedules,
     classRegistrations: raw.classRegistrations ?? [],
@@ -117,11 +189,16 @@ function migrateState(raw: DemoState): DemoState {
     donations: raw.donations ?? seed.donations,
     credentials: mergedCreds,
     classForumPosts: raw.classForumPosts ?? seed.classForumPosts ?? [],
-    forumTopics: raw.forumTopics ?? seed.forumTopics ?? [],
-    forumReplies: raw.forumReplies ?? seed.forumReplies ?? [],
+    forumTopics,
+    forumReplies,
+    forumInterests,
     notificationPreferences: raw.notificationPreferences ?? seed.notificationPreferences ?? {},
     supportTickets: raw.supportTickets ?? seed.supportTickets ?? [],
     complaintsSuggestions: raw.complaintsSuggestions ?? seed.complaintsSuggestions ?? [],
+    workoutLogs: raw.workoutLogs ?? seed.workoutLogs ?? [],
+    clientGoals: raw.clientGoals ?? seed.clientGoals ?? {},
+    surveys: raw.surveys ?? seed.surveys ?? [],
+    surveyResponses: raw.surveyResponses ?? seed.surveyResponses ?? [],
   };
 }
 

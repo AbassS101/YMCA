@@ -1,11 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   FlatList,
+  Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,8 +16,10 @@ import {
   View,
 } from 'react-native';
 
+import { AttendanceStreakCard } from '@/components/AttendanceStreakCard';
 import { BillingHero } from '@/components/BillingHero';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { GuestPassCard } from '@/components/GuestPassCard';
 import { MemberCheckInCard } from '@/components/MemberCheckInCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
@@ -22,12 +27,23 @@ import { YHeader } from '@/components/YHeader';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { getDemoToday } from '@/domain/demoClock';
-import type { Announcement, Member, Membership, PrivateLesson, ScheduleItem } from '@/domain/types';
+import { formatShortDate } from '@/domain/displayDates';
+import type {
+  Announcement,
+  Member,
+  Membership,
+  MemberStreakProfile,
+  PrivateLesson,
+  ScheduleItem,
+  Survey,
+} from '@/domain/types';
 import { announcementRepo } from '@/repositories/announcementRepo';
 import { lessonRepo } from '@/repositories/lessonRepo';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { registrationRepo } from '@/repositories/registrationRepo';
 import { scheduleRepo } from '@/repositories/scheduleRepo';
+import { streakRepo } from '@/repositories/streakRepo';
+import { surveyRepo } from '@/repositories/surveyRepo';
 import { cardStyle } from '@/theme/card';
 import { colors } from '@/theme/colors';
 import { radii, spacing, typography } from '@/theme/typography';
@@ -86,11 +102,16 @@ export default function MemberHomeScreen() {
 
   const [member, setMember] = useState<Member | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
+  const [streakProfile, setStreakProfile] = useState<MemberStreakProfile | null>(null);
   const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
+  const [activeSurveys, setActiveSurveys] = useState<Survey[]>([]);
+  const [activePopupNotice, setActivePopupNotice] = useState<Announcement | null>(null);
+  const [popupNoticeVisible, setPopupNoticeVisible] = useState(false);
   const [weekItems, setWeekItems] = useState<WeekItem[]>([]);
   const [cardIndex, setCardIndex] = useState(0);
   const [error, setError] = useState(false);
   const listRef = useRef<FlatList<WeekItem>>(null);
+  const hasCheckedPopupRef = useRef(false);
 
   const load = useCallback(async () => {
     if (memberId === '') {
@@ -100,15 +121,17 @@ export default function MemberHomeScreen() {
       setError(false);
       const today = getDemoToday();
       const to = addDays(today, 6);
-      const [nextMember, nextMembership, regs, lessons, schedules, anns] = await Promise.all([
+      const [nextMember, nextMembership, regs, lessons, schedules, anns, surveysList, streakData] = await Promise.all([
         api.getMember(memberId),
         membershipRepo.getMembership(api, memberId),
         registrationRepo.listMine(api, memberId),
         lessonRepo.listMine(api, memberId),
         scheduleRepo.list(api, { branchId: BRANCH_ID, from: today, to }),
         announcementRepo.list(api, BRANCH_ID),
+        surveyRepo.list(api, BRANCH_ID, true).catch(() => []),
+        streakRepo.getStreakProfile(memberId),
       ]);
-      const byId = new Map(schedules.map((s) => [s.id, s]));
+      const byId = new Map<string, ScheduleItem>(schedules.map((s: ScheduleItem) => [s.id, s]));
       const classItems: WeekItem[] = [];
       for (const r of regs) {
         const s = byId.get(r.scheduleItemId);
@@ -117,7 +140,7 @@ export default function MemberHomeScreen() {
         }
       }
 
-      const lessonItems: WeekItem[] = lessons.map((item) => ({
+      const lessonItems: WeekItem[] = lessons.map((item: PrivateLesson) => ({
         kind: 'lesson' as const,
         item,
       }));
@@ -126,15 +149,63 @@ export default function MemberHomeScreen() {
       );
       setMember(nextMember);
       setMembership(nextMembership);
+      setStreakProfile(streakData);
       if (anns && anns.length > 0) {
         setLatestAnnouncement(anns[0]);
       }
+      setActiveSurveys(surveysList ?? []);
       setWeekItems(combined);
       setCardIndex(0);
+
+      // Pop-up Notice on App Open
+      const popups: Announcement[] = (anns || []).filter((a: Announcement) => a.popupNotice);
+      if (popups.length > 0 && !hasCheckedPopupRef.current) {
+        hasCheckedPopupRef.current = true;
+        const priorityOrder: Record<string, number> = { urgent: 3, high: 2, normal: 1 };
+        popups.sort((a: Announcement, b: Announcement) => {
+          const diff = (priorityOrder[b.priority] || 1) - (priorityOrder[a.priority] || 1);
+          if (diff !== 0) return diff;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+
+        const dismissedKey = `@ymca_dismissed_popups_${memberId}`;
+        const raw = await AsyncStorage.getItem(dismissedKey).catch(() => null);
+        const dismissed: string[] = raw ? JSON.parse(raw) : [];
+        const target = popups.find((p: Announcement) => !dismissed.includes(p.id));
+        if (target) {
+          setActivePopupNotice(target);
+          setPopupNoticeVisible(true);
+        }
+      }
     } catch {
       setError(true);
     }
   }, [api, memberId]);
+
+  const handleDismissPopup = async (noticeId?: string) => {
+    setPopupNoticeVisible(false);
+    if (!noticeId || !memberId) return;
+    try {
+      const dismissedKey = `@ymca_dismissed_popups_${memberId}`;
+      const raw = await AsyncStorage.getItem(dismissedKey).catch(() => null);
+      const dismissed: string[] = raw ? JSON.parse(raw) : [];
+      if (!dismissed.includes(noticeId)) {
+        dismissed.push(noticeId);
+        await AsyncStorage.setItem(dismissedKey, JSON.stringify(dismissed));
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handlePopupAction = async (notice: Announcement) => {
+    await handleDismissPopup(notice.id);
+    if (notice.actionUrl) {
+      router.push(notice.actionUrl as any);
+    } else {
+      router.push('/(member)/notifications');
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -143,6 +214,7 @@ export default function MemberHomeScreen() {
   );
 
   const firstName = member?.name.split(' ')[0] ?? '';
+  const isGuest = session?.role === 'guest' || member?.type === '1-Day Guest Pass';
 
   const onCardScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const index = Math.round(e.nativeEvent.contentOffset.x / (CARD_WIDTH + 12));
@@ -161,12 +233,41 @@ export default function MemberHomeScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <YHeader subtitle={firstName ? `Welcome back, ${firstName}` : 'Member Home'} />
+      <YHeader subtitle={firstName ? (isGuest ? `Welcome to the Y, ${firstName} (Guest Pass)` : `Welcome back, ${firstName}`) : 'Member Home'} />
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Digital Member Scan Pass */}
-        {member ? <MemberCheckInCard member={member} /> : null}
+        {/* Digital Member or Guest Scan Pass */}
+        {member ? (
+          isGuest ? (
+            <GuestPassCard
+              guestName={member.name}
+              passCode={member.membershipId}
+              validUntilLabel="Valid Today until 10:00 PM"
+              showActionShortcuts={true}
+              onOpenDetails={() => router.push('/(member)/guest-screen')}
+            />
+          ) : (
+            <MemberCheckInCard
+              member={member}
+              onClose={() => {
+                if (memberId) {
+                  void streakRepo.getStreakProfile(memberId).then(setStreakProfile);
+                }
+              }}
+            />
+          )
+        ) : null}
+
+        {/* Member Attendance Goals, Streaks, Fire Milestone Colors & Hold Card */}
+        {member && streakProfile ? (
+          <AttendanceStreakCard
+            profile={streakProfile}
+            memberId={memberId}
+            memberName={member.name}
+            onProfileUpdated={(updated) => setStreakProfile(updated)}
+          />
+        ) : null}
 
         {/* Latest Announcement Banner */}
         {latestAnnouncement ? (
@@ -229,8 +330,90 @@ export default function MemberHomeScreen() {
           </Pressable>
         ) : null}
 
-        {/* Next Billing Summary */}
-        {membership && member ? (
+        {/* Active Member Survey / Poll Banner */}
+        {activeSurveys.length > 0 ? (
+          <Pressable
+            onPress={() => router.push('/(member)/surveys')}
+            style={[
+              styles.surveyBanner,
+              {
+                backgroundColor: isDark ? '#143325' : '#F0FDF4',
+                borderColor: '#16A34A',
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={`Active Poll: ${activeSurveys[0].title}`}
+          >
+            <View style={styles.surveyBannerLeft}>
+              <View style={[styles.surveyIconCircle, { backgroundColor: '#16A34A' }]}>
+                <Ionicons name="stats-chart" size={18} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={[styles.surveyBadgeText, { color: '#16A34A' }]}>
+                    ACTIVE MEMBER POLL & SURVEY ({activeSurveys.length})
+                  </Text>
+                </View>
+                <Text style={[styles.surveyTitleText, { color: colors.text }]} numberOfLines={1}>
+                  {activeSurveys[0].title}
+                </Text>
+                <Text style={[styles.surveyBodyText, { color: colors.textMuted }]} numberOfLines={1}>
+                  {activeSurveys[0].description}
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.quickPlanAction, { color: '#16A34A' }]}>Vote ›</Text>
+          </Pressable>
+        ) : null}
+
+        {/* Guest Special Offer or Next Billing Summary */}
+        {isGuest ? (
+          <View
+            style={[
+              styles.guestPromoBanner,
+              {
+                backgroundColor: isDark ? '#172554' : '#EFF6FF',
+                borderColor: isDark ? '#1D4ED8' : '#93C5FD',
+              },
+            ]}
+          >
+            <View style={styles.guestPromoPill}>
+              <Ionicons name="sparkles" size={13} color="#1D4ED8" />
+              <Text style={styles.guestPromoPillText}>EXCLUSIVE GUEST BENEFIT: $0 JOIN FEE</Text>
+            </View>
+            <Text style={[styles.guestPromoTitle, { color: colors.text }]}>
+              Love Your Workout Today? Join YMCA & Save $50!
+            </Text>
+            <Text style={[styles.guestPromoDesc, { color: colors.textMuted }]}>
+              Turn today’s 1-day guest pass into a full membership within 48 hours and we’ll completely waive the $50 joining fee. Access 2,500+ YMCAs across North America!
+            </Text>
+            <View style={styles.guestPromoBtnRow}>
+              <Pressable
+                onPress={() => router.push('/(member)/guest-screen')}
+                style={[styles.guestActionBtn, { backgroundColor: colors.primary }]}
+                accessibilityRole="button"
+                accessibilityLabel="Open Full Guest Experience Screen"
+              >
+                <Ionicons name="ticket-outline" size={15} color="#FFFFFF" />
+                <Text style={styles.guestActionBtnText}>Guest Screen & Info ›</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => router.push('/(member)/join-membership')}
+                style={[
+                  styles.guestActionBtnOutline,
+                  { borderColor: colors.primary, backgroundColor: isDark ? '#1E293B' : '#FFFFFF' },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Explore membership plans and join YMCA"
+              >
+                <Ionicons name="id-card-outline" size={15} color={colors.primary} />
+                <Text style={[styles.guestActionBtnTextOutline, { color: colors.primary }]}>
+                  Join YMCA ($0 Fee) ›
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : membership && member ? (
           <View style={styles.billingSectionWrap}>
             <BillingHero
               nextBillingDateLabel={formatBillingDateLabel(membership.nextBillingDate)}
@@ -322,16 +505,20 @@ export default function MemberHomeScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => router.push('/(member)/guest-pass')}
+            onPress={() => router.push('/(member)/guest-screen')}
             style={[styles.featureTile, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
             accessibilityRole="button"
-            accessibilityLabel="View Guest Passes"
+            accessibilityLabel={isGuest ? 'View Guest Pass Screen' : 'View Guest Passes'}
           >
             <View style={[styles.tileIconCircle, { backgroundColor: colors.primaryLight }]}>
               <Ionicons name="ticket-outline" size={20} color={colors.gold} />
             </View>
-            <Text style={[styles.tileTitle, { color: colors.text }]}>Guest Passes</Text>
-            <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>2 Free Annual</Text>
+            <Text style={[styles.tileTitle, { color: colors.text }]}>
+              {isGuest ? 'Guest Pass' : 'Guest Passes'}
+            </Text>
+            <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>
+              {isGuest ? 'Active Today' : '2 Free Annual'}
+            </Text>
           </Pressable>
         </View>
 
@@ -514,6 +701,125 @@ export default function MemberHomeScreen() {
           </Pressable>
         ) : null}
       </ScrollView>
+
+      {/* ========================================================= */}
+      {/* POP-UP NOTICE MODAL ON APP OPEN                           */}
+      {/* ========================================================= */}
+      <Modal
+        visible={popupNoticeVisible && activePopupNotice != null}
+        animationType="fade"
+        transparent
+        onRequestClose={() => void handleDismissPopup(activePopupNotice?.id)}
+      >
+        <View style={styles.popupOverlay}>
+          <View
+            style={[
+              styles.popupBox,
+              {
+                backgroundColor: colors.cardBg,
+                borderColor:
+                  activePopupNotice?.priority === 'urgent'
+                    ? colors.scarlet
+                    : activePopupNotice?.priority === 'high'
+                    ? colors.gold
+                    : colors.cardBorder,
+              },
+            ]}
+          >
+            {/* Header Badge & Close Button */}
+            <View style={styles.popupHeaderRow}>
+              <View
+                style={[
+                  styles.popupBadge,
+                  {
+                    backgroundColor:
+                      activePopupNotice?.priority === 'urgent'
+                        ? '#FEE2E2'
+                        : activePopupNotice?.priority === 'high'
+                        ? '#FEF3C7'
+                        : '#EFF6FF',
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={
+                    activePopupNotice?.priority === 'urgent'
+                      ? 'alert-circle'
+                      : activePopupNotice?.priority === 'high'
+                      ? 'warning'
+                      : 'megaphone'
+                  }
+                  size={14}
+                  color={
+                    activePopupNotice?.priority === 'urgent'
+                      ? colors.scarlet
+                      : activePopupNotice?.priority === 'high'
+                      ? '#B45309'
+                      : colors.primary
+                  }
+                />
+                <Text
+                  style={[
+                    styles.popupBadgeText,
+                    {
+                      color:
+                        activePopupNotice?.priority === 'urgent'
+                          ? colors.scarlet
+                          : activePopupNotice?.priority === 'high'
+                          ? '#B45309'
+                          : colors.primary,
+                    },
+                  ]}
+                >
+                  {activePopupNotice?.priority === 'urgent'
+                    ? 'URGENT MEMBER NOTICE'
+                    : activePopupNotice?.priority === 'high'
+                    ? 'IMPORTANT NOTICE'
+                    : 'YMCA SILVER SPRING NOTICE'}
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={() => void handleDismissPopup(activePopupNotice?.id)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Close Pop-up Notice"
+              >
+                <Ionicons name="close" size={24} color={colors.textMuted} />
+              </Pressable>
+            </View>
+
+            <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ gap: 10 }}>
+              <Text style={[styles.popupTitle, { color: colors.text }]}>
+                {activePopupNotice?.title}
+              </Text>
+
+              <Text style={[styles.popupMeta, { color: colors.textMuted }]}>
+                Posted by {activePopupNotice?.authorName} · {activePopupNotice ? formatShortDate(activePopupNotice.createdAt) : ''}
+              </Text>
+
+              <Text style={[styles.popupBody, { color: colors.text }]}>
+                {activePopupNotice?.body}
+              </Text>
+            </ScrollView>
+
+            <View style={{ gap: 8, marginTop: 14 }}>
+              <PrimaryButton
+                title={activePopupNotice?.actionLabel || 'View Details ›'}
+                onPress={() => {
+                  if (activePopupNotice) {
+                    void handlePopupAction(activePopupNotice);
+                  }
+                }}
+              />
+              <SecondaryButton
+                title="Dismiss Notice"
+                onPress={() => void handleDismissPopup(activePopupNotice?.id)}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -861,5 +1167,159 @@ const styles = StyleSheet.create({
   annBodyText: {
     fontSize: 12,
     lineHeight: 16,
+  },
+  guestPromoBanner: {
+    borderRadius: radii.card,
+    borderWidth: 1.5,
+    padding: spacing.md,
+    gap: 10,
+  },
+  guestPromoPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#DBEAFE',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.sm,
+  },
+  guestPromoPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#1D4ED8',
+    letterSpacing: 0.5,
+  },
+  guestPromoTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  guestPromoDesc: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  guestPromoBtnRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 2,
+  },
+  guestActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: radii.button,
+  },
+  guestActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  guestActionBtnOutline: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: radii.button,
+    borderWidth: 1,
+  },
+  guestActionBtnTextOutline: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  surveyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    borderRadius: radii.card,
+    borderWidth: 1.5,
+  },
+  surveyBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  surveyIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  surveyBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  surveyTitleText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  surveyBodyText: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  popupOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  popupBox: {
+    width: '100%',
+    maxWidth: 460,
+    borderRadius: radii.lg,
+    borderWidth: 2,
+    padding: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 8,
+      },
+      default: {},
+    }),
+  },
+  popupHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  popupBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radii.sm,
+  },
+  popupBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  popupTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    lineHeight: 24,
+  },
+  popupMeta: {
+    fontSize: 12,
+  },
+  popupBody: {
+    fontSize: 14,
+    lineHeight: 22,
   },
 });

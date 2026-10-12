@@ -1,9 +1,23 @@
-export type UserRole = 'member' | 'staff' | 'admin' | 'trainer' | 'it_admin' | 'staff_admin';
+export type UserRole = 'member' | 'guest' | 'staff' | 'admin' | 'trainer' | 'it_admin' | 'staff_admin';
 export type MemberStatus = 'active' | 'paused' | 'cancel_pending' | 'cancelled';
 export type StaffRole = 'it_admin' | 'staff_admin' | 'trainer' | 'desk' | 'admin';
 export type ScheduleCategory = 'groupEx' | 'swim' | 'childWatch' | 'event' | 'seniors';
 export type RegistrationStatus = 'registered' | 'cancelled';
-export type LessonStatus = 'booked' | 'cancelled';
+export type AttendanceStatus = 'unmarked' | 'attended' | 'no_show';
+export type LessonStatus = 'booked' | 'cancelled' | 'completed' | 'no_show';
+
+export type GuestPassInfo = {
+  id: string;
+  passCode: string;
+  guestName: string;
+  guestEmail?: string;
+  branchId: string;
+  issuedDate: string;
+  validUntil: string;
+  status: 'active' | 'used' | 'expired';
+  issuedByMemberId?: string;
+  issuedByName?: string;
+};
 
 export function isAdminRole(role?: string | null): boolean {
   return role === 'admin' || role === 'it_admin' || role === 'staff_admin';
@@ -83,6 +97,8 @@ export type ClassRegistration = {
   paidAmountCents?: number;
   paymentLast4?: string;
   registeredAt?: string;
+  attendanceStatus?: AttendanceStatus;
+  checkedInAt?: string;
 };
 
 export type LessonSlot = {
@@ -103,6 +119,58 @@ export type PrivateLesson = {
   end: string;
   location: string;
   status: LessonStatus;
+  completedAt?: string;
+  notes?: string;
+};
+
+export type WorkoutExercise = {
+  name: string;
+  sets: number;
+  reps: string;
+  weight?: string;
+  notes?: string;
+};
+
+export type ClientWorkoutLog = {
+  id: string;
+  memberId: string;
+  trainerId?: string;
+  trainerName?: string;
+  date: string; // ISO date string YYYY-MM-DD or full ISO
+  sessionType: '1-on-1' | 'assessment' | 'strength' | 'cardio' | 'mobility' | 'self-directed' | 'hiit' | 'recovery';
+  title: string;
+  notes: string;
+  exercises?: WorkoutExercise[];
+  rpe?: number; // 1 to 10
+  loggedBy?: 'trainer' | 'member';
+  clientFeedback?: string;
+  createdAt: string;
+};
+
+export type GoalWarning = {
+  id: string;
+  text: string;
+  severity: 'low' | 'moderate' | 'high';
+  createdAt?: string;
+  createdBy?: 'trainer' | 'member';
+  authorName?: string;
+};
+
+export type ClientFitnessGoal = {
+  memberId: string;
+  primaryGoal: string;
+  category?: 'strength' | 'weight_loss' | 'endurance' | 'mobility' | 'wellness' | 'rehab' | 'sports';
+  targetDate?: string;
+  injuriesOrLimitations?: string;
+  specificWarnings?: GoalWarning[];
+  startWeightLbs?: number;
+  currentWeightLbs?: number;
+  targetWeightLbs?: number;
+  notes?: string; // Trainer Strategy & Protocol
+  memberNotes?: string; // Member Personal Motivation & Reflections
+  updatedBy?: 'member' | 'trainer';
+  updatedByName?: string;
+  updatedAt: string;
 };
 
 export type TrainerAssignment = { memberId: string; staffId: string };
@@ -251,6 +319,7 @@ export type Announcement = {
   actionLabel?: string;
   authorName: string;
   pinned?: boolean;
+  popupNotice?: boolean; // When true, pops up as a modal when members open the app
 };
 
 export type NotificationType =
@@ -282,6 +351,8 @@ export type NotificationPreferences = {
   userId: string;
   mentions: boolean;
   topicReplies: boolean;
+  interestedTopicActivity?: boolean;
+  chattedTopicReplies?: boolean;
   classForumAlerts: boolean;
   staffInquiries: boolean;
   announcements: boolean;
@@ -450,6 +521,8 @@ export type ClassForumPost = {
   content: string;
   createdAt: string; // ISO
   pinned?: boolean;
+  mentionedUserIds?: string[];
+  mentionedUserNames?: string[];
 };
 
 export type ForumTopicCategory =
@@ -459,6 +532,13 @@ export type ForumTopicCategory =
   | 'facilities'
   | 'community'
   | 'programs';
+
+export type UserForumInterests = {
+  userId: string;
+  categories: ForumTopicCategory[];
+  topicIds: string[];
+  classIds: string[];
+};
 
 export type ForumTopic = {
   id: string;
@@ -472,9 +552,14 @@ export type ForumTopic = {
   pinned?: boolean;
   likes: number;
   likedBy: string[];
+  interestedBy?: string[];
+  participantIds?: string[];
+  lastChattedAtBy?: Record<string, string>;
   replyCount: number;
   mentionedStaffIds?: string[];
   mentionedStaffNames?: string[];
+  mentionedUserIds?: string[];
+  mentionedUserNames?: string[];
   hasStaffReply?: boolean;
   createdAt: string; // ISO
   updatedAt: string; // ISO
@@ -490,6 +575,8 @@ export type ForumReply = {
   authorAvatarUrl?: string;
   isStaffReply: boolean;
   mentionedStaffIds?: string[];
+  mentionedUserIds?: string[];
+  mentionedUserNames?: string[];
   likes: number;
   likedBy: string[];
   createdAt: string; // ISO
@@ -593,3 +680,96 @@ export const FEEDBACK_CATEGORIES: {
   { id: 'programs_events', label: 'Programs & Youth Activities', icon: 'fitness-outline', description: 'Child Watch, summer camps, and sports leagues' },
   { id: 'other', label: 'General / Other', icon: 'chatbox-ellipses-outline', description: 'Other thoughts, ideas, or feedback' },
 ];
+
+export type SurveyType = 'poll' | 'survey';
+
+export type SurveyCategory =
+  | 'fitness'
+  | 'aquatics'
+  | 'facility'
+  | 'programs'
+  | 'schedule'
+  | 'general';
+
+export type SurveyQuestionType =
+  | 'single_choice'
+  | 'multiple_choice'
+  | 'rating'
+  | 'text';
+
+export type SurveyQuestion = {
+  id: string;
+  prompt: string;
+  type: SurveyQuestionType;
+  options?: string[]; // choices for single_choice or multiple_choice
+  required?: boolean;
+};
+
+export type Survey = {
+  id: string;
+  title: string;
+  description: string;
+  branchId: string;
+  type: SurveyType;
+  category: SurveyCategory;
+  targetAudience?: string; // e.g. "All YMCA Members", "Morning Swimmers"
+  questions: SurveyQuestion[];
+  createdByStaffId: string;
+  createdByStaffName: string;
+  createdAt: string; // ISO
+  expiresAt?: string; // ISO
+  isActive: boolean;
+  allowAnonymous?: boolean;
+  totalResponses: number;
+};
+
+export type SurveyAnswer = {
+  questionId: string;
+  selectedOptions?: string[]; // option values selected
+  ratingValue?: number; // 1 to 5
+  textResponse?: string;
+};
+
+export type SurveyResponse = {
+  id: string;
+  surveyId: string;
+  memberId: string;
+  memberName: string;
+  isAnonymous: boolean;
+  answers: SurveyAnswer[];
+  submittedAt: string; // ISO
+};
+
+export const SURVEY_CATEGORIES: {
+  id: SurveyCategory;
+  label: string;
+  icon: string;
+  color: string;
+}[] = [
+  { id: 'fitness', label: 'Fitness & Gym', icon: 'barbell-outline', color: '#16A34A' },
+  { id: 'aquatics', label: 'Pool & Aquatics', icon: 'water-outline', color: '#0284C7' },
+  { id: 'facility', label: 'Facility & Cleanliness', icon: 'business-outline', color: '#D97706' },
+  { id: 'programs', label: 'Programs & Youth', icon: 'people-outline', color: '#7C3AED' },
+  { id: 'schedule', label: 'Hours & Schedules', icon: 'time-outline', color: '#E11D48' },
+  { id: 'general', label: 'General / Community', icon: 'chatbubbles-outline', color: '#0D9488' },
+];
+
+
+export type {
+  StreakHoldReason,
+  StreakHold,
+  AttendanceCheckIn,
+  FlameMilestoneTier,
+  MemberStreakProfile,
+} from './attendanceStreak';
+export {
+  FLAME_MILESTONE_TIERS,
+  FROZEN_FLAME_TIER,
+  REASON_METADATA,
+  getFlameTier,
+  getNextMilestone,
+  getMondayOfWeek,
+  getDaysOfWeek,
+  countVisitsInWeek,
+  isDateInHold,
+} from './attendanceStreak';

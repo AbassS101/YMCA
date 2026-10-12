@@ -1,4 +1,10 @@
-import type { ForumReply, ForumTopic, ForumTopicCategory, UserRole } from '@/domain/types';
+import type {
+  ForumReply,
+  ForumTopic,
+  ForumTopicCategory,
+  UserForumInterests,
+  UserRole,
+} from '@/domain/types';
 import type { ProtivityPort } from '@/protivity/ProtivityPort';
 
 export const forumRepo = {
@@ -6,8 +12,12 @@ export const forumRepo = {
     api: ProtivityPort,
     filter?: {
       category?: ForumTopicCategory;
+      categories?: ForumTopicCategory[];
       staffMentioned?: boolean;
       authorId?: string;
+      interestedUserId?: string;
+      chattedByUserId?: string;
+      chattedOrCreatedByUserId?: string;
       searchQuery?: string;
     }
   ): Promise<ForumTopic[]> {
@@ -31,6 +41,8 @@ export const forumRepo = {
       pinned?: boolean;
       mentionedStaffIds?: string[];
       mentionedStaffNames?: string[];
+      mentionedUserIds?: string[];
+      mentionedUserNames?: string[];
     }
   ): Promise<ForumTopic> {
     return api.createForumTopic(input);
@@ -52,6 +64,38 @@ export const forumRepo = {
     return api.toggleLikeForumTopic(topicId, userId);
   },
 
+  toggleInterestedTopic(api: ProtivityPort, topicId: string, userId: string): Promise<ForumTopic> {
+    return api.toggleInterestedForumTopic(topicId, userId);
+  },
+
+  getInterests(api: ProtivityPort, userId: string): Promise<UserForumInterests> {
+    return api.getForumInterests(userId);
+  },
+
+  updateInterests(
+    api: ProtivityPort,
+    userId: string,
+    updates: Partial<Omit<UserForumInterests, 'userId'>>
+  ): Promise<UserForumInterests> {
+    return api.updateForumInterests(userId, updates);
+  },
+
+  toggleInterestedCategory(
+    api: ProtivityPort,
+    userId: string,
+    category: ForumTopicCategory
+  ): Promise<UserForumInterests> {
+    return api.toggleInterestedForumCategory(userId, category);
+  },
+
+  toggleInterestedClass(
+    api: ProtivityPort,
+    userId: string,
+    classId: string
+  ): Promise<UserForumInterests> {
+    return api.toggleInterestedClassForum(userId, classId);
+  },
+
   listReplies(api: ProtivityPort, topicId: string): Promise<ForumReply[]> {
     return api.listForumReplies(topicId);
   },
@@ -67,6 +111,8 @@ export const forumRepo = {
       authorAvatarUrl?: string;
       isStaffReply: boolean;
       mentionedStaffIds?: string[];
+      mentionedUserIds?: string[];
+      mentionedUserNames?: string[];
     }
   ): Promise<ForumReply> {
     return api.createForumReply(input);

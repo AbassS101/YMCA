@@ -8,7 +8,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 
@@ -19,7 +18,6 @@ import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { resetStore } from '@/storage/demoStore';
-import { cardStyle } from '@/theme/card';
 import { colors } from '@/theme/colors';
 import { radii, spacing, typography } from '@/theme/typography';
 
@@ -86,6 +84,13 @@ const DEMO_ROLES = [
     icon: 'person' as const,
   },
   {
+    name: 'Taylor Smith',
+    email: 'guest@silverspring.ymca',
+    role: 'Guest Pass Holder',
+    color: '#D97706',
+    icon: 'ticket' as const,
+  },
+  {
     name: 'Jane Smith',
     email: 'admin@silverspring.ymca',
     role: 'Staff Admin · Director',
@@ -146,7 +151,9 @@ export default function AboutScreen() {
     setSwitchingRole(email);
     try {
       const next = await login(email, 'ymca-demo');
-      if (next.role === 'member') {
+      if (next.role === 'guest') {
+        router.replace('/(member)/guest-screen');
+      } else if (next.role === 'member') {
         router.replace('/(member)/home');
       } else {
         router.replace('/(staff)/today');
@@ -436,6 +443,45 @@ export default function AboutScreen() {
                 </Pressable>
               );
             })}
+          </View>
+
+          {/* Guest Pass Experience Showcase Card */}
+          <View
+            style={[
+              styles.guestDemoCard,
+              {
+                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : '#FEF3C7',
+                borderColor: '#F59E0B',
+              },
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={styles.guestDemoBadge}>
+                <Ionicons name="ticket" size={20} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <AppText style={[styles.guestDemoCardTitle, { color: isDark ? '#FDE68A' : '#92400E' }]}>
+                  Guest Pass & Community Showcase
+                </AppText>
+                <AppText style={[styles.guestDemoCardSub, { color: isDark ? '#D1D5DB' : '#78350F' }]}>
+                  Preview barcode check-in, $0 join fee offer, YMCA 3 pillars, and community donation impact tiers.
+                </AppText>
+              </View>
+            </View>
+
+            <Pressable
+              onPress={() => router.push('/(member)/guest-screen')}
+              style={({ pressed }) => [
+                styles.guestDemoOpenBtn,
+                pressed && { opacity: 0.8 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Open Guest Screen Experience"
+            >
+              <Ionicons name="eye-outline" size={16} color="#FFFFFF" />
+              <AppText style={styles.guestDemoOpenBtnText}>Open Guest Screen Experience</AppText>
+              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            </Pressable>
           </View>
 
           {/* Technical Specs Pill */}
@@ -741,5 +787,43 @@ const styles = StyleSheet.create({
   techSpecsList: {
     fontSize: 11,
     lineHeight: 16,
+  },
+  guestDemoCard: {
+    padding: spacing.md,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+    gap: spacing.sm,
+  },
+  guestDemoBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F59E0B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  guestDemoCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  guestDemoCardSub: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  guestDemoOpenBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#D97706',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: radii.button,
+  },
+  guestDemoOpenBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

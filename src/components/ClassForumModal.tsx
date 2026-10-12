@@ -44,12 +44,18 @@ export type ClassForumModalProps = {
   visible: boolean;
   onClose: () => void;
   scheduleItem: ScheduleItem | null;
+  onPostCreated?: (classId: string) => void;
+  isInterested?: boolean;
+  onToggleInterested?: (classId: string) => void;
 };
 
 export function ClassForumModal({
   visible,
   onClose,
   scheduleItem,
+  onPostCreated,
+  isInterested = false,
+  onToggleInterested,
 }: ClassForumModalProps) {
   const router = useRouter();
   const { session, api } = useSession();
@@ -180,6 +186,7 @@ export function ClassForumModal({
 
       setInputText('');
       setPinNewPost(false);
+      onPostCreated?.(scheduleItem.id);
       await loadPosts();
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Could not post message.');
@@ -271,6 +278,23 @@ export function ClassForumModal({
               {scheduleItem.instructorName} · {formatClassDate(scheduleItem.start)} · {formatClassTime(scheduleItem.start)} - {formatClassTime(scheduleItem.end)}
             </Text>
           </View>
+          {onToggleInterested ? (
+            <Pressable
+              onPress={() => onToggleInterested(scheduleItem.id)}
+              style={styles.closeBtn}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={
+                isInterested ? 'Remove class chat from Interested' : 'Mark class chat as Interested'
+              }
+            >
+              <Ionicons
+                name={isInterested ? 'star' : 'star-outline'}
+                size={22}
+                color={isInterested ? '#D97706' : tc.textMuted}
+              />
+            </Pressable>
+          ) : null}
           <Pressable
             onPress={onClose}
             style={styles.closeBtn}

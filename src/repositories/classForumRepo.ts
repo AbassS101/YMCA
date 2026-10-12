@@ -6,6 +6,10 @@ export const classForumRepo = {
     return api.listClassForumPosts(classId);
   },
 
+  listRecentlyChattedClassIds(api: ProtivityPort, userId: string): Promise<string[]> {
+    return api.listRecentlyChattedClassIds(userId);
+  },
+
   create(
     api: ProtivityPort,
     input: {
@@ -16,6 +20,8 @@ export const classForumRepo = {
       authorAvatarUrl?: string;
       content: string;
       pinned?: boolean;
+      mentionedUserIds?: string[];
+      mentionedUserNames?: string[];
     }
   ): Promise<ClassForumPost> {
     return api.createClassForumPost(input);

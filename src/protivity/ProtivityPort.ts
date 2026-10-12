@@ -1,9 +1,12 @@
 import type {
   Announcement,
   AppNotification,
+  AttendanceStatus,
   CancelRequest,
   ClassForumPost,
   ClassRegistration,
+  ClientFitnessGoal,
+  ClientWorkoutLog,
   ComplaintSuggestion,
   Donation,
   FeedbackStatus,
@@ -20,11 +23,14 @@ import type {
   ScheduleItem,
   Staff,
   SupportTicket,
+  Survey,
+  SurveyResponse,
   Thread,
   TicketCategory,
   TicketPriority,
   TicketStatus,
   TicketType,
+  UserForumInterests,
   UserRole,
 } from '@/domain/types';
 
@@ -152,6 +158,43 @@ export interface ProtivityPort {
   addLessonSlot(slot: Omit<LessonSlot, 'id'>): Promise<LessonSlot>;
   deleteLessonSlot(slotId: string): Promise<void>;
 
+  // Trainer: Attendance & Session Operations
+  getClassRegistrations(scheduleItemId: string): Promise<ClassRegistration[]>;
+  markClassAttendance(
+    scheduleItemId: string,
+    memberId: string,
+    attendanceStatus: AttendanceStatus
+  ): Promise<void>;
+  addWalkInRegistration(
+    scheduleItemId: string,
+    memberId: string
+  ): Promise<ClassRegistration>;
+  markLessonStatus(
+    lessonId: string,
+    status: 'booked' | 'completed' | 'no_show',
+    notes?: string
+  ): Promise<PrivateLesson>;
+  bookLessonForMember(
+    staffId: string,
+    memberId: string,
+    slotIdOrCustom: string | { start: string; end: string; location: string }
+  ): Promise<PrivateLesson>;
+
+  // Trainer: Client Workout Logs & Progression
+  listClientWorkoutLogs(memberId: string): Promise<ClientWorkoutLog[]>;
+  logClientWorkout(
+    input: Omit<ClientWorkoutLog, 'id' | 'createdAt'>
+  ): Promise<ClientWorkoutLog>;
+  updateClientWorkoutLog(
+    logId: string,
+    updates: Partial<ClientWorkoutLog>
+  ): Promise<ClientWorkoutLog>;
+  deleteClientWorkoutLog(logId: string): Promise<void>;
+
+  // Trainer: Client Fitness Goals
+  getClientFitnessGoal(memberId: string): Promise<ClientFitnessGoal | null>;
+  saveClientFitnessGoal(goal: ClientFitnessGoal): Promise<ClientFitnessGoal>;
+
   // Admin: Staff & Trainer Management
   createStaff(input: Omit<Staff, 'id'> & { password: string }): Promise<Staff>;
   updateStaff(id: string, updates: Partial<Staff>): Promise<Staff>;
@@ -181,15 +224,22 @@ export interface ProtivityPort {
     authorAvatarUrl?: string;
     content: string;
     pinned?: boolean;
+    mentionedUserIds?: string[];
+    mentionedUserNames?: string[];
   }): Promise<ClassForumPost>;
   deleteClassForumPost(postId: string, requesterUserId: string): Promise<void>;
   togglePinClassForumPost(postId: string, requesterUserId: string): Promise<ClassForumPost>;
+  listRecentlyChattedClassIds(userId: string): Promise<string[]>;
 
   // Dedicated Community Forum
   listForumTopics(filter?: {
     category?: ForumTopicCategory;
+    categories?: ForumTopicCategory[];
     staffMentioned?: boolean;
     authorId?: string;
+    interestedUserId?: string;
+    chattedByUserId?: string;
+    chattedOrCreatedByUserId?: string;
     searchQuery?: string;
   }): Promise<ForumTopic[]>;
   getForumTopic(topicId: string): Promise<ForumTopic | null>;
@@ -204,10 +254,27 @@ export interface ProtivityPort {
     pinned?: boolean;
     mentionedStaffIds?: string[];
     mentionedStaffNames?: string[];
+    mentionedUserIds?: string[];
+    mentionedUserNames?: string[];
   }): Promise<ForumTopic>;
   deleteForumTopic(topicId: string, requesterUserId: string): Promise<void>;
   togglePinForumTopic(topicId: string, requesterUserId: string): Promise<ForumTopic>;
   toggleLikeForumTopic(topicId: string, userId: string): Promise<ForumTopic>;
+  toggleInterestedForumTopic(topicId: string, userId: string): Promise<ForumTopic>;
+
+  getForumInterests(userId: string): Promise<UserForumInterests>;
+  updateForumInterests(
+    userId: string,
+    updates: Partial<Omit<UserForumInterests, 'userId'>>
+  ): Promise<UserForumInterests>;
+  toggleInterestedForumCategory(
+    userId: string,
+    category: ForumTopicCategory
+  ): Promise<UserForumInterests>;
+  toggleInterestedClassForum(
+    userId: string,
+    classId: string
+  ): Promise<UserForumInterests>;
 
   listForumReplies(topicId: string): Promise<ForumReply[]>;
   createForumReply(input: {
@@ -219,6 +286,8 @@ export interface ProtivityPort {
     authorAvatarUrl?: string;
     isStaffReply: boolean;
     mentionedStaffIds?: string[];
+    mentionedUserIds?: string[];
+    mentionedUserNames?: string[];
   }): Promise<ForumReply>;
   deleteForumReply(replyId: string, requesterUserId: string): Promise<void>;
   toggleLikeForumReply(replyId: string, userId: string): Promise<ForumReply>;
@@ -250,5 +319,16 @@ export interface ProtivityPort {
     staffId?: string,
     staffName?: string
   ): Promise<ComplaintSuggestion>;
+
+  // Member Surveys & Polls
+  listSurveys(branchId?: string, onlyActive?: boolean): Promise<Survey[]>;
+  getSurvey(id: string): Promise<Survey | null>;
+  createSurvey(input: Omit<Survey, 'id' | 'createdAt' | 'totalResponses'>): Promise<Survey>;
+  updateSurveyStatus(id: string, isActive: boolean): Promise<Survey>;
+  deleteSurvey(id: string): Promise<void>;
+  listSurveyResponses(surveyId: string): Promise<SurveyResponse[]>;
+  submitSurveyResponse(input: Omit<SurveyResponse, 'id' | 'submittedAt'>): Promise<SurveyResponse>;
+  getMemberSurveyResponses(memberId: string): Promise<SurveyResponse[]>;
 }
+
 

@@ -157,14 +157,32 @@ export function ForumTopicDetailModal({
 
   const isTopicAuthor = currentTopic.authorId === currentUserId;
   const isTopicLiked = (currentTopic.likedBy ?? []).includes(currentUserId);
+  const isTopicInterested = (currentTopic.interestedBy ?? []).includes(currentUserId);
+  const hasUserChatted =
+    (currentTopic.participantIds ?? []).includes(currentUserId) ||
+    Boolean(currentTopic.lastChattedAtBy?.[currentUserId]);
   const categoryConfig =
     FORUM_CATEGORIES.find((c) => c.id === currentTopic.category) ?? FORUM_CATEGORIES[0];
   const topicBadge = roleBadge(currentTopic.authorRole);
+  const mentionDisplayNames = Array.from(
+    new Set([...(currentTopic.mentionedStaffNames ?? []), ...(currentTopic.mentionedUserNames ?? [])])
+  );
 
   const handleToggleTopicLike = async () => {
     if (!api || !currentUserId) return;
     try {
       const updated = await forumRepo.toggleLikeTopic(api, currentTopic.id, currentUserId);
+      setTopicOverride(updated);
+      onTopicUpdated?.(updated);
+    } catch {
+      // noop
+    }
+  };
+
+  const handleToggleTopicInterested = async () => {
+    if (!api || !currentUserId) return;
+    try {
+      const updated = await forumRepo.toggleInterestedTopic(api, currentTopic.id, currentUserId);
       setTopicOverride(updated);
       onTopicUpdated?.(updated);
     } catch {
@@ -209,7 +227,12 @@ export function ForumTopicDetailModal({
         mentionedStaffIds.push('staff-desk');
       if (lower.includes('@david') || lower.includes('@it') || lower.includes('@staff-itadmin'))
         mentionedStaffIds.push('staff-itadmin');
-      if (lower.includes('@patricia') || lower.includes('@pat') || lower.includes('@staff-admin'))
+      if (
+        lower.includes('@jane') ||
+        lower.includes('@patricia') ||
+        lower.includes('@pat') ||
+        lower.includes('@staff-admin')
+      )
         mentionedStaffIds.push('staff-admin');
       if (lower.includes('@all staff') || lower.includes('@staff-all'))
         mentionedStaffIds.push('staff-all');
@@ -227,21 +250,25 @@ export function ForumTopicDetailModal({
 
       setReplies((prev) => [...prev, newReply]);
       setReplyText('');
-      setTopicOverride((prev) =>
-        prev
-          ? {
-              ...prev,
-              replyCount: (prev.replyCount ?? 0) + 1,
-              hasStaffReply: prev.hasStaffReply || isStaffUser,
-            }
-          : currentTopic
-            ? {
-                ...currentTopic,
-                replyCount: (currentTopic.replyCount ?? 0) + 1,
-                hasStaffReply: currentTopic.hasStaffReply || isStaffUser,
-              }
-            : null
-      );
+
+      const refreshed = await forumRepo.getTopic(api, currentTopic.id).catch(() => null);
+      const nowIso = newReply.createdAt || new Date().toISOString();
+      const baseTopic = topicOverride && topicOverride.id === currentTopic.id ? topicOverride : currentTopic;
+      const updatedTopic: ForumTopic =
+        refreshed ?? {
+          ...baseTopic,
+          replyCount: (baseTopic.replyCount ?? 0) + 1,
+          hasStaffReply: baseTopic.hasStaffReply || isStaffUser,
+          updatedAt: nowIso,
+          participantIds: Array.from(new Set([...(baseTopic.participantIds ?? []), currentUserId])),
+          lastChattedAtBy: {
+            ...(baseTopic.lastChattedAtBy ?? {}),
+            [currentUserId]: nowIso,
+          },
+        };
+
+      setTopicOverride(updatedTopic);
+      onTopicUpdated?.(updatedTopic);
 
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
@@ -334,6 +361,22 @@ export function ForumTopicDetailModal({
           </View>
 
           <View style={styles.headerActions}>
+            <Pressable
+              onPress={() => void handleToggleTopicInterested()}
+              hitSlop={8}
+              style={styles.headerActionBtn}
+              accessibilityRole="button"
+              accessibilityLabel={
+                isTopicInterested ? 'Remove from Interested' : 'Mark topic as Interested'
+              }
+            >
+              <Ionicons
+                name={isTopicInterested ? 'star' : 'star-outline'}
+                size={19}
+                color={isTopicInterested ? '#D97706' : tc.textMuted}
+              />
+            </Pressable>
+
             {isStaffUser ? (
               <Pressable
                 onPress={() => void handleToggleTopicPin()}
@@ -402,6 +445,14 @@ export function ForumTopicDetailModal({
                             {topicBadge.label}
                           </Text>
                         </View>
+                        {hasUserChatted ? (
+                          <View style={[styles.roleBadge, { backgroundColor: isDark ? '#1E1B4B' : '#EEF2FF' }]}>
+                            <Ionicons name="chatbubbles" size={10} color="#4F46E5" />
+                            <Text style={[styles.roleBadgeText, { color: '#4F46E5' }]}>
+                              RECENTLY CHATTED
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
                       <Text style={[styles.postDate, { color: tc.textMuted }]}>
                         {formatTime(currentTopic.createdAt)}
@@ -414,7 +465,7 @@ export function ForumTopicDetailModal({
                   <Text style={[styles.topicBody, { color: tc.text }]}>{currentTopic.content}</Text>
 
                   {/* Mention Box */}
-                  {currentTopic.mentionedStaffNames && currentTopic.mentionedStaffNames.length > 0 ? (
+                  {mentionDisplayNames.length > 0 ? (
                     <View
                       style={[
                         styles.mentionBox,
@@ -426,42 +477,80 @@ export function ForumTopicDetailModal({
                     >
                       <Ionicons name="at-circle" size={18} color="#4F46E5" />
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.mentionBoxTitle}>Tagged Staff:</Text>
+                        <Text style={styles.mentionBoxTitle}>Tagged in Thread:</Text>
                         <Text style={styles.mentionBoxNames}>
-                          {currentTopic.mentionedStaffNames.join(', ')}
+                          {mentionDisplayNames.join(', ')}
                         </Text>
                       </View>
                     </View>
                   ) : null}
 
-                  {/* Like Button & Stats */}
+                  {/* Like & Interested Buttons & Stats */}
                   <View style={[styles.topicFooter, { borderTopColor: tc.border }]}>
-                    <Pressable
-                      onPress={() => void handleToggleTopicLike()}
-                      style={({ pressed }) => [
-                        styles.likeBtn,
-                        {
-                          backgroundColor: isTopicLiked
-                            ? isDark
-                              ? '#7F1D1D'
-                              : '#FEE2E2'
-                            : isDark
-                              ? '#1E293B'
-                              : '#F1F5F9',
-                        },
-                        pressed && { opacity: 0.8 },
-                      ]}
-                      hitSlop={8}
-                    >
-                      <Ionicons
-                        name={isTopicLiked ? 'heart' : 'heart-outline'}
-                        size={16}
-                        color={isTopicLiked ? '#DC2626' : tc.textMuted}
-                      />
-                      <Text style={[styles.likeCount, { color: isTopicLiked ? '#DC2626' : tc.text }]}>
-                        {currentTopic.likes} {currentTopic.likes === 1 ? 'Like' : 'Likes'}
-                      </Text>
-                    </Pressable>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Pressable
+                        onPress={() => void handleToggleTopicLike()}
+                        style={({ pressed }) => [
+                          styles.likeBtn,
+                          {
+                            backgroundColor: isTopicLiked
+                              ? isDark
+                                ? '#7F1D1D'
+                                : '#FEE2E2'
+                              : isDark
+                                ? '#1E293B'
+                                : '#F1F5F9',
+                          },
+                          pressed && { opacity: 0.8 },
+                        ]}
+                        hitSlop={8}
+                      >
+                        <Ionicons
+                          name={isTopicLiked ? 'heart' : 'heart-outline'}
+                          size={16}
+                          color={isTopicLiked ? '#DC2626' : tc.textMuted}
+                        />
+                        <Text style={[styles.likeCount, { color: isTopicLiked ? '#DC2626' : tc.text }]}>
+                          {currentTopic.likes} {currentTopic.likes === 1 ? 'Like' : 'Likes'}
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        onPress={() => void handleToggleTopicInterested()}
+                        style={({ pressed }) => [
+                          styles.likeBtn,
+                          {
+                            backgroundColor: isTopicInterested
+                              ? isDark
+                                ? '#422006'
+                                : '#FEF3C7'
+                              : isDark
+                                ? '#1E293B'
+                                : '#F1F5F9',
+                          },
+                          pressed && { opacity: 0.8 },
+                        ]}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          isTopicInterested ? 'Interested in this topic' : 'Mark topic as Interested'
+                        }
+                      >
+                        <Ionicons
+                          name={isTopicInterested ? 'star' : 'star-outline'}
+                          size={15}
+                          color={isTopicInterested ? '#D97706' : tc.textMuted}
+                        />
+                        <Text
+                          style={[
+                            styles.likeCount,
+                            { color: isTopicInterested ? '#B45309' : tc.text },
+                          ]}
+                        >
+                          {isTopicInterested ? 'Interested' : 'Mark Interested'}
+                        </Text>
+                      </Pressable>
+                    </View>
 
                     <Text style={[styles.repliesCountLabel, { color: tc.textMuted }]}>
                       {replies.length} {replies.length === 1 ? 'Reply' : 'Replies'}
@@ -602,8 +691,8 @@ export function ForumTopicDetailModal({
 
             {/* Quick @ mention helper */}
             <View style={styles.quickMentionRow}>
-              <Text style={[styles.quickMentionLabel, { color: tc.textMuted }]}>Quick Mention:</Text>
-              {['@All Staff Desk', '@Alex Rivera', '@David Miller'].map((mention) => (
+              <Text style={[styles.quickMentionLabel, { color: tc.textMuted }]}>Quick @:</Text>
+              {['@All Staff Desk', '@Alex Rivera', '@Taylor Brooks', '@Carlos Mendez'].map((mention) => (
                 <Pressable
                   key={mention}
                   onPress={() => setReplyText((prev) => (prev ? `${prev} ${mention} ` : `${mention} `))}

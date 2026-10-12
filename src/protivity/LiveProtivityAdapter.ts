@@ -1,9 +1,12 @@
 import type {
   Announcement,
   AppNotification,
+  AttendanceStatus,
   CancelRequest,
   ClassForumPost,
   ClassRegistration,
+  ClientFitnessGoal,
+  ClientWorkoutLog,
   ComplaintSuggestion,
   Donation,
   FeedbackStatus,
@@ -20,11 +23,14 @@ import type {
   ScheduleItem,
   Staff,
   SupportTicket,
+  Survey,
+  SurveyResponse,
   Thread,
   TicketCategory,
   TicketPriority,
   TicketStatus,
   TicketType,
+  UserForumInterests,
   UserRole,
 } from '@/domain/types';
 import type { ProtivityPort } from '@/protivity/ProtivityPort';
@@ -381,10 +387,18 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
+  async listRecentlyChattedClassIds(_userId: string): Promise<string[]> {
+    throw new ProtivityNotConnected();
+  }
+
   async listForumTopics(_filter?: {
     category?: ForumTopicCategory;
+    categories?: ForumTopicCategory[];
     staffMentioned?: boolean;
     authorId?: string;
+    interestedUserId?: string;
+    chattedByUserId?: string;
+    chattedOrCreatedByUserId?: string;
     searchQuery?: string;
   }): Promise<ForumTopic[]> {
     throw new ProtivityNotConnected();
@@ -405,6 +419,8 @@ export class LiveProtivityAdapter implements ProtivityPort {
     pinned?: boolean;
     mentionedStaffIds?: string[];
     mentionedStaffNames?: string[];
+    mentionedUserIds?: string[];
+    mentionedUserNames?: string[];
   }): Promise<ForumTopic> {
     throw new ProtivityNotConnected();
   }
@@ -421,6 +437,35 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
+  async toggleInterestedForumTopic(_topicId: string, _userId: string): Promise<ForumTopic> {
+    throw new ProtivityNotConnected();
+  }
+
+  async getForumInterests(_userId: string): Promise<UserForumInterests> {
+    throw new ProtivityNotConnected();
+  }
+
+  async updateForumInterests(
+    _userId: string,
+    _updates: Partial<Omit<UserForumInterests, 'userId'>>
+  ): Promise<UserForumInterests> {
+    throw new ProtivityNotConnected();
+  }
+
+  async toggleInterestedForumCategory(
+    _userId: string,
+    _category: ForumTopicCategory
+  ): Promise<UserForumInterests> {
+    throw new ProtivityNotConnected();
+  }
+
+  async toggleInterestedClassForum(
+    _userId: string,
+    _classId: string
+  ): Promise<UserForumInterests> {
+    throw new ProtivityNotConnected();
+  }
+
   async listForumReplies(_topicId: string): Promise<ForumReply[]> {
     throw new ProtivityNotConnected();
   }
@@ -434,6 +479,8 @@ export class LiveProtivityAdapter implements ProtivityPort {
     authorAvatarUrl?: string;
     isStaffReply: boolean;
     mentionedStaffIds?: string[];
+    mentionedUserIds?: string[];
+    mentionedUserNames?: string[];
   }): Promise<ForumReply> {
     throw new ProtivityNotConnected();
   }
@@ -496,6 +543,107 @@ export class LiveProtivityAdapter implements ProtivityPort {
     _staffId?: string,
     _staffName?: string
   ): Promise<ComplaintSuggestion> {
+    throw new ProtivityNotConnected();
+  }
+
+  async getClassRegistrations(_scheduleItemId: string): Promise<ClassRegistration[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async markClassAttendance(
+    _scheduleItemId: string,
+    _memberId: string,
+    _attendanceStatus: AttendanceStatus
+  ): Promise<void> {
+    throw new ProtivityNotConnected();
+  }
+
+  async addWalkInRegistration(
+    _scheduleItemId: string,
+    _memberId: string
+  ): Promise<ClassRegistration> {
+    throw new ProtivityNotConnected();
+  }
+
+  async markLessonStatus(
+    _lessonId: string,
+    _status: 'booked' | 'completed' | 'no_show',
+    _notes?: string
+  ): Promise<PrivateLesson> {
+    throw new ProtivityNotConnected();
+  }
+
+  async bookLessonForMember(
+    _staffId: string,
+    _memberId: string,
+    _slotIdOrCustom: string | { start: string; end: string; location: string }
+  ): Promise<PrivateLesson> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listClientWorkoutLogs(_memberId: string): Promise<ClientWorkoutLog[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async logClientWorkout(
+    _input: Omit<ClientWorkoutLog, 'id' | 'createdAt'>
+  ): Promise<ClientWorkoutLog> {
+    throw new ProtivityNotConnected();
+  }
+
+  async updateClientWorkoutLog(
+    _logId: string,
+    _updates: Partial<ClientWorkoutLog>
+  ): Promise<ClientWorkoutLog> {
+    throw new ProtivityNotConnected();
+  }
+
+  async deleteClientWorkoutLog(_logId: string): Promise<void> {
+    throw new ProtivityNotConnected();
+  }
+
+  async getClientFitnessGoal(_memberId: string): Promise<ClientFitnessGoal | null> {
+    throw new ProtivityNotConnected();
+  }
+
+  async saveClientFitnessGoal(_goal: ClientFitnessGoal): Promise<ClientFitnessGoal> {
+    throw new ProtivityNotConnected();
+  }
+
+  // Member Surveys & Polls
+  async listSurveys(_branchId?: string, _onlyActive?: boolean): Promise<Survey[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async getSurvey(_id: string): Promise<Survey | null> {
+    throw new ProtivityNotConnected();
+  }
+
+  async createSurvey(
+    _input: Omit<Survey, 'id' | 'createdAt' | 'totalResponses'>
+  ): Promise<Survey> {
+    throw new ProtivityNotConnected();
+  }
+
+  async updateSurveyStatus(_id: string, _isActive: boolean): Promise<Survey> {
+    throw new ProtivityNotConnected();
+  }
+
+  async deleteSurvey(_id: string): Promise<void> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listSurveyResponses(_surveyId: string): Promise<SurveyResponse[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async submitSurveyResponse(
+    _input: Omit<SurveyResponse, 'id' | 'submittedAt'>
+  ): Promise<SurveyResponse> {
+    throw new ProtivityNotConnected();
+  }
+
+  async getMemberSurveyResponses(_memberId: string): Promise<SurveyResponse[]> {
     throw new ProtivityNotConnected();
   }
 }

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { AppText } from '@/components/AppText';
+import { AttendanceStreakModal } from '@/components/AttendanceStreakModal';
 import { ChatModal } from '@/components/ChatModal';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { MemberCheckInCard } from '@/components/MemberCheckInCard';
@@ -27,10 +28,11 @@ import {
 import { useSession } from '@/context/SessionContext';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
 import { cancelRequestedCopy } from '@/domain/displayDates';
-import type { Member, Membership, Message, Staff, TicketType } from '@/domain/types';
+import type { Member, Membership, MemberStreakProfile, Message, Staff, TicketType } from '@/domain/types';
 import { memberRepo } from '@/repositories/memberRepo';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { messageRepo } from '@/repositories/messageRepo';
+import { streakRepo } from '@/repositories/streakRepo';
 import { cardStyle } from '@/theme/card';
 import { radii, spacing, tapTarget, typography } from '@/theme/typography';
 
@@ -61,6 +63,13 @@ const DEMO_ACCOUNTS = [
     role: 'YMCA Member (Active)',
     icon: 'person' as const,
     color: '#2563EB',
+  },
+  {
+    name: 'Taylor Smith',
+    email: 'guest@silverspring.ymca',
+    role: 'Guest Pass Holder · Visitor',
+    icon: 'ticket' as const,
+    color: '#D97706',
   },
   {
     name: 'Jane Smith',
@@ -128,7 +137,9 @@ export default function MemberAccountScreen() {
     setSwitchingEmail(email);
     try {
       const next = await login(email, 'ymca-demo');
-      if (next.role === 'member') {
+      if (next.role === 'guest') {
+        router.replace('/(member)/guest-screen');
+      } else if (next.role === 'member') {
         router.replace('/(member)/home');
       } else {
         router.replace('/(staff)/today');
@@ -140,6 +151,8 @@ export default function MemberAccountScreen() {
 
   const [member, setMember] = useState<Member | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
+  const [streakProfile, setStreakProfile] = useState<MemberStreakProfile | null>(null);
+  const [showStreakModal, setShowStreakModal] = useState(false);
   const [error, setError] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [rescinding, setRescinding] = useState(false);
@@ -193,12 +206,14 @@ export default function MemberAccountScreen() {
     }
     try {
       setError(false);
-      const [nextMember, nextMembership] = await Promise.all([
+      const [nextMember, nextMembership, streakData] = await Promise.all([
         api.getMember(memberId),
         membershipRepo.getMembership(api, memberId),
+        streakRepo.getStreakProfile(memberId),
       ]);
       setMember(nextMember);
       setMembership(nextMembership);
+      setStreakProfile(streakData);
     } catch {
       setError(true);
     }
@@ -608,6 +623,12 @@ export default function MemberAccountScreen() {
 
         <View style={[styles.menu, cardTheme]}>
           <MenuRow
+            label="Attendance Goals & Streak Hold"
+            icon="flame"
+            onPress={() => setShowStreakModal(true)}
+            colors={colors}
+          />
+          <MenuRow
             label="Manage Membership & Billing"
             icon="settings-outline"
             onPress={() => router.push('/(member)/manage-membership')}
@@ -641,6 +662,12 @@ export default function MemberAccountScreen() {
             label="Complaints & Suggestions"
             icon="chatbox-ellipses"
             onPress={() => router.push('/(member)/complaints-suggestions')}
+            colors={colors}
+          />
+          <MenuRow
+            label="Member Surveys & Polls"
+            icon="stats-chart"
+            onPress={() => router.push('/(member)/surveys')}
             colors={colors}
           />
           <MenuRow
@@ -776,6 +803,34 @@ export default function MemberAccountScreen() {
               );
             })}
           </View>
+
+          {/* Direct Guest Screen Presentation Launcher */}
+          <Pressable
+            onPress={() => router.push('/(member)/guest-screen')}
+            style={({ pressed }) => [
+              styles.guestDemoLaunchBtn,
+              {
+                borderColor: '#F59E0B',
+                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : '#FEF3C7',
+              },
+              pressed && { opacity: 0.8 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Launch Guest Pass Screen Presentation"
+          >
+            <View style={[styles.guestDemoLaunchIcon, { backgroundColor: '#F59E0B' }]}>
+              <Ionicons name="ticket" size={20} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppText style={[styles.guestDemoLaunchTitle, { color: isDark ? '#FDE68A' : '#92400E' }]}>
+                View Guest Screen Experience
+              </AppText>
+              <AppText style={[styles.guestDemoLaunchSub, { color: isDark ? '#D1D5DB' : '#78350F' }]}>
+                Preview barcode check-in, YMCA impact & donations showcase
+              </AppText>
+            </View>
+            <Ionicons name="arrow-forward" size={18} color={isDark ? '#FDE68A' : '#92400E'} />
+          </Pressable>
         </View>
 
         <PrimaryButton title="Log out" onPress={() => void handleLogout()} loading={loggingOut} />
@@ -916,6 +971,18 @@ export default function MemberAccountScreen() {
           initialExpanded={true}
           showInlineCard={false}
           onClose={() => setShowBarcodeModal(false)}
+        />
+      ) : null}
+
+      {/* Attendance Goals & Streak Hold Modal */}
+      {showStreakModal && member && streakProfile ? (
+        <AttendanceStreakModal
+          visible={showStreakModal}
+          profile={streakProfile}
+          memberId={memberId}
+          memberName={member.name}
+          onClose={() => setShowStreakModal(false)}
+          onProfileUpdated={(updated) => setStreakProfile(updated)}
         />
       ) : null}
     </View>
@@ -1192,5 +1259,29 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+  guestDemoLaunchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+  },
+  guestDemoLaunchIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  guestDemoLaunchTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  guestDemoLaunchSub: {
+    fontSize: 12,
+    marginTop: 2,
   },
 });

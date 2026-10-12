@@ -13,6 +13,7 @@ export default function MemberLayout() {
       <Stack.Screen name="branch-amenities" />
       <Stack.Screen name="programs" />
       <Stack.Screen name="guest-pass" />
+      <Stack.Screen name="guest-screen" />
       <Stack.Screen name="update-payment" />
       <Stack.Screen name="cancel" />
       <Stack.Screen name="book-lesson" />
@@ -20,6 +21,7 @@ export default function MemberLayout() {
       <Stack.Screen name="community-forum" />
       <Stack.Screen name="notification-settings" />
       <Stack.Screen name="complaints-suggestions" />
+      <Stack.Screen name="surveys" />
     </Stack>
   );
 }

@@ -15,6 +15,8 @@ import {
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { TextField } from '@/components/TextField';
+import { TrainerClientWorkoutModal } from '@/components/TrainerClientWorkoutModal';
+import { TrainerGoalModal } from '@/components/TrainerGoalModal';
 import { UserAvatar } from '@/components/UserAvatar';
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
@@ -24,6 +26,8 @@ import {
   isAdminRole,
   YMCA_MEMBERSHIP_PLANS,
   type ClassRegistration,
+  type ClientFitnessGoal,
+  type ClientWorkoutLog,
   type Member,
   type Membership,
   type MembershipPlan,
@@ -34,6 +38,7 @@ import {
 } from '@/domain/types';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { messageRepo } from '@/repositories/messageRepo';
+import { trainerRepo } from '@/repositories/trainerRepo';
 import { cardStyle } from '@/theme/card';
 import { colors } from '@/theme/colors';
 import { radii, typography } from '@/theme/typography';
@@ -50,6 +55,7 @@ export default function StaffMemberDetailScreen() {
   const staffId = session?.userId ?? '';
   const isITAdmin = session?.role === 'it_admin';
   const isAdmin = isAdminRole(session?.role);
+  const isTrainer = session?.role === 'trainer' || (!isAdmin && session?.role === 'staff');
 
   const [member, setMember] = useState<Member | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
@@ -59,6 +65,21 @@ export default function StaffMemberDetailScreen() {
   const [assignedTrainer, setAssignedTrainer] = useState<Staff | null>(null);
   const [allStaff, setAllStaff] = useState<Staff[]>([]);
   const [error, setError] = useState(false);
+
+  // Client Fitness & Coaching Hub State
+  const [fitnessGoal, setFitnessGoal] = useState<ClientFitnessGoal | null>(null);
+  const [workoutLogs, setWorkoutLogs] = useState<ClientWorkoutLog[]>([]);
+  const [workoutModalVisible, setWorkoutModalVisible] = useState(false);
+  const [editingWorkoutLog, setEditingWorkoutLog] = useState<ClientWorkoutLog | null>(null);
+  const [goalModalVisible, setGoalModalVisible] = useState(false);
+
+  // Book Lesson Direct State
+  const [bookLessonModalVisible, setBookLessonModalVisible] = useState(false);
+  const [bookDate, setBookDate] = useState('2026-09-17');
+  const [bookStart, setBookStart] = useState('14:00');
+  const [bookEnd, setBookEnd] = useState('15:00');
+  const [bookLocation, setBookLocation] = useState('Wellness Studio B');
+  const [bookingLesson, setBookingLesson] = useState(false);
 
   // Edit Profile Modal (Admin)
   const [editProfileVisible, setEditProfileVisible] = useState(false);
@@ -94,7 +115,7 @@ export default function StaffMemberDetailScreen() {
     }
     try {
       setError(false);
-      const [nextMember, nextMembership, threads, memberRegs, memberLessons, currentTrainer, staffList] =
+      const [nextMember, nextMembership, threads, memberRegs, memberLessons, currentTrainer, staffList, logs, goal] =
         await Promise.all([
           api.getMember(memberId),
           membershipRepo.getMembership(api, memberId),
@@ -103,6 +124,8 @@ export default function StaffMemberDetailScreen() {
           membershipRepo.listLessons(api, memberId).catch(() => []),
           api.getAssignedTrainer(memberId).catch(() => null),
           api.listStaff().catch(() => []),
+          trainerRepo.listClientWorkoutLogs(api, memberId).catch(() => []),
+          trainerRepo.getClientFitnessGoal(api, memberId).catch(() => null),
         ]);
       const thread = threads.find((t: Thread) => t.memberId === memberId && t.staffId === staffId);
       setMember(nextMember);
@@ -112,6 +135,8 @@ export default function StaffMemberDetailScreen() {
       setLessons(memberLessons);
       setAssignedTrainer(currentTrainer);
       setAllStaff(staffList);
+      setWorkoutLogs(logs);
+      setFitnessGoal(goal);
       if (currentTrainer) {
         setSelectedTrainerId(currentTrainer.id);
       }
@@ -123,6 +148,51 @@ export default function StaffMemberDetailScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function handleDeleteWorkoutLog(logId: string) {
+    dialog.show({
+      title: 'Delete Workout Session?',
+      message: 'Remove this session record and its exercises from client history?',
+      icon: 'trash',
+      buttons: [
+        { text: 'Keep It', style: 'cancel' },
+        {
+          text: 'Delete Session',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await trainerRepo.deleteClientWorkoutLog(api, logId);
+              dialog.alert('Deleted', 'Workout session removed.', [{ text: 'OK' }], 'checkmark');
+              await load();
+            } catch {
+              dialog.alert('Error', 'Could not delete workout log.');
+            }
+          },
+        },
+      ],
+    });
+  }
+
+  async function handleBookLessonDirectly() {
+    if (!bookStart || !bookEnd) return;
+    setBookingLesson(true);
+    try {
+      const startIso = `${bookDate}T${bookStart}:00-04:00`;
+      const endIso = `${bookDate}T${bookEnd}:00-04:00`;
+      await trainerRepo.bookLessonForMember(api, staffId, memberId, {
+        start: startIso,
+        end: endIso,
+        location: bookLocation.trim(),
+      });
+      setBookLessonModalVisible(false);
+      dialog.alert('Lesson Scheduled!', `Private session booked with ${member?.name}. Notification dispatched to member.`, [{ text: 'OK' }], 'checkmark');
+      await load();
+    } catch (err: any) {
+      dialog.alert('Error', err?.message || 'Could not schedule lesson.', [{ text: 'OK' }]);
+    } finally {
+      setBookingLesson(false);
+    }
+  }
 
   function openEditProfile() {
     if (!member) return;
@@ -422,6 +492,280 @@ export default function StaffMemberDetailScreen() {
           ) : (
             <Text style={styles.muted}>No dedicated personal trainer assigned yet.</Text>
           )}
+        </View>
+
+        {/* ========================================================= */}
+        {/* CLIENT FITNESS GOALS & HEALTH SAFETY PROFILE              */}
+        {/* ========================================================= */}
+        <View style={styles.card}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="trophy" size={18} color={colors.primary} />
+              <Text style={styles.sectionTitle}>Fitness Goals & Safety Profile</Text>
+            </View>
+            <Pressable onPress={() => setGoalModalVisible(true)} style={styles.badgeBtn} accessibilityRole="button">
+              <Text style={styles.badgeBtnText}>{fitnessGoal ? 'Edit Goals ›' : '+ Set Goals ›'}</Text>
+            </Pressable>
+          </View>
+
+          {fitnessGoal ? (
+            <View style={{ gap: 10 }}>
+              {/* Primary Goal */}
+              <View style={styles.goalHighlightBox}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary, textTransform: 'uppercase' }}>
+                  Target Objective
+                </Text>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: colors.nearBlack, marginTop: 2 }}>
+                  {fitnessGoal.primaryGoal}
+                </Text>
+                {fitnessGoal.targetDate ? (
+                  <Text style={{ fontSize: 12, color: colors.muted, marginTop: 3 }}>
+                    Target Completion Date: <Text style={{ fontWeight: '700', color: colors.nearBlack }}>{fitnessGoal.targetDate}</Text>
+                  </Text>
+                ) : null}
+              </View>
+
+              {/* Weight Target Stats */}
+              {fitnessGoal.currentWeightLbs || fitnessGoal.targetWeightLbs ? (
+                <View style={styles.weightRow}>
+                  <View style={styles.weightBox}>
+                    <Text style={styles.weightVal}>{fitnessGoal.currentWeightLbs ?? '--'} lbs</Text>
+                    <Text style={styles.weightLabel}>Starting / Current</Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+                  <View style={styles.weightBox}>
+                    <Text style={[styles.weightVal, { color: '#15803D' }]}>{fitnessGoal.targetWeightLbs ?? '--'} lbs</Text>
+                    <Text style={styles.weightLabel}>Goal Weight</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {/* Injury / Safety Limitation Warning */}
+              {fitnessGoal.injuriesOrLimitations ? (
+                <View style={styles.injuryCard}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="warning-outline" size={16} color="#D97706" />
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#B45309' }}>
+                      SAFETY & PHYSICAL LIMITATIONS:
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 13, color: '#92400E', marginTop: 2 }}>
+                    {fitnessGoal.injuriesOrLimitations}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Specific Warnings List */}
+              {fitnessGoal.specificWarnings && fitnessGoal.specificWarnings.length > 0 ? (
+                <View style={{ gap: 6 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#B45309' }}>
+                    SPECIFIC SAFETY & MOVEMENT ALERTS ({fitnessGoal.specificWarnings.length}):
+                  </Text>
+                  {fitnessGoal.specificWarnings.map((w) => {
+                    const isHigh = w.severity === 'high';
+                    const isMod = w.severity === 'moderate';
+                    const badgeColor = isHigh ? '#DC2626' : isMod ? '#D97706' : '#0284C7';
+                    const badgeBg = isHigh ? '#FEE2E2' : isMod ? '#FEF3C7' : '#E0F2FE';
+                    return (
+                      <View
+                        key={w.id}
+                        style={{
+                          backgroundColor: badgeBg,
+                          padding: 8,
+                          borderRadius: radii.sm,
+                          borderWidth: 1,
+                          borderColor: badgeColor,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        <Ionicons name="warning-outline" size={15} color={badgeColor} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '800', color: badgeColor }}>
+                            {w.severity.toUpperCase()} ALERT {w.authorName ? `· ${w.authorName}` : ''}
+                          </Text>
+                          <Text style={{ fontSize: 13, color: '#1F2937', fontWeight: '500' }}>{w.text}</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : null}
+
+              {/* Member Motivation / Routine Notes */}
+              {fitnessGoal.memberNotes ? (
+                <View style={{ backgroundColor: '#F1F5F9', padding: 10, borderRadius: radii.sm, borderWidth: 1, borderColor: '#E2E8F0' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.muted }}>MEMBER MOTIVATION & PREFERENCES:</Text>
+                  <Text style={{ fontSize: 13, color: colors.nearBlack, marginTop: 2, fontStyle: 'italic' }}>
+                    "{fitnessGoal.memberNotes}"
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Coach Program Notes */}
+              {fitnessGoal.notes ? (
+                <View style={{ backgroundColor: '#F8FAFC', padding: 10, borderRadius: radii.sm, borderWidth: 1, borderColor: '#E2E8F0' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.muted }}>COACH PROGRAM NOTES:</Text>
+                  <Text style={{ fontSize: 13, color: colors.nearBlack, marginTop: 2 }}>
+                    {fitnessGoal.notes}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : (
+            <View style={{ gap: 8 }}>
+              <Text style={styles.muted}>No fitness goals or movement limitations logged yet for this member.</Text>
+              <Pressable
+                onPress={() => setGoalModalVisible(true)}
+                style={styles.addGoalBtn}
+                accessibilityRole="button"
+              >
+                <Ionicons name="add-circle" size={16} color={colors.primary} />
+                <Text style={styles.addGoalBtnText}>Establish Goals & Safety History</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+
+        {/* ========================================================= */}
+        {/* WORKOUT LOGS & PROGRESSION TRACKING                      */}
+        {/* ========================================================= */}
+        <View style={styles.card}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="barbell" size={18} color={colors.primary} />
+              <Text style={styles.sectionTitle}>
+                Workout History ({workoutLogs.length})
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => {
+                setEditingWorkoutLog(null);
+                setWorkoutModalVisible(true);
+              }}
+              style={styles.logWorkoutHeaderBtn}
+              accessibilityRole="button"
+            >
+              <Ionicons name="add" size={15} color="#FFFFFF" />
+              <Text style={styles.logWorkoutHeaderBtnText}>+ Log Workout</Text>
+            </Pressable>
+          </View>
+
+          {workoutLogs.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: 18, gap: 6 }}>
+              <Ionicons name="barbell-outline" size={28} color={colors.muted} />
+              <Text style={styles.muted}>No workouts logged yet for {member?.name}.</Text>
+              <Pressable
+                onPress={() => {
+                  setEditingWorkoutLog(null);
+                  setWorkoutModalVisible(true);
+                }}
+                style={styles.addGoalBtn}
+              >
+                <Text style={styles.addGoalBtnText}>Record First Workout Session</Text>
+              </Pressable>
+            </View>
+          ) : (
+            workoutLogs.map((log) => (
+              <View key={log.id} style={styles.workoutLogItem}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>
+                      {log.date}
+                    </Text>
+                    <View style={styles.sessionTypeBadge}>
+                      <Text style={styles.sessionTypeBadgeText}>
+                        {log.sessionType.toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {log.rpe ? (
+                      <View style={styles.rpeBadge}>
+                        <Text style={styles.rpeBadgeText}>RPE {log.rpe}/10</Text>
+                      </View>
+                    ) : null}
+                    <Pressable
+                      onPress={() => {
+                        setEditingWorkoutLog(log);
+                        setWorkoutModalVisible(true);
+                      }}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Edit workout log"
+                      style={{ padding: 2 }}
+                    >
+                      <Ionicons name="create-outline" size={17} color={colors.primary} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => void handleDeleteWorkoutLog(log.id)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Delete workout log"
+                    >
+                      <Ionicons name="trash-outline" size={16} color={colors.muted} />
+                    </Pressable>
+                  </View>
+                </View>
+
+                <Text style={{ fontSize: 15, fontWeight: '800', color: colors.nearBlack }}>
+                  {log.title}
+                </Text>
+
+                {/* Exercises list */}
+                {log.exercises && log.exercises.length > 0 ? (
+                  <View style={styles.exerciseTable}>
+                    {log.exercises.map((ex, exIdx) => (
+                      <View key={exIdx} style={styles.exerciseRow}>
+                        <Text style={styles.exName}>{ex.name}</Text>
+                        <Text style={styles.exMeta}>
+                          {ex.sets} sets × {ex.reps} {ex.weight ? `@ ${ex.weight}` : ''}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                {/* Coach notes */}
+                {log.notes ? (
+                  <Text style={{ fontSize: 12, color: colors.muted, fontStyle: 'italic', marginTop: 2 }}>
+                    💡 <Text style={{ fontWeight: '600' }}>Coach:</Text> {log.notes}
+                  </Text>
+                ) : null}
+
+                {/* Client feedback */}
+                {log.clientFeedback ? (
+                  <Text style={{ fontSize: 12, color: '#15803D', fontStyle: 'italic' }}>
+                    💬 <Text style={{ fontWeight: '600' }}>Client:</Text> {log.clientFeedback}
+                  </Text>
+                ) : null}
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* ========================================================= */}
+        {/* DIRECT LESSON BOOKING WITH CLIENT                         */}
+        {/* ========================================================= */}
+        <View style={styles.card}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="calendar" size={18} color={colors.primary} />
+              <Text style={styles.sectionTitle}>1-on-1 Lesson Scheduling</Text>
+            </View>
+            <Pressable
+              onPress={() => setBookLessonModalVisible(true)}
+              style={[styles.badgeBtn, { backgroundColor: '#EFF6FF' }]}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.badgeBtnText, { color: colors.primary }]}>+ Book Lesson ›</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.muted}>
+            Schedule an upcoming private coaching session with {member?.name} and send calendar confirmation.
+          </Text>
         </View>
 
         {/* Membership Details & Admin Plan Actions */}
@@ -809,6 +1153,100 @@ export default function StaffMemberDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ========================================== */}
+      {/* MODAL: TRAINER CLIENT WORKOUT MODAL        */}
+      {/* ========================================== */}
+      <TrainerClientWorkoutModal
+        visible={workoutModalVisible}
+        onClose={() => {
+          setWorkoutModalVisible(false);
+          setEditingWorkoutLog(null);
+        }}
+        member={member}
+        initialLog={editingWorkoutLog}
+        mode="trainer"
+        onSaved={() => void load()}
+        onDeleted={() => void load()}
+      />
+
+      {/* ========================================== */}
+      {/* MODAL: TRAINER CLIENT FITNESS GOAL MODAL   */}
+      {/* ========================================== */}
+      <TrainerGoalModal
+        visible={goalModalVisible}
+        onClose={() => setGoalModalVisible(false)}
+        member={member}
+        existingGoal={fitnessGoal}
+        mode="trainer"
+        onSaved={() => void load()}
+      />
+
+      {/* ========================================== */}
+      {/* MODAL: DIRECT LESSON BOOKING               */}
+      {/* ========================================== */}
+      <Modal visible={bookLessonModalVisible} animationType="slide" transparent onRequestClose={() => setBookLessonModalVisible(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="calendar" size={20} color={colors.primary} />
+                <Text style={styles.modalTitle}>Book Private Lesson</Text>
+              </View>
+              <Pressable onPress={() => setBookLessonModalVisible(false)} hitSlop={10}>
+                <Ionicons name="close" size={24} color={colors.nearBlack} />
+              </Pressable>
+            </View>
+
+            <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 10 }}>
+              Schedule a private 1-on-1 session for <Text style={{ fontWeight: '700', color: colors.nearBlack }}>{member?.name}</Text>.
+            </Text>
+
+            <View style={{ gap: 10 }}>
+              <TextField
+                label="Session Date (YYYY-MM-DD)"
+                value={bookDate}
+                onChangeText={setBookDate}
+                placeholder="2026-09-17"
+              />
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <TextField
+                    label="Start Time (HH:MM)"
+                    value={bookStart}
+                    onChangeText={setBookStart}
+                    placeholder="14:00"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <TextField
+                    label="End Time (HH:MM)"
+                    value={bookEnd}
+                    onChangeText={setBookEnd}
+                    placeholder="15:00"
+                  />
+                </View>
+              </View>
+
+              <TextField
+                label="Location / Studio"
+                value={bookLocation}
+                onChangeText={setBookLocation}
+                placeholder="Wellness Studio B"
+              />
+
+              <View style={{ marginTop: 8 }}>
+                <PrimaryButton
+                  title="Confirm & Book Session"
+                  onPress={() => void handleBookLessonDirectly()}
+                  loading={bookingLesson}
+                />
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -1136,5 +1574,123 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.muted,
     marginTop: 2,
+  },
+  goalHighlightBox: {
+    backgroundColor: '#EFF6FF',
+    padding: 12,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  weightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  weightBox: {
+    alignItems: 'center',
+  },
+  weightVal: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.nearBlack,
+  },
+  weightLabel: {
+    fontSize: 11,
+    color: colors.muted,
+    marginTop: 2,
+  },
+  injuryCard: {
+    backgroundColor: '#FEF3C7',
+    padding: 12,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  addGoalBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+  },
+  addGoalBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  logWorkoutHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#15803D',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  logWorkoutHeaderBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  workoutLogItem: {
+    padding: 12,
+    borderRadius: radii.sm,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 6,
+    marginBottom: 6,
+  },
+  sessionTypeBadge: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  sessionTypeBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  rpeBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  rpeBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  exerciseTable: {
+    backgroundColor: colors.white,
+    padding: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 4,
+    marginTop: 2,
+  },
+  exerciseRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  exName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.nearBlack,
+  },
+  exMeta: {
+    fontSize: 12,
+    color: colors.primaryDark,
+    fontWeight: '600',
   },
 });

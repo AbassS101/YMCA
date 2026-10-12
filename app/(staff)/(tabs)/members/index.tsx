@@ -15,13 +15,21 @@ import {
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { TextField } from '@/components/TextField';
+import { TrainerClientWorkoutModal } from '@/components/TrainerClientWorkoutModal';
 import { UserAvatar } from '@/components/UserAvatar';
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { formatShortDate } from '@/domain/displayDates';
-import { isAdminRole, YMCA_MEMBERSHIP_PLANS, type Member, type Membership } from '@/domain/types';
+import {
+  isAdminRole,
+  YMCA_MEMBERSHIP_PLANS,
+  type ClientFitnessGoal,
+  type Member,
+  type Membership,
+} from '@/domain/types';
 import { useSession } from '@/context/SessionContext';
 import { membershipRepo } from '@/repositories/membershipRepo';
+import { trainerRepo } from '@/repositories/trainerRepo';
 import { cardStyle } from '@/theme/card';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
@@ -51,12 +59,18 @@ export default function StaffMembersScreen() {
   const staffId = session?.userId ?? '';
   const isITAdmin = session?.role === 'it_admin';
   const isAdmin = isAdminRole(session?.role);
+  const isTrainer = session?.role === 'trainer' || (!isAdmin && session?.role === 'staff');
 
   const [rows, setRows] = useState<MemberRow[]>([]);
-  const [filterMode, setFilterMode] = useState<'all' | 'assigned'>('all');
+  const [filterMode, setFilterMode] = useState<'all' | 'assigned'>(isTrainer ? 'assigned' : 'all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'cancel_pending'>('all');
+  const [clientGoals, setClientGoals] = useState<Record<string, ClientFitnessGoal | null>>({});
   const [query, setQuery] = useState('');
   const [error, setError] = useState(false);
+
+  // Trainer Workout Logging Modal
+  const [workoutModalVisible, setWorkoutModalVisible] = useState(false);
+  const [selectedWorkoutMember, setSelectedWorkoutMember] = useState<Member | null>(null);
 
   // Admin: Create Member State
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -95,6 +109,20 @@ export default function StaffMembersScreen() {
         const assignedIds = new Set(assigned.map((a) => a.id));
         setRows(validRows.filter((r) => assignedIds.has(r.member.id)));
       }
+
+      // Load fitness goals for members
+      const goalsMap: Record<string, ClientFitnessGoal | null> = {};
+      await Promise.all(
+        validRows.map(async (r) => {
+          try {
+            const g = await trainerRepo.getClientFitnessGoal(api, r.member.id);
+            goalsMap[r.member.id] = g;
+          } catch {
+            goalsMap[r.member.id] = null;
+          }
+        })
+      );
+      setClientGoals(goalsMap);
     } catch {
       setError(true);
     }
@@ -241,59 +269,164 @@ export default function StaffMembersScreen() {
             {rows.length === 0 ? 'No members found.' : 'No matches for your search.'}
           </Text>
         ) : (
-          filtered.map(({ member, membership }) => (
-            <Pressable
-              key={member.id}
-              onPress={() => router.push(`/(staff)/members/${member.id}`)}
-              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-              accessibilityRole="button"
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <UserAvatar uri={member.avatarUrl} name={member.name} size={46} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.name}>{member.name}</Text>
-                  <Text style={styles.meta}>
-                    {member.email} · {member.phone}
-                  </Text>
-                  <Text style={styles.meta}>
-                    Plan: <Text style={{ fontWeight: '700', color: colors.nearBlack }}>{member.type}</Text> · ${(membership.monthlyAmountCents / 100).toFixed(2)}/mo
-                  </Text>
-                  <Text style={styles.meta}>Next bill {formatShortDate(membership.nextBillingDate)}</Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusPill,
-                    {
-                      backgroundColor:
-                        member.status === 'active'
-                          ? '#F0FDF4'
-                          : member.status === 'cancel_pending'
-                          ? '#FEF2F2'
-                          : '#F3F4F6',
-                    },
-                  ]}
+          filtered.map(({ member, membership }) => {
+            const goal = clientGoals[member.id];
+            return (
+              <View
+                key={member.id}
+                style={[styles.row, { gap: 10 }]}
+              >
+                <Pressable
+                  onPress={() => router.push(`/(staff)/members/${member.id}`)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
+                  accessibilityRole="button"
                 >
-                  <Text
+                  <UserAvatar uri={member.avatarUrl} name={member.name} size={46} />
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.name}>{member.name}</Text>
+                      {filterMode === 'assigned' || goal ? (
+                        <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: '#15803D' }}>CLIENT</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.meta}>
+                      {member.email} · {member.phone}
+                    </Text>
+                    <Text style={styles.meta}>
+                      Plan: <Text style={{ fontWeight: '700', color: colors.nearBlack }}>{member.type}</Text> · ${(membership.monthlyAmountCents / 100).toFixed(2)}/mo
+                    </Text>
+                    <Text style={styles.meta}>Next bill {formatShortDate(membership.nextBillingDate)}</Text>
+                  </View>
+                  <View
                     style={[
-                      styles.statusPillText,
+                      styles.statusPill,
                       {
-                        color:
+                        backgroundColor:
                           member.status === 'active'
-                            ? '#15803D'
+                            ? '#F0FDF4'
                             : member.status === 'cancel_pending'
-                            ? colors.scarlet
-                            : colors.muted,
+                            ? '#FEF2F2'
+                            : '#F3F4F6',
                       },
                     ]}
                   >
-                    {statusLabel(member.status)}
-                  </Text>
-                </View>
+                    <Text
+                      style={[
+                        styles.statusPillText,
+                        {
+                          color:
+                            member.status === 'active'
+                              ? '#15803D'
+                              : member.status === 'cancel_pending'
+                              ? colors.scarlet
+                              : colors.muted,
+                        },
+                      ]}
+                    >
+                      {statusLabel(member.status)}
+                    </Text>
+                  </View>
+                </Pressable>
+
+                {/* Client Goal Preview if assigned */}
+                {goal ? (
+                  <View style={{ backgroundColor: '#F9FAFB', padding: 8, borderRadius: 6, marginTop: 2 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary }}>
+                      🎯 Goal: {goal.primaryGoal}
+                    </Text>
+                    {goal.currentWeightLbs && goal.targetWeightLbs ? (
+                      <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                        Weight Target: {goal.currentWeightLbs} lbs → {goal.targetWeightLbs} lbs
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {/* Trainer Action Buttons */}
+                {isTrainer ? (
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)', paddingTop: 8 }}>
+                    <Pressable
+                      onPress={() => {
+                        setSelectedWorkoutMember(member);
+                        setWorkoutModalVisible(true);
+                      }}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 4,
+                        paddingVertical: 7,
+                        backgroundColor: colors.primary,
+                        borderRadius: 6,
+                      }}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="barbell" size={13} color="#FFFFFF" />
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>+ Log Workout</Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={async () => {
+                        try {
+                          const thread = await api.getOrCreateThread(member.id, staffId);
+                          router.push(`/(staff)/messages/${thread.id}`);
+                        } catch {
+                          dialog.alert('Error', 'Could not open messages.');
+                        }
+                      }}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 4,
+                        paddingVertical: 7,
+                        backgroundColor: '#EFF6FF',
+                        borderRadius: 6,
+                        borderWidth: 1,
+                        borderColor: '#BFDBFE',
+                      }}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="chatbubbles" size={13} color={colors.primary} />
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary }}>Message</Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => router.push(`/(staff)/members/${member.id}`)}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 4,
+                        paddingVertical: 7,
+                        backgroundColor: '#F3F4F6',
+                        borderRadius: 6,
+                      }}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="fitness" size={13} color={colors.nearBlack} />
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: colors.nearBlack }}>Goals & Logs</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
-            </Pressable>
-          ))
+            );
+          })
         )}
       </ScrollView>
+
+      {/* Trainer Workout Logging Modal */}
+      <TrainerClientWorkoutModal
+        visible={workoutModalVisible}
+        onClose={() => setWorkoutModalVisible(false)}
+        member={selectedWorkoutMember}
+        onSaved={() => void load()}
+      />
 
       {/* ========================================== */}
       {/* MODAL: REGISTER NEW MEMBER (ADMIN) */}

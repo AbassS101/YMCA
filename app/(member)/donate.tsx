@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -8,7 +8,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 
@@ -17,7 +16,6 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { TextField } from '@/components/TextField';
 import { YHeader } from '@/components/YHeader';
-import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { tokenizePaymentInput } from '@/domain/paymentTokenizer';
@@ -31,9 +29,10 @@ import {
 import { donationRepo } from '@/repositories/donationRepo';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { cardStyle } from '@/theme/card';
-import { radii, spacing, typography } from '@/theme/typography';
+import { radii, typography } from '@/theme/typography';
 
 const TIER_TO_FUND_MAP: Record<number, string> = {
+  2500: 'aquatics',
   5000: 'livestrong',
   10000: 'parkinsons',
   17500: 'summer-camp',
@@ -57,15 +56,20 @@ function formatDate(iso: string): string {
 
 export default function DonateScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ amount?: string; fund?: string }>();
   const { session, api } = useSession();
   const { colors, isDark } = useTheme();
   const memberId = session?.userId ?? '';
 
+  const parsedAmount = params.amount ? parseInt(params.amount, 10) : 10000;
+  const initialAmount = isNaN(parsedAmount) ? 10000 : parsedAmount;
+  const initialFund = params.fund || (TIER_TO_FUND_MAP[initialAmount] ?? 'parkinsons');
+
   const [frequency, setFrequency] = useState<DonationFrequency>('one-time');
-  const [selectedAmountCents, setSelectedAmountCents] = useState<number>(10000); // $100 default (Pedaling for Parkinson's)
+  const [selectedAmountCents, setSelectedAmountCents] = useState<number>(initialAmount);
   const [isCustom, setIsCustom] = useState(false);
   const [customAmountStr, setCustomAmountStr] = useState('');
-  const [selectedFundId, setSelectedFundId] = useState<string>('parkinsons');
+  const [selectedFundId, setSelectedFundId] = useState<string>(initialFund);
   const [showCaseDetails, setShowCaseDetails] = useState(false);
 
   const [donorName, setDonorName] = useState('');
@@ -532,7 +536,7 @@ export default function DonateScreen() {
           <View style={[styles.taglineCard, { backgroundColor: isDark ? '#1F2937' : '#F1F5F9' }]}>
             <Ionicons name="people" size={18} color={colors.primary} />
             <AppText style={[styles.taglineText, { color: colors.text }]}>
-              "{YMCA_CASE_FOR_SUPPORT_2026.tagline}"
+              “{YMCA_CASE_FOR_SUPPORT_2026.tagline}”
             </AppText>
           </View>
 

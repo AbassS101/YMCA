@@ -285,6 +285,40 @@ export default function StaffMeScreen() {
           ) : null}
 
           <Pressable
+            onPress={() => router.push('/(staff)/surveys')}
+            style={[styles.adminActionBtn, { borderColor: tc.border, marginTop: 8 }]}
+            accessibilityRole="button"
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+              <Ionicons name="stats-chart" size={20} color="#16A34A" />
+              <View>
+                <Text style={[styles.adminActionTitle, { color: tc.text }]}>Member Surveys & Polls</Text>
+                <Text style={[styles.adminActionSub, { color: tc.textMuted }]}>
+                  Create branch polls, review member responses, and inspect live analytics
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={tc.textMuted} />
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push('/(staff)/announcements')}
+            style={[styles.adminActionBtn, { borderColor: tc.border, marginTop: 8 }]}
+            accessibilityRole="button"
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+              <Ionicons name="megaphone" size={20} color={colors.primary} />
+              <View>
+                <Text style={[styles.adminActionTitle, { color: tc.text }]}>Announcements & Pop-up Notices</Text>
+                <Text style={[styles.adminActionSub, { color: tc.textMuted }]}>
+                  Broadcast bulletins, pin alerts, and configure app-opening member pop-ups
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={tc.textMuted} />
+          </Pressable>
+
+          <Pressable
             onPress={() => router.push('/(staff)/complaints-suggestions')}
             style={[styles.adminActionBtn, { borderColor: tc.border, marginTop: 8 }]}
             accessibilityRole="button"
