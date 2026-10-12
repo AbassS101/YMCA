@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -10,6 +10,7 @@ import { SecondaryButton } from '@/components/SecondaryButton';
 import { TrainerClientWorkoutModal } from '@/components/TrainerClientWorkoutModal';
 import { TrainerGoalModal } from '@/components/TrainerGoalModal';
 import { UserAvatar } from '@/components/UserAvatar';
+import { WellnessPackagesView } from '@/components/WellnessPackagesView';
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
@@ -47,15 +48,18 @@ function formatLessonWhen(isoStart: string): string {
   return `${day} · ${time}`;
 }
 
-type SupportCategory = 'trainers' | 'staff';
+type SupportCategory = 'trainers' | 'packages' | 'staff';
 
 export default function MemberTrainersScreen() {
   const router = useRouter();
+  const { tab } = useLocalSearchParams<{ tab?: string }>();
   const { session, api } = useSession();
   const { colors, isDark } = useTheme();
   const memberId = session?.userId ?? '';
 
-  const [activeCategory, setActiveCategory] = useState<SupportCategory>('trainers');
+  const [activeCategory, setActiveCategory] = useState<SupportCategory>(
+    tab === 'packages' ? 'packages' : 'trainers'
+  );
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [assignedTrainer, setAssignedTrainer] = useState<Staff | null>(null);
   const [selectedTrainerId, setSelectedTrainerId] = useState<string>('staff-alex');
@@ -274,7 +278,7 @@ export default function MemberTrainersScreen() {
             >
               <Ionicons
                 name="fitness"
-                size={18}
+                size={15}
                 color={activeCategory === 'trainers' ? colors.primary : colors.muted}
               />
               <Text
@@ -287,7 +291,44 @@ export default function MemberTrainersScreen() {
                 ]}
                 allowFontScaling
               >
-                Personal Trainers
+                Trainers
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setActiveCategory('packages')}
+              style={[
+                styles.segmentTab,
+                activeCategory === 'packages'
+                  ? [
+                      styles.segmentTabActive,
+                      {
+                        backgroundColor: colors.card,
+                        shadowColor: '#000',
+                      },
+                    ]
+                  : null,
+              ]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeCategory === 'packages' }}
+              accessibilityLabel="Wellness Training Packages and Rates option"
+            >
+              <Ionicons
+                name="medal"
+                size={15}
+                color={activeCategory === 'packages' ? colors.primary : colors.muted}
+              />
+              <Text
+                style={[
+                  styles.segmentText,
+                  {
+                    color: activeCategory === 'packages' ? colors.primary : colors.muted,
+                    fontWeight: activeCategory === 'packages' ? '700' : '600',
+                  },
+                ]}
+                allowFontScaling
+              >
+                Packages & Rates
               </Text>
             </Pressable>
 
@@ -311,7 +352,7 @@ export default function MemberTrainersScreen() {
             >
               <Ionicons
                 name="business"
-                size={18}
+                size={15}
                 color={activeCategory === 'staff' ? colors.primary : colors.muted}
               />
               <Text
@@ -324,7 +365,7 @@ export default function MemberTrainersScreen() {
                 ]}
                 allowFontScaling
               >
-                Staff & Desk Support
+                Staff Desk
               </Text>
             </Pressable>
           </View>
@@ -492,6 +533,67 @@ export default function MemberTrainersScreen() {
               </View>
             ) : null}
 
+            {/* Wellness Training Rates & Packages Promo Card */}
+            <View
+              style={[
+                styles.card,
+                cardTheme,
+                {
+                  backgroundColor: isDark ? '#0F172A' : '#EFF6FF',
+                  borderColor: colors.primary,
+                  borderWidth: 1.5,
+                  gap: 10,
+                },
+              ]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    backgroundColor: isDark ? '#1E3A8A' : '#DBEAFE',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Ionicons name="medal" size={20} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }} allowFontScaling>
+                    Wellness Training Packages & Rates
+                  </Text>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }} allowFontScaling>
+                    60-Min, 30-Min & Partner Training from $35
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={{ fontSize: 12, color: colors.textMuted, lineHeight: 17 }} allowFontScaling>
+                Nationally certified YMCA trainers. Every package includes a full functional assessment, goal planning, and a custom program plan. Save up to $180 on multi-session packs!
+              </Text>
+
+              <Pressable
+                onPress={() => setActiveCategory('packages')}
+                style={({ pressed }) => [
+                  styles.chatActionButton,
+                  {
+                    backgroundColor: pressed ? colors.primaryLight : colors.cardBg,
+                    borderColor: colors.primary,
+                    paddingVertical: 10,
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="View Wellness Training Packages and Pricing"
+              >
+                <Ionicons name="pricetag-outline" size={16} color={colors.primary} />
+                <Text style={[styles.chatActionText, { color: colors.primary, fontSize: 13 }]} allowFontScaling>
+                  View Packages, Rates & Inclusions
+                </Text>
+                <Ionicons name="arrow-forward" size={14} color={colors.primary} />
+              </Pressable>
+            </View>
+
             {/* Your Booked Lessons Section */}
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.text }]} allowFontScaling>
@@ -643,7 +745,7 @@ export default function MemberTrainersScreen() {
                         My Motivation & Workout Preferences:
                       </Text>
                       <Text style={{ fontSize: 12, color: colors.text, marginTop: 2, fontStyle: 'italic' }}>
-                        "{clientGoal.memberNotes}"
+                        {`"${clientGoal.memberNotes}"`}
                       </Text>
                     </View>
                   ) : null}
@@ -704,7 +806,7 @@ export default function MemberTrainersScreen() {
                     <View style={{ borderLeftWidth: 3, borderLeftColor: colors.primary, paddingLeft: 10, paddingVertical: 2 }}>
                       <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary }}>COACH STRATEGY & PROTOCOL</Text>
                       <Text style={{ fontSize: 12, color: colors.textMuted, fontStyle: 'italic', marginTop: 2 }}>
-                        "{clientGoal.notes}"
+                        {`"${clientGoal.notes}"`}
                       </Text>
                     </View>
                   ) : null}
@@ -858,13 +960,13 @@ export default function MemberTrainersScreen() {
 
                         {log.notes ? (
                           <Text style={{ fontSize: 12, color: colors.textMuted, fontStyle: 'italic' }}>
-                            💡 Coach Notes: "{log.notes}"
+                            {`💡 Coach Notes: "${log.notes}"`}
                           </Text>
                         ) : null}
 
                         {log.clientFeedback ? (
                           <Text style={{ fontSize: 12, color: '#15803D', fontStyle: 'italic' }}>
-                            💬 Member Reflection: "{log.clientFeedback}"
+                            {`💬 Member Reflection: "${log.clientFeedback}"`}
                           </Text>
                         ) : null}
 
@@ -901,8 +1003,29 @@ export default function MemberTrainersScreen() {
               )}
             </View>
           </View>
+        ) : activeCategory === 'packages' ? (
+          /* Option 2: WELLNESS TRAINING PACKAGES & RATES */
+          <View style={styles.tabContent}>
+            <WellnessPackagesView
+              onBookLesson={() => {
+                if (selectedTrainer) {
+                  router.push({
+                    pathname: '/(member)/book-lesson',
+                    params: { staffId: selectedTrainer.id },
+                  });
+                } else {
+                  setActiveCategory('trainers');
+                }
+              }}
+              onChatWithDesk={() => {
+                if (deskStaff) {
+                  void openChatWith(deskStaff);
+                }
+              }}
+            />
+          </View>
         ) : (
-          /* Option 2: YMCA STAFF & DESK SUPPORT */
+          /* Option 3: YMCA STAFF & DESK SUPPORT */
           <View style={styles.tabContent}>
             <View style={[styles.card, cardTheme]}>
               <View style={styles.profileHeader}>
@@ -921,7 +1044,7 @@ export default function MemberTrainersScreen() {
                     YMCA Silver Spring Member Services
                   </Text>
                   <Text style={[styles.cardRole, { color: colors.primary }]} allowFontScaling>
-                    {deskStaff?.name ?? 'Marcus Taylor'} · Wellness Desk Lead
+                    {deskStaff?.name ?? 'Billy Deveaux'} · Membership Director
                   </Text>
                   <Text style={[styles.cardBranch, { color: colors.textMuted }]} allowFontScaling>
                     Silver Spring Branch · Main Lobby Front Desk
@@ -954,7 +1077,7 @@ export default function MemberTrainersScreen() {
                     Desk Phone:
                   </Text>
                   <Text style={[styles.detailValue, { color: colors.textMuted }]} allowFontScaling>
-                    (301) 585-2120
+                    301 585 2120 ext 2506
                   </Text>
                 </View>
                 <View style={styles.detailRow}>
@@ -1076,13 +1199,16 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   segmentTab: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
+    paddingHorizontal: 8,
     borderRadius: radii.button - 2,
-    gap: 6,
+    gap: 5,
   },
   segmentTabActive: {
     shadowOffset: { width: 0, height: 1 },
@@ -1092,7 +1218,10 @@ const styles = StyleSheet.create({
   },
   segmentText: {
     ...typography.bodyStrong,
-    fontSize: 14,
+    fontSize: 13,
+    lineHeight: 17,
+    flexShrink: 1,
+    textAlign: 'center',
   },
   tabContent: {
     gap: spacing.md,
@@ -1200,6 +1329,8 @@ const styles = StyleSheet.create({
     ...typography.bodyStrong,
     fontSize: 15,
     fontWeight: '700',
+    flexShrink: 1,
+    textAlign: 'center',
   },
   makePrimaryBtn: {
     paddingVertical: 8,

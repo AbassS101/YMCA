@@ -28,7 +28,7 @@ const DEMO_PASSWORD = 'ymca-demo';
 
 const DEMO_PERSONAS = [
   {
-    name: 'Jordan Hale',
+    name: 'John Doe',
     email: 'jordan@silverspring.ymca',
     roleTitle: 'Active YMCA Member',
     badge: 'MEMBER',
@@ -39,10 +39,10 @@ const DEMO_PERSONAS = [
     highlights: 'Barcode pass, class booking, charitable giving, community forum',
   },
   {
-    name: 'Jane Smith',
+    name: 'David',
     email: 'admin@silverspring.ymca',
-    roleTitle: 'Director · Staff Admin',
-    badge: 'DIRECTOR',
+    roleTitle: 'Staff Admin · Branch Director',
+    badge: 'STAFF ADMIN',
     badgeBg: '#FEF3C7',
     badgeColor: '#B45309',
     borderColor: '#F59E0B',
@@ -50,9 +50,9 @@ const DEMO_PERSONAS = [
     highlights: 'Facility notices, membership cancel approvals, staff & schedule oversight',
   },
   {
-    name: 'Alex Rivera',
+    name: 'Doc',
     email: 'alex@silverspring.ymca',
-    roleTitle: 'Lead Personal Trainer · Wellness',
+    roleTitle: 'Personal Trainer · Wellness',
     badge: 'TRAINER',
     badgeBg: '#DCFCE7',
     badgeColor: '#15803D',
@@ -61,7 +61,7 @@ const DEMO_PERSONAS = [
     highlights: 'Class rosters, 1-on-1 private lesson slots, client messaging',
   },
   {
-    name: 'David Miller',
+    name: 'Abass Shikur',
     email: 'itadmin@silverspring.ymca',
     roleTitle: 'IT Systems Administrator · IT',
     badge: 'IT ADMIN',
@@ -70,6 +70,28 @@ const DEMO_PERSONAS = [
     borderColor: '#8B5CF6',
     icon: 'shield-checkmark' as const,
     highlights: 'System configuration, staff accounts, IT tickets, tech access',
+  },
+  {
+    name: 'Celine',
+    email: 'celine@silverspring.ymca',
+    roleTitle: 'Wellness Director (Incharge of Personal training)',
+    badge: 'WELLNESS DIR',
+    badgeBg: '#FCE7F3',
+    badgeColor: '#9D174D',
+    borderColor: '#EC4899',
+    icon: 'fitness' as const,
+    highlights: 'Personal training oversight, fitness protocols, trainer leadership',
+  },
+  {
+    name: 'Billy Deveaux',
+    email: 'wellness@silverspring.ymca',
+    roleTitle: 'Membership Director · Front Desk Lead',
+    badge: 'MEMBERSHIP DIR',
+    badgeBg: '#FEF3C7',
+    badgeColor: '#B45309',
+    borderColor: '#F59E0B',
+    icon: 'business' as const,
+    highlights: 'Front desk operations, member registrations, 301 585 2120 ext 2506',
   },
   {
     name: 'Taylor Smith',

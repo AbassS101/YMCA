@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -12,11 +12,20 @@ import {
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
-import { dialog } from '@/context/DialogContext';
 import { useTheme } from '@/context/ThemeContext';
+import {
+  getClassCatalogEntry,
+  getClassFullDescription,
+  getClassShortSummary,
+  requiresAdvanceRegistration,
+} from '@/domain/classCatalog';
 import type { ScheduleItem } from '@/domain/types';
 import { colors } from '@/theme/colors';
-import { radii, spacing, tapTarget, typography } from '@/theme/typography';
+import { radii, spacing, typography } from '@/theme/typography';
+import {
+  downloadOrOpenIcs,
+  openGoogleCalendar,
+} from '@/utils/calendarExport';
 
 export type ClassDetailModalProps = {
   visible: boolean;
@@ -93,7 +102,7 @@ function getEquipmentDetails(title: string, category: string): { provided: strin
       bring: 'Swimwear, goggles, swim cap, towel, and clean pool deck footwear / flip flops.',
     };
   }
-  if (t.includes('yoga') || t.includes('pilates') || t.includes('tai chi') || t.includes('qigong')) {
+  if (t.includes('yoga') || t.includes('pilates') || t.includes('tai chi') || t.includes('qigong') || t.includes('barre') || t.includes('bodybalance')) {
     return {
       provided: 'YMCA studio yoga mats, foam blocks, stretch straps, and bolsters.',
       bring: 'Comfortable stretch attire, personal yoga mat (optional), and water bottle.',
@@ -135,6 +144,11 @@ export function ClassDetailModal({
   onOpenForum,
 }: ClassDetailModalProps) {
   const { colors: tc, isDark } = useTheme();
+  const [calendarAdded, setCalendarAdded] = useState(false);
+
+  useEffect(() => {
+    setCalendarAdded(false);
+  }, [item?.id, visible]);
 
   const durationStr = useMemo(() => {
     if (!item) return '60 min';
@@ -151,19 +165,44 @@ export function ClassDetailModal({
     return getEquipmentDetails(item.title, item.category);
   }, [item]);
 
+  const catalogEntry = useMemo(() => {
+    if (!item) return undefined;
+    return getClassCatalogEntry(item.title);
+  }, [item]);
+
   if (!item) return null;
 
   const isPaid = (item.priceCents ?? 0) > 0;
+  const needsRegistration = requiresAdvanceRegistration(item);
+  const isRegistered = Boolean(registered && needsRegistration);
   const priceDisplay = isPaid ? `$${((item.priceCents ?? 0) / 100).toFixed(2)}` : 'Free with Membership';
-  const isFull = spotsLeft <= 0 && !registered;
+  const isFull = spotsLeft <= 0 && !isRegistered;
+  const fullDescription = getClassFullDescription(item);
+  const shortSummary = getClassShortSummary(item);
+
+  const calendarEvent = {
+    title: item.title,
+    startIso: item.start,
+    endIso: item.end,
+    location: item.location,
+    description: fullDescription,
+    instructorName: item.instructorName,
+  };
 
   const handleAddToCalendar = () => {
-    dialog.show({
-      title: 'Added to Calendar! 📅',
-      message: `"${item.title}" on ${dayLabel} at ${timeLabel} has been synced to your personal YMCA activity schedule.`,
-      icon: 'calendar',
-      buttons: [{ text: 'Great', style: 'default' }],
-    });
+    setCalendarAdded(true);
+    if (!starred && onToggleStar) {
+      onToggleStar();
+    }
+    void downloadOrOpenIcs(calendarEvent);
+  };
+
+  const handleOpenGoogleCalendar = () => {
+    setCalendarAdded(true);
+    if (!starred && onToggleStar) {
+      onToggleStar();
+    }
+    void openGoogleCalendar(calendarEvent);
   };
 
   return (
@@ -176,13 +215,19 @@ export function ClassDetailModal({
               <View style={styles.topBadgeRow}>
                 <View style={[styles.sessionBadge, { backgroundColor: tc.primaryLight }]}>
                   <Text style={[styles.sessionBadgeText, { color: tc.primary }]}>
-                    FALL 1 SCHEDULE · SILVER SPRING
+                    {catalogEntry ? `${catalogEntry.section.toUpperCase()} · ` : ''}FALL 1 SCHEDULE
                   </Text>
                 </View>
                 {item.registrationRequired ? (
                   <View style={[styles.regReqBadge, { backgroundColor: isDark ? '#7F1D1D' : '#FEE2E2' }]}>
                     <Text style={[styles.regReqBadgeText, { color: isDark ? '#FCA5A5' : '#B91C1C' }]}>
                       ⚠️ REGISTRATION REQUIRED
+                    </Text>
+                  </View>
+                ) : !needsRegistration ? (
+                  <View style={[styles.regReqBadge, { backgroundColor: isDark ? '#1E293B' : '#E0F2FE' }]}>
+                    <Text style={[styles.regReqBadgeText, { color: tc.primary }]}>
+                      DROP-IN · NO REG NEEDED
                     </Text>
                   </View>
                 ) : null}
@@ -231,7 +276,7 @@ export function ClassDetailModal({
               </View>
             </View>
 
-            {/* Registration Callout if required */}
+            {/* Registration Callout vs Drop-In Star Reminder Callout */}
             {item.registrationRequired ? (
               <View
                 style={[
@@ -249,6 +294,55 @@ export function ClassDetailModal({
                   </Text>
                   <Text style={[styles.calloutBody, { color: isDark ? '#FCD34D' : '#78350F' }]}>
                     This program has capped capacity to ensure proper instructor supervision and equipment availability. Please reserve your spot below.
+                  </Text>
+                </View>
+              </View>
+            ) : !needsRegistration ? (
+              <View
+                style={[
+                  styles.calloutCard,
+                  {
+                    backgroundColor: starred
+                      ? isDark
+                        ? '#422006'
+                        : '#FFFBEB'
+                      : isDark
+                      ? '#0F233A'
+                      : '#F0F9FF',
+                    borderColor: starred
+                      ? '#F59E0B'
+                      : isDark
+                      ? '#1E3A8A'
+                      : '#BAE6FD',
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={starred ? 'notifications' : 'star-outline'}
+                  size={22}
+                  color={starred ? '#D97706' : tc.primary}
+                  style={{ marginTop: 2 }}
+                />
+                <View style={{ flex: 1, gap: 3 }}>
+                  <Text
+                    style={[
+                      styles.calloutTitle,
+                      { color: starred ? (isDark ? '#FDE68A' : '#92400E') : tc.text },
+                    ]}
+                  >
+                    {starred
+                      ? 'Starred · Notification Reminder Active'
+                      : 'No Registration Needed · Star for Class Reminder'}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.calloutBody,
+                      { color: starred ? (isDark ? '#FCD34D' : '#78350F') : tc.textMuted },
+                    ]}
+                  >
+                    {starred
+                      ? `You've starred ${item.title}! We will notify you when this class is happening—just show up and enjoy.`
+                      : 'This is a drop-in class included with your membership. No need to register—just star it to get notified when it is happening!'}
                   </Text>
                 </View>
               </View>
@@ -281,6 +375,19 @@ export function ClassDetailModal({
                   <Text style={[styles.pillText, { color: tc.text }]}>Intensity: {item.intensity}</Text>
                 </View>
               ) : null}
+            </View>
+
+            {/* Official YMCA Class Description */}
+            <View style={styles.contentBlock}>
+              <Text style={[styles.blockHeading, { color: tc.text }]}>Class Description</Text>
+              {shortSummary && shortSummary !== fullDescription ? (
+                <Text style={[styles.summaryLead, { color: tc.primary }]}>
+                  {shortSummary}
+                </Text>
+              ) : null}
+              <Text style={[styles.bodyText, { color: tc.text }]}>
+                {fullDescription}
+              </Text>
             </View>
 
             {/* Instructor & Location Section */}
@@ -322,15 +429,6 @@ export function ClassDetailModal({
               </View>
             </View>
 
-            {/* Description */}
-            <View style={styles.contentBlock}>
-              <Text style={[styles.blockHeading, { color: tc.text }]}>About This Format</Text>
-              <Text style={[styles.bodyText, { color: tc.text }]}>
-                {item.description ??
-                  'Join our certified YMCA Silver Spring instructor for this dynamic group fitness session designed to build functional strength, mobility, and cardiovascular health in a supportive community environment.'}
-              </Text>
-            </View>
-
             {/* What to Bring & Provided */}
             <View style={[styles.equipCard, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC', borderColor: tc.border }]}>
               <View style={{ gap: 4 }}>
@@ -352,50 +450,52 @@ export function ClassDetailModal({
               </View>
             </View>
 
-            {/* Capacity Status Gauge */}
-            <View style={[styles.capacityCard, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC', borderColor: tc.border }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={[styles.capacityTitle, { color: tc.text }]}>Class Capacity</Text>
-                <Text
-                  style={[
-                    styles.capacityCount,
-                    {
-                      color: isFull
-                        ? tc.danger
-                        : spotsLeft <= 3
-                        ? tc.gold
-                        : tc.success,
-                    },
-                  ]}
-                >
-                  {isFull
-                    ? 'Session is Full'
-                    : `${spotsLeft} of ${item.capacity} spots open`}
+            {/* Capacity Status Gauge (Shown when registration is required) */}
+            {needsRegistration ? (
+              <View style={[styles.capacityCard, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC', borderColor: tc.border }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={[styles.capacityTitle, { color: tc.text }]}>Class Capacity</Text>
+                  <Text
+                    style={[
+                      styles.capacityCount,
+                      {
+                        color: isFull
+                          ? tc.danger
+                          : spotsLeft <= 3
+                          ? tc.gold
+                          : tc.success,
+                      },
+                    ]}
+                  >
+                    {isFull
+                      ? 'Session is Full'
+                      : `${spotsLeft} of ${item.capacity} spots open`}
+                  </Text>
+                </View>
+
+                {/* Progress bar */}
+                <View style={[styles.progressTrack, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: `${Math.min(100, Math.max(8, (totalBooked / Math.max(1, item.capacity)) * 100))}%`,
+                        backgroundColor: isFull
+                          ? tc.danger
+                          : spotsLeft <= 3
+                          ? tc.gold
+                          : tc.primary,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={[styles.capacityHelp, { color: tc.textMuted }]}>
+                  {totalBooked} members currently enrolled in this session
                 </Text>
               </View>
+            ) : null}
 
-              {/* Progress bar */}
-              <View style={[styles.progressTrack, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    {
-                      width: `${Math.min(100, Math.max(8, (totalBooked / Math.max(1, item.capacity)) * 100))}%`,
-                      backgroundColor: isFull
-                        ? tc.danger
-                        : spotsLeft <= 3
-                        ? tc.gold
-                        : tc.primary,
-                    },
-                  ]}
-                />
-              </View>
-              <Text style={[styles.capacityHelp, { color: tc.textMuted }]}>
-                {totalBooked} members currently enrolled in this session
-              </Text>
-            </View>
-
-            {/* Quick Action Tools Row: Add to Calendar, Favorite, Forum */}
+            {/* Quick Action Tools Row: Star/Reminder, Add to Calendar, Forum */}
             <View style={styles.toolRow}>
               {onToggleStar ? (
                 <Pressable
@@ -405,7 +505,7 @@ export function ClassDetailModal({
                     { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
                   ]}
                   accessibilityRole="button"
-                  accessibilityLabel={starred ? 'Remove favorite' : 'Bookmark favorite'}
+                  accessibilityLabel={starred ? 'Remove star reminder' : 'Star for reminder'}
                 >
                   <Ionicons
                     name={starred ? 'star' : 'star-outline'}
@@ -413,7 +513,7 @@ export function ClassDetailModal({
                     color={starred ? colors.gold : tc.text}
                   />
                   <Text style={[styles.toolBtnText, { color: tc.text }]}>
-                    {starred ? 'Favorited' : 'Favorite'}
+                    {starred ? 'Starred' : 'Star Class'}
                   </Text>
                 </Pressable>
               ) : null}
@@ -422,13 +522,32 @@ export function ClassDetailModal({
                 onPress={handleAddToCalendar}
                 style={[
                   styles.toolBtn,
-                  { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
+                  calendarAdded
+                    ? {
+                        backgroundColor: isDark ? '#064E3B' : '#ECFDF5',
+                        borderColor: '#10B981',
+                      }
+                    : {
+                        backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+                        borderColor: tc.border,
+                      },
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel="Add session to personal calendar"
               >
-                <Ionicons name="calendar" size={16} color={tc.primary} />
-                <Text style={[styles.toolBtnText, { color: tc.text }]}>Add Calendar</Text>
+                <Ionicons
+                  name={calendarAdded ? 'checkmark-circle' : 'calendar'}
+                  size={16}
+                  color={calendarAdded ? '#10B981' : tc.primary}
+                />
+                <Text
+                  style={[
+                    styles.toolBtnText,
+                    { color: calendarAdded ? (isDark ? '#6EE7B7' : '#047857') : tc.text },
+                  ]}
+                >
+                  {calendarAdded ? 'In Calendar ✓' : 'Add Calendar'}
+                </Text>
               </Pressable>
 
               {onOpenForum ? (
@@ -449,67 +568,161 @@ export function ClassDetailModal({
                 </Pressable>
               ) : null}
             </View>
-          </ScrollView>
 
-          {/* Fixed Footer with Booking CTA */}
-          <View style={[styles.footer, { borderTopColor: tc.border, backgroundColor: tc.cardBg }]}>
-            {registered ? (
-              <View style={{ gap: 8 }}>
-                <View style={[styles.registeredBanner, { backgroundColor: tc.successBg, borderColor: '#A7F3D0' }]}>
-                  <Ionicons name="checkmark-circle" size={18} color={tc.success} />
-                  <Text style={[styles.registeredBannerText, { color: tc.success }]}>
-                    You are registered for this class
-                  </Text>
+            {/* Inline Calendar Sync Confirmation & Export Drawer */}
+            {calendarAdded ? (
+              <View
+                style={[
+                  styles.calendarConfirmCard,
+                  {
+                    backgroundColor: isDark ? '#064E3B' : '#F0FDF4',
+                    borderColor: isDark ? '#059669' : '#86EFAC',
+                  },
+                ]}
+              >
+                <View style={styles.calendarConfirmHeader}>
+                  <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[
+                        styles.calendarConfirmTitle,
+                        { color: isDark ? '#A7F3D0' : '#14532D' },
+                      ]}
+                    >
+                      Synced to Your YMCA Schedule & Calendar!
+                    </Text>
+                    <Text
+                      style={[
+                        styles.calendarConfirmSub,
+                        { color: isDark ? '#D1FAE5' : '#166534' },
+                      ]}
+                    >
+                      {item.title} ({dayLabel} · {timeLabel}) has been starred for reminders and exported as an .ICS calendar invite.
+                    </Text>
+                  </View>
                 </View>
 
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  {onChange ? (
-                    <View style={{ flex: 1 }}>
-                      <SecondaryButton
-                        title="Change Time"
-                        onPress={() => {
-                          onClose();
-                          onChange();
-                        }}
-                        disabled={busy}
-                      />
-                    </View>
-                  ) : null}
-                  {onCancel ? (
-                    <View style={{ flex: 1 }}>
-                      <SecondaryButton
-                        title="Cancel Spot"
-                        destructive
-                        onPress={() => {
-                          onClose();
-                          onCancel();
-                        }}
-                        disabled={busy}
-                      />
-                    </View>
-                  ) : null}
+                <View style={styles.calendarExportBtnRow}>
+                  <Pressable
+                    onPress={() => void downloadOrOpenIcs(calendarEvent)}
+                    style={[
+                      styles.calendarExportBtn,
+                      {
+                        backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+                        borderColor: isDark ? '#10B981' : '#86EFAC',
+                      },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Download ICS Calendar File for Apple or Outlook"
+                  >
+                    <Ionicons name="download-outline" size={14} color="#059669" />
+                    <Text style={[styles.calendarExportBtnText, { color: '#059669' }]}>
+                      Download .ICS (Apple / Outlook)
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleOpenGoogleCalendar}
+                    style={[
+                      styles.calendarExportBtn,
+                      {
+                        backgroundColor: tc.primary,
+                        borderColor: tc.primary,
+                      },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open in Google Calendar"
+                  >
+                    <Ionicons name="logo-google" size={13} color="#FFFFFF" />
+                    <Text style={[styles.calendarExportBtnText, { color: '#FFFFFF' }]}>
+                      Google Calendar ↗
+                    </Text>
+                  </Pressable>
                 </View>
               </View>
-            ) : (
-              <PrimaryButton
-                title={
-                  isFull
-                    ? 'Session is Full'
-                    : isPaid
-                    ? `Book & Pay ${priceDisplay}`
-                    : item.registrationRequired
-                    ? 'Reserve My Spot (Free)'
-                    : 'Register for Class (Free)'
-                }
-                onPress={() => {
-                  onClose();
-                  onRegister();
-                }}
-                disabled={isFull || busy}
-                loading={busy}
-              />
-            )}
-          </View>
+            ) : null}
+          </ScrollView>
+
+          {/* Fixed Footer: Register CTA ONLY for Reg-Required Classes */}
+          {needsRegistration ? (
+            <View style={[styles.footer, { borderTopColor: tc.border, backgroundColor: tc.cardBg }]}>
+              {isRegistered ? (
+                <View style={{ gap: 8 }}>
+                  <View style={[styles.registeredBanner, { backgroundColor: tc.successBg, borderColor: '#A7F3D0' }]}>
+                    <Ionicons name="checkmark-circle" size={18} color={tc.success} />
+                    <Text style={[styles.registeredBannerText, { color: tc.success }]}>
+                      You are registered for this class
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    {onChange ? (
+                      <View style={{ flex: 1 }}>
+                        <SecondaryButton
+                          title="Change Time"
+                          onPress={() => {
+                            onClose();
+                            onChange();
+                          }}
+                          disabled={busy}
+                        />
+                      </View>
+                    ) : null}
+                    {onCancel ? (
+                      <View style={{ flex: 1 }}>
+                        <SecondaryButton
+                          title="Cancel Spot"
+                          destructive
+                          onPress={() => {
+                            onClose();
+                            onCancel();
+                          }}
+                          disabled={busy}
+                        />
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              ) : (
+                <PrimaryButton
+                  title={
+                    isFull
+                      ? 'Session is Full'
+                      : isPaid
+                      ? `Book & Pay ${priceDisplay}`
+                      : 'Reserve My Spot (Free)'
+                  }
+                  onPress={() => {
+                    onClose();
+                    onRegister();
+                  }}
+                  disabled={isFull || busy}
+                  loading={busy}
+                />
+              )}
+            </View>
+          ) : (
+            <View style={[styles.footer, { borderTopColor: tc.border, backgroundColor: tc.cardBg }]}>
+              <View style={styles.dropInFooterRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.dropInFooterTitle, { color: tc.text }]}>
+                    Drop-In Session · No Registration Required
+                  </Text>
+                  <Text style={[styles.dropInFooterSub, { color: tc.textMuted }]}>
+                    Included with membership — simply arrive 5 minutes early.
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={onClose}
+                  style={[styles.doneCloseBtn, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close class details"
+                >
+                  <Text style={[styles.doneCloseBtnText, { color: tc.text }]}>Done</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -721,6 +934,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
+  summaryLead: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+  },
   bodyText: {
     fontSize: 14,
     lineHeight: 21,
@@ -801,6 +1019,72 @@ const styles = StyleSheet.create({
   },
   registeredBannerText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
+  },
+  calendarConfirmCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    gap: 10,
+  },
+  calendarConfirmHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  calendarConfirmTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  calendarConfirmSub: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  calendarExportBtnRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  calendarExportBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  calendarExportBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  dropInFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  dropInFooterTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  dropInFooterSub: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  doneCloseBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  doneCloseBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
   },
 });
+

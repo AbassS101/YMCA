@@ -38,7 +38,7 @@ export const DEFAULT_MENTION_CANDIDATES: MentionCandidate[] = [
   },
   {
     id: 'staff-alex',
-    name: 'Alex Rivera',
+    name: 'Doc',
     roleLabel: 'Personal Wellness Trainer',
     roleType: 'trainer',
     icon: 'barbell',
@@ -47,7 +47,7 @@ export const DEFAULT_MENTION_CANDIDATES: MentionCandidate[] = [
   },
   {
     id: 'staff-sarah',
-    name: 'Sarah Davis',
+    name: 'Jane Doe',
     roleLabel: 'Senior Mobility & Aqua Coach',
     roleType: 'trainer',
     icon: 'water',
@@ -55,9 +55,18 @@ export const DEFAULT_MENTION_CANDIDATES: MentionCandidate[] = [
     badgeText: '#0284C7',
   },
   {
+    id: 'staff-celine',
+    name: 'Celine',
+    roleLabel: 'Wellness Director (Incharge of PT)',
+    roleType: 'trainer',
+    icon: 'fitness',
+    badgeBg: '#FCE7F3',
+    badgeText: '#9D174D',
+  },
+  {
     id: 'staff-desk',
-    name: 'Marcus Taylor',
-    roleLabel: 'Wellness & Front Desk Team',
+    name: 'Billy Deveaux',
+    roleLabel: 'Membership Director',
     roleType: 'desk',
     icon: 'people',
     badgeBg: '#FEF3C7',
@@ -65,7 +74,7 @@ export const DEFAULT_MENTION_CANDIDATES: MentionCandidate[] = [
   },
   {
     id: 'staff-itadmin',
-    name: 'David Miller',
+    name: 'Abass Shikur',
     roleLabel: 'IT Systems & Security',
     roleType: 'it',
     icon: 'construct',
@@ -74,8 +83,8 @@ export const DEFAULT_MENTION_CANDIDATES: MentionCandidate[] = [
   },
   {
     id: 'staff-admin',
-    name: 'Jane Smith',
-    roleLabel: 'Branch Director',
+    name: 'David',
+    roleLabel: 'Staff Admin & Branch Director',
     roleType: 'admin',
     icon: 'shield-checkmark',
     badgeBg: '#EEF2FF',
@@ -83,7 +92,7 @@ export const DEFAULT_MENTION_CANDIDATES: MentionCandidate[] = [
   },
   {
     id: 'member-jordan',
-    name: 'Jordan Hale',
+    name: 'John Doe',
     roleLabel: 'YMCA Community Member',
     roleType: 'member',
     icon: 'person',

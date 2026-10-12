@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   Keyboard,
-  KeyboardAvoidingView,
   LayoutAnimation,
   Modal,
   Platform,
@@ -22,11 +21,25 @@ import { MentionAutocomplete } from '@/components/MentionAutocomplete';
 import { useAccessibility } from '@/context/AccessibilityContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
-import { isAdminRole, type ClassForumPost, type ScheduleItem, type Staff } from '@/domain/types';
+import {
+  containsProfanity,
+  filterProfanity,
+  isAdminRole,
+  type ClassForumPost,
+  type ScheduleItem,
+  type Staff,
+} from '@/domain/types';
 import { classForumRepo } from '@/repositories/classForumRepo';
 import { UserAvatar } from '@/components/UserAvatar';
 import { colors } from '@/theme/colors';
-import { radii, typography } from '@/theme/typography';
+import { radii } from '@/theme/typography';
+
+const REPORT_REASONS = [
+  'Profanity / Inappropriate Language',
+  'Harassment or Disrespectful Behavior',
+  'Spam or Promotional Content',
+  'Safety / Community Guidelines Violation',
+];
 
 function formatClassDate(isoStr?: string): string {
   if (!isoStr) return '';
@@ -73,6 +86,13 @@ export function ClassForumModal({
   const [submitting, setSubmitting] = useState(false);
   const [staffProfile, setStaffProfile] = useState<Staff | null>(null);
   const [memberProfileName, setMemberProfileName] = useState<string>('');
+
+  // Long-press report / moderation sheet state
+  const [selectedPostForAction, setSelectedPostForAction] = useState<ClassForumPost | null>(null);
+  const [selectedReason, setSelectedReason] = useState<string>(REPORT_REASONS[0]);
+  const [reportDetails, setReportDetails] = useState('');
+  const [submittingReport, setSubmittingReport] = useState(false);
+  const [reportSuccessTicket, setReportSuccessTicket] = useState<string | null>(null);
 
   const inputRef = useRef<TextInput>(null);
 
@@ -126,6 +146,13 @@ export function ClassForumModal({
     })();
   }, [api, currentUserId, currentUserRole, visible]);
 
+  useEffect(() => {
+    if (!visible) {
+      setSelectedPostForAction(null);
+      setReportSuccessTicket(null);
+    }
+  }, [visible]);
+
   // Determine manager privileges
   const isITAdmin = currentUserRole === 'it_admin';
   const isStaffAdmin = currentUserRole === 'staff_admin' || currentUserRole === 'admin';
@@ -136,7 +163,8 @@ export function ClassForumModal({
       scheduleItem &&
       (scheduleItem.staffId === currentUserId ||
         (staffProfile?.name &&
-          scheduleItem.instructorName.toLowerCase().includes(staffProfile.name.toLowerCase())))
+          (scheduleItem.instructorName.toLowerCase().includes(staffProfile.name.toLowerCase()) ||
+            staffProfile.name.toLowerCase().includes(scheduleItem.instructorName.toLowerCase()))))
   );
 
   const isClassManager = isOverallAdmin || isClassTrainer;
@@ -160,6 +188,9 @@ export function ClassForumModal({
     }
   }, [visible, scheduleItem, loadPosts]);
 
+  const currentDisplayName =
+    currentUserRole !== 'member' && staffProfile ? staffProfile.name : memberProfileName || 'YMCA Member';
+
   const handleSendPost = async () => {
     const trimmed = inputText.trim();
     if (!trimmed || !scheduleItem || !api) return;
@@ -180,7 +211,7 @@ export function ClassForumModal({
         authorName,
         authorRole: currentUserRole,
         authorAvatarUrl: avatarUrl,
-        content: trimmed,
+        content: filterProfanity(trimmed),
         pinned: isClassManager && pinNewPost,
       });
 
@@ -195,8 +226,23 @@ export function ClassForumModal({
     }
   };
 
+  const handleDeletePostImmediate = async (post: ClassForumPost) => {
+    if (!api) return;
+    try {
+      await classForumRepo.delete(api, post.id, currentUserId);
+      setSelectedPostForAction(null);
+      await loadPosts();
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to delete post.');
+    }
+  };
+
   const handleDeletePost = async (post: ClassForumPost) => {
     if (!api) return;
+    if (Platform.OS === 'web') {
+      await handleDeletePostImmediate(post);
+      return;
+    }
     Alert.alert(
       'Delete Post',
       'Are you sure you want to remove this message from the class forum?',
@@ -205,14 +251,7 @@ export function ClassForumModal({
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await classForumRepo.delete(api, post.id, currentUserId);
-              await loadPosts();
-            } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Failed to delete post.');
-            }
-          },
+          onPress: () => void handleDeletePostImmediate(post),
         },
       ]
     );
@@ -228,10 +267,42 @@ export function ClassForumModal({
     }
   };
 
+  const openPostActionSheet = (post: ClassForumPost) => {
+    setSelectedReason(REPORT_REASONS[0]);
+    setReportDetails('');
+    setReportSuccessTicket(null);
+    setSelectedPostForAction(post);
+  };
+
+  const handleSubmitPostReport = async () => {
+    if (!selectedPostForAction || !scheduleItem || !api || !currentUserId) return;
+    setSubmittingReport(true);
+    try {
+      const { ticket } = await classForumRepo.reportPost(api, {
+        reporterId: currentUserId,
+        reporterName: currentDisplayName,
+        reporterRole: currentUserRole,
+        targetId: selectedPostForAction.id,
+        targetAuthorId: selectedPostForAction.authorId,
+        targetAuthorName: selectedPostForAction.authorName,
+        targetContent: selectedPostForAction.content,
+        contextTitle: `${scheduleItem.title} (${scheduleItem.instructorName})`,
+        reason: selectedReason,
+        details: reportDetails,
+      });
+      setReportSuccessTicket(ticket.ticketNumber);
+    } catch {
+      // noop
+    } finally {
+      setSubmittingReport(false);
+    }
+  };
+
   if (!scheduleItem) return null;
 
   const pinnedPosts = posts.filter((p) => p.pinned);
   const regularPosts = posts.filter((p) => !p.pinned);
+  const hasProfanityInDraft = containsProfanity(inputText);
 
   function roleBadge(role: string) {
     if (role === 'it_admin') {
@@ -254,22 +325,23 @@ export function ClassForumModal({
       onRequestClose={onClose}
     >
       <View style={[styles.modalScreen, { backgroundColor: tc.background }]}>
-        {/* HEADER */}
+        {/* COMPACT HEADER (No Excess Top Whitespace) */}
         <View
           style={[
             styles.header,
             {
               backgroundColor: tc.cardBg,
               borderColor: tc.border,
-              paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 44 : 20) + 4,
-              paddingLeft: Math.max(16, insets.left),
-              paddingRight: Math.max(16, insets.right),
+              paddingTop: 10,
+              paddingBottom: 10,
+              paddingLeft: Math.max(14, insets.left),
+              paddingRight: Math.max(14, insets.right),
             },
           ]}
         >
           <View style={{ flex: 1, minWidth: 0 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="chatbubbles" size={20} color={colors.primary} />
+              <Ionicons name="chatbubbles" size={19} color={colors.primary} />
               <Text style={[styles.headerTitle, { color: tc.text }]} numberOfLines={1}>
                 {scheduleItem.title}
               </Text>
@@ -290,7 +362,7 @@ export function ClassForumModal({
             >
               <Ionicons
                 name={isInterested ? 'star' : 'star-outline'}
-                size={22}
+                size={21}
                 color={isInterested ? '#D97706' : tc.textMuted}
               />
             </Pressable>
@@ -302,7 +374,7 @@ export function ClassForumModal({
             accessibilityRole="button"
             accessibilityLabel="Close class forum"
           >
-            <Ionicons name="close-circle" size={28} color={tc.textMuted} />
+            <Ionicons name="close-circle" size={26} color={tc.textMuted} />
           </Pressable>
         </View>
 
@@ -322,9 +394,10 @@ export function ClassForumModal({
           accessibilityRole="button"
           accessibilityLabel="Looking for general community discussions? Open General Community Forum"
         >
-          <Ionicons name="chatbubbles" size={16} color={colors.primary} />
+          <Ionicons name="chatbubbles" size={15} color={colors.primary} />
           <Text style={[styles.generalForumNoticeText, { color: isDark ? '#93C5FD' : '#00609C' }]}>
-            This chat is for {scheduleItem.title}. Looking for general YMCA topics? <Text style={{ fontWeight: '800', textDecorationLine: 'underline' }}>Open General Forum ›</Text>
+            This chat is for {scheduleItem.title}. Looking for general YMCA topics?{' '}
+            <Text style={{ fontWeight: '800', textDecorationLine: 'underline' }}>Open General Forum ›</Text>
           </Text>
         </Pressable>
 
@@ -350,7 +423,7 @@ export function ClassForumModal({
         >
           <Ionicons
             name={isClassManager ? 'shield-checkmark' : 'people'}
-            size={18}
+            size={17}
             color={
               isClassManager
                 ? isITAdmin
@@ -378,18 +451,19 @@ export function ClassForumModal({
                   ? 'Staff Administrator · Full Community Moderation'
                   : isClassTrainer
                     ? `Class Instructor (${scheduleItem.instructorName}) · Moderator`
-                    : 'Class Community Forum & Discussion'}
+                    : 'Class Community Forum · Hold any message to report to IT'}
             </Text>
             <Text style={[styles.managerBannerDesc, { color: tc.textMuted }]}>
               {isClassManager
-                ? 'You can pin announcements and moderate community discussions for this class.'
-                : `Managed by ${scheduleItem.instructorName} & YMCA IT Administration.`}
+                ? 'You can pin announcements and delete inappropriate messages in this class.'
+                : `Moderated by ${scheduleItem.instructorName} & YMCA IT Administration.`}
             </Text>
           </View>
         </View>
 
         {/* POSTS LIST */}
         <ScrollView
+          style={{ flex: 1 }}
           contentContainerStyle={styles.postsScroll}
           keyboardShouldPersistTaps="handled"
         >
@@ -404,9 +478,9 @@ export function ClassForumModal({
 
           {/* PINNED ANNOUNCEMENTS */}
           {pinnedPosts.length > 0 ? (
-            <View style={{ gap: 10, marginBottom: 8 }}>
+            <View style={{ gap: 10, marginBottom: 6 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Ionicons name="pin" size={16} color={colors.primary} />
+                <Ionicons name="pin" size={15} color={colors.primary} />
                 <Text style={[styles.pinnedHeader, { color: colors.primary }]}>
                   Pinned Announcements ({pinnedPosts.length})
                 </Text>
@@ -429,7 +503,7 @@ export function ClassForumModal({
 
           {posts.length === 0 && !loading ? (
             <View style={styles.emptyCard}>
-              <Ionicons name="chatbubble-ellipses-outline" size={38} color={tc.textMuted} />
+              <Ionicons name="chatbubble-ellipses-outline" size={36} color={tc.textMuted} />
               <Text style={[styles.emptyTitle, { color: tc.text }]}>No Messages Yet</Text>
               <Text style={[styles.emptySubtitle, { color: tc.textMuted }]}>
                 Be the first to say hello, ask the instructor a question, or coordinate with classmates!
@@ -450,10 +524,27 @@ export function ClassForumModal({
                   ? keyboardHeight
                   : keyboardVisible && Platform.OS === 'android'
                     ? 280
-                    : Math.max(insets.bottom, 12),
+                    : Math.max(insets.bottom, 10),
             },
           ]}
         >
+          {hasProfanityInDraft ? (
+            <View
+              style={[
+                styles.profanityNoticeBar,
+                {
+                  backgroundColor: isDark ? '#422006' : '#FEF3C7',
+                  borderColor: isDark ? '#B45309' : '#FDE68A',
+                },
+              ]}
+            >
+              <Ionicons name="shield-checkmark" size={14} color="#D97706" />
+              <Text style={[styles.profanityNoticeText, { color: isDark ? '#FDE68A' : '#92400E' }]}>
+                YMCA Family-Friendly Filter: Profanity will be automatically censored (****).
+              </Text>
+            </View>
+          ) : null}
+
           {isClassManager ? (
             <View style={styles.pinToggleRow}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -542,6 +633,198 @@ export function ClassForumModal({
             </Pressable>
           </View>
         </View>
+
+        {/* HOLD-DOWN REPORT TO IT & MODERATION SHEET MODAL */}
+        <Modal
+          visible={Boolean(selectedPostForAction)}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setSelectedPostForAction(null)}
+        >
+          <Pressable
+            style={styles.sheetBackdrop}
+            onPress={() => setSelectedPostForAction(null)}
+          >
+            <Pressable
+              style={[styles.sheetCard, { backgroundColor: tc.cardBg, borderColor: tc.border }]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              {selectedPostForAction ? (
+                <>
+                  <View style={styles.sheetHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                      <Ionicons name="shield-half" size={20} color={colors.primary} />
+                      <Text style={[styles.sheetTitle, { color: tc.text }]}>
+                        Class Message Options & IT Report
+                      </Text>
+                    </View>
+                    <Pressable onPress={() => setSelectedPostForAction(null)} hitSlop={8}>
+                      <Ionicons name="close" size={22} color={tc.textMuted} />
+                    </Pressable>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.sheetPreviewBox,
+                      {
+                        backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+                        borderColor: tc.border,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.sheetPreviewAuthor, { color: tc.text }]}>
+                      Posted by {selectedPostForAction.authorName}
+                    </Text>
+                    <Text
+                      style={[styles.sheetPreviewContent, { color: tc.textMuted }]}
+                      numberOfLines={2}
+                    >
+                      "{filterProfanity(selectedPostForAction.content)}"
+                    </Text>
+                  </View>
+
+                  {selectedPostForAction.authorId === currentUserId || isClassManager ? (
+                    <Pressable
+                      onPress={() => void handleDeletePostImmediate(selectedPostForAction)}
+                      style={({ pressed }) => [
+                        styles.sheetDeleteBtn,
+                        pressed && { opacity: 0.85 },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Delete class forum message"
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.sheetDeleteBtnTitle}>Delete Message</Text>
+                        <Text style={styles.sheetDeleteBtnSub}>
+                          {selectedPostForAction.authorId === currentUserId
+                            ? 'Authorized as Message Author'
+                            : isClassTrainer
+                              ? `Authorized as Class Instructor (${scheduleItem.instructorName})`
+                              : 'Authorized as IT / Staff Administrator'}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ) : null}
+
+                  {reportSuccessTicket ? (
+                    <View
+                      style={[
+                        styles.reportSuccessBox,
+                        {
+                          backgroundColor: isDark ? '#064E3B' : '#ECFDF5',
+                          borderColor: isDark ? '#047857' : '#A7F3D0',
+                        },
+                      ]}
+                    >
+                      <Ionicons name="checkmark-circle" size={24} color="#15803D" />
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={[styles.reportSuccessTitle, { color: isDark ? '#34D399' : '#065F46' }]}>
+                          IT Ticket #{reportSuccessTicket} Sent!
+                        </Text>
+                        <Text style={[styles.reportSuccessSub, { color: isDark ? '#A7F3D0' : '#047857' }]}>
+                          YMCA IT Systems has logged your report for moderation review.
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={() => setSelectedPostForAction(null)}
+                        style={[styles.doneReportBtn, { backgroundColor: '#15803D' }]}
+                      >
+                        <Text style={styles.doneReportBtnText}>Done</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <View style={styles.reportFormWrap}>
+                      <Text style={[styles.reportSectionLabel, { color: tc.text }]}>
+                        Report to YMCA IT Support (Sends Ticket):
+                      </Text>
+                      <View style={styles.reasonsList}>
+                        {REPORT_REASONS.map((reason) => {
+                          const selected = selectedReason === reason;
+                          return (
+                            <Pressable
+                              key={reason}
+                              onPress={() => setSelectedReason(reason)}
+                              style={[
+                                styles.reasonOption,
+                                {
+                                  backgroundColor: selected
+                                    ? isDark
+                                      ? '#0C2A4A'
+                                      : '#EFF6FF'
+                                    : isDark
+                                      ? '#1E293B'
+                                      : '#F8FAFC',
+                                  borderColor: selected ? colors.primary : tc.border,
+                                },
+                              ]}
+                            >
+                              <Ionicons
+                                name={selected ? 'radio-button-on' : 'radio-button-off'}
+                                size={16}
+                                color={selected ? colors.primary : tc.textMuted}
+                              />
+                              <Text
+                                style={[
+                                  styles.reasonOptionText,
+                                  {
+                                    color: selected ? colors.primary : tc.text,
+                                    fontWeight: selected ? '700' : '500',
+                                  },
+                                ]}
+                              >
+                                {reason}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+
+                      <TextInput
+                        style={[
+                          styles.reportNotesInput,
+                          {
+                            backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+                            color: tc.text,
+                            borderColor: tc.border,
+                          },
+                        ]}
+                        placeholder="Optional details for IT Support..."
+                        placeholderTextColor={tc.textMuted}
+                        value={reportDetails}
+                        onChangeText={setReportDetails}
+                        maxLength={250}
+                      />
+
+                      <Pressable
+                        onPress={() => void handleSubmitPostReport()}
+                        disabled={submittingReport}
+                        style={({ pressed }) => [
+                          styles.submitReportBtn,
+                          { backgroundColor: colors.primary },
+                          pressed && { opacity: 0.9 },
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel="Submit report and send ticket to IT"
+                      >
+                        {submittingReport ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <Ionicons name="flag" size={16} color="#FFFFFF" />
+                            <Text style={styles.submitReportBtnText}>
+                              Report & Send Ticket to IT
+                            </Text>
+                          </>
+                        )}
+                      </Pressable>
+                    </View>
+                  )}
+                </>
+              ) : null}
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
     </Modal>
   );
@@ -552,9 +835,11 @@ export function ClassForumModal({
     const badge = roleBadge(post.authorRole);
 
     return (
-      <View
+      <Pressable
         key={post.id}
-        style={[
+        onLongPress={() => openPostActionSheet(post)}
+        delayLongPress={300}
+        style={({ pressed }) => [
           styles.postCard,
           {
             backgroundColor: isPinnedNotice
@@ -565,7 +850,9 @@ export function ClassForumModal({
             borderColor: isPinnedNotice ? '#A78BFA' : tc.cardBorder,
             borderWidth: isPinnedNotice ? 1.5 : 1,
           },
+          pressed && { opacity: 0.94 },
         ]}
+        accessibilityHint="Hold down to report message to IT or delete"
       >
         <View style={styles.postTopRow}>
           <UserAvatar
@@ -597,8 +884,18 @@ export function ClassForumModal({
             </Text>
           </View>
 
-          {/* Action buttons (Pin/Unpin & Delete) */}
+          {/* Action buttons (Report, Pin/Unpin & Delete) */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Pressable
+              onPress={() => openPostActionSheet(post)}
+              style={styles.actionIconButton}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`Report message by ${post.authorName} to IT`}
+            >
+              <Ionicons name="flag-outline" size={16} color={tc.textMuted} />
+            </Pressable>
+
             {isClassManager ? (
               <Pressable
                 onPress={() => void handleTogglePin(post)}
@@ -608,7 +905,7 @@ export function ClassForumModal({
               >
                 <Ionicons
                   name={post.pinned ? 'pin' : 'pin-outline'}
-                  size={18}
+                  size={17}
                   color={post.pinned ? '#D97706' : tc.textMuted}
                 />
               </Pressable>
@@ -628,9 +925,9 @@ export function ClassForumModal({
         </View>
 
         <Text style={[styles.postContent, { color: tc.text }]}>
-          {post.content}
+          {filterProfanity(post.content)}
         </Text>
-      </View>
+      </Pressable>
     );
   }
 }
@@ -645,36 +942,35 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    gap: 12,
+    gap: 10,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
   },
   headerMeta: {
     fontSize: 12,
-    marginTop: 2,
+    marginTop: 1,
   },
   closeBtn: {
-    minWidth: 44,
-    minHeight: 44,
+    minWidth: 36,
+    minHeight: 36,
     justifyContent: 'center',
     alignItems: 'center',
   },
   managerBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderBottomWidth: 1,
   },
   managerBannerTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
   },
   managerBannerDesc: {
@@ -682,21 +978,22 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   postsScroll: {
-    padding: 16,
-    paddingBottom: 24,
-    gap: 12,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 20,
+    gap: 10,
   },
   centerBox: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 24,
+    paddingVertical: 20,
     gap: 8,
   },
   loadingText: {
     fontSize: 13,
   },
   pinnedHeader: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -704,12 +1001,12 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: 13,
     fontWeight: '700',
-    marginTop: 6,
+    marginTop: 4,
   },
   postCard: {
     borderRadius: 12,
-    padding: 14,
-    gap: 10,
+    padding: 13,
+    gap: 8,
   },
   postTopRow: {
     flexDirection: 'row',
@@ -746,11 +1043,11 @@ const styles = StyleSheet.create({
   emptyCard: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 48,
+    paddingVertical: 36,
     gap: 8,
   },
   emptyTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
   emptySubtitle: {
@@ -761,8 +1058,23 @@ const styles = StyleSheet.create({
   },
   composerWrap: {
     borderTopWidth: 1,
-    padding: 12,
+    paddingHorizontal: 12,
+    paddingTop: 8,
     gap: 8,
+  },
+  profanityNoticeBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  profanityNoticeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    flex: 1,
   },
   pinToggleRow: {
     flexDirection: 'row',
@@ -789,16 +1101,16 @@ const styles = StyleSheet.create({
     maxHeight: 90,
   },
   sendBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dismissKeyboardBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 2,
@@ -807,11 +1119,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 2,
+    marginHorizontal: 14,
+    marginTop: 6,
+    marginBottom: 4,
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingVertical: 7,
     borderRadius: 10,
     borderWidth: 1,
   },
@@ -819,5 +1131,132 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     lineHeight: 16,
+  },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    justifyContent: 'flex-end',
+    padding: 12,
+  },
+  sheetCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12,
+    maxWidth: 680,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  sheetPreviewBox: {
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 2,
+  },
+  sheetPreviewAuthor: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sheetPreviewContent: {
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  sheetDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  sheetDeleteBtnTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#B91C1C',
+  },
+  sheetDeleteBtnSub: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#DC2626',
+  },
+  reportFormWrap: {
+    gap: 8,
+  },
+  reportSectionLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  reasonsList: {
+    gap: 6,
+  },
+  reasonOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  reasonOptionText: {
+    fontSize: 13,
+  },
+  reportNotesInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+  },
+  submitReportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 2,
+  },
+  submitReportBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  reportSuccessBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  reportSuccessTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  reportSuccessSub: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  doneReportBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  doneReportBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

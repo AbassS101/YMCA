@@ -10,6 +10,7 @@ import type {
   ComplaintSuggestion,
   Donation,
   FeedbackStatus,
+  ForumContentReportInput,
   ForumReply,
   ForumTopic,
   ForumTopicCategory,
@@ -490,6 +491,12 @@ export class LiveProtivityAdapter implements ProtivityPort {
   }
 
   async toggleLikeForumReply(_replyId: string, _userId: string): Promise<ForumReply> {
+    throw new ProtivityNotConnected();
+  }
+
+  async reportForumContent(
+    _input: ForumContentReportInput
+  ): Promise<{ ticket: SupportTicket; thread: Thread; initialMessage: Message }> {
     throw new ProtivityNotConnected();
   }
 

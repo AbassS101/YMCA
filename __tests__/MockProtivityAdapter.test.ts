@@ -82,19 +82,19 @@ test('MockProtivityAdapter exposes all ProtivityPort methods', () => {
 test('updateMemberProfile updates name and phone and persists changes', async () => {
   const api = new MockProtivityAdapter();
   const initial = await api.getMember('member-jordan');
-  expect(initial.name).toBe('Jordan Hale');
+  expect(initial.name).toBe('John Doe');
 
   const updated = await api.updateMemberProfile('member-jordan', {
-    name: 'Jordan M. Hale',
+    name: 'John M. Doe',
     phone: '(301) 555-9999',
   });
 
-  expect(updated.name).toBe('Jordan M. Hale');
+  expect(updated.name).toBe('John M. Doe');
   expect(updated.phone).toBe('(301) 555-9999');
 
   // Verify persistence
   const reloaded = await api.getMember('member-jordan');
-  expect(reloaded.name).toBe('Jordan M. Hale');
+  expect(reloaded.name).toBe('John M. Doe');
   expect(reloaded.phone).toBe('(301) 555-9999');
 });
 
@@ -195,10 +195,10 @@ test('listStaff returns multiple trainers and wellness desk staff', async () => 
   const staff = await api.listStaff('silver-spring');
   expect(staff.length).toBeGreaterThanOrEqual(4);
   const names = staff.map((s) => s.name);
-  expect(names).toContain('Alex Rivera');
-  expect(names).toContain('Sarah Davis');
+  expect(names).toContain('Doc');
+  expect(names).toContain('Jane Doe');
   expect(names).toContain('Emily Wilson');
-  expect(names).toContain('Marcus Taylor');
+  expect(names).toContain('Billy Deveaux');
 });
 
 test('getOrCreateThread resolves existing thread or creates new one', async () => {
@@ -223,7 +223,7 @@ test('setAssignedTrainer updates member primary trainer', async () => {
   const api = new MockProtivityAdapter();
   await api.setAssignedTrainer('member-jordan', 'staff-sarah');
   const assigned = await api.getAssignedTrainer('member-jordan');
-  expect(assigned?.name).toBe('Sarah Davis');
+  expect(assigned?.name).toBe('Jane Doe');
 });
 
 test('book private lesson with different trainers (Sarah Davis)', async () => {

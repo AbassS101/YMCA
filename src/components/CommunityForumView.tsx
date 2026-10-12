@@ -108,6 +108,10 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedClassItem, setSelectedClassItem] = useState<ScheduleItem | null>(null);
   const [classModalVisible, setClassModalVisible] = useState(false);
+  const [reportingTopic, setReportingTopic] = useState<ForumTopic | null>(null);
+  const [reportReason, setReportReason] = useState('Inappropriate language or behavior');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportSuccessTicket, setReportSuccessTicket] = useState<string | null>(null);
 
   // User profiles
   const [userName, setUserName] = useState('YMCA Member');
@@ -1021,6 +1025,16 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
                 isInterested={isTopicDirectInterested(item) || isTopicInterested(item)}
                 hasRecentlyChatted={hasUserChattedInTopic(item)}
                 onPress={() => openTopicDetail(item)}
+                onLongPress={() => {
+                  setReportSuccessTicket(null);
+                  setReportReason('Inappropriate language or behavior');
+                  setReportingTopic(item);
+                }}
+                onReport={() => {
+                  setReportSuccessTicket(null);
+                  setReportReason('Inappropriate language or behavior');
+                  setReportingTopic(item);
+                }}
                 onToggleLike={() => void handleToggleLike(item)}
                 onToggleInterested={() => void handleToggleInterestedTopic(item)}
                 onTogglePin={() => void handleTogglePin(item)}
@@ -1417,6 +1431,221 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
           ]);
         }}
       />
+
+      {/* HOLD-DOWN TOPIC OPTIONS & IT REPORT MODAL */}
+      <Modal
+        visible={Boolean(reportingTopic)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReportingTopic(null)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setReportingTopic(null)}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[
+              styles.interestsModalCard,
+              {
+                backgroundColor: tc.cardBg,
+                borderColor: tc.border,
+              },
+            ]}
+          >
+            {reportingTopic ? (
+              <>
+                <View style={styles.interestsModalHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="shield-half" size={20} color={colors.primary} />
+                    <Text style={[styles.interestsModalTitle, { color: tc.text }]}>
+                      Topic Options & IT Report
+                    </Text>
+                  </View>
+                  <Pressable onPress={() => setReportingTopic(null)} hitSlop={8}>
+                    <Ionicons name="close" size={22} color={tc.textMuted} />
+                  </Pressable>
+                </View>
+
+                <View
+                  style={{
+                    padding: 10,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+                    borderColor: tc.border,
+                    gap: 4,
+                  }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: tc.textMuted }}>
+                    {reportingTopic.authorName}: {reportingTopic.title}
+                  </Text>
+                  <Text style={{ fontSize: 13, color: tc.text }} numberOfLines={2}>
+                    "{reportingTopic.content}"
+                  </Text>
+                </View>
+
+                {reportSuccessTicket ? (
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: 12,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      backgroundColor: isDark ? '#143321' : '#DCFCE7',
+                      borderColor: isDark ? '#166534' : '#86EFAC',
+                    }}
+                  >
+                    <Ionicons name="checkmark-circle" size={22} color="#16A34A" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '800', color: isDark ? '#BBF7D0' : '#166534' }}>
+                        IT Support Ticket Sent ({reportSuccessTicket})
+                      </Text>
+                      <Text style={{ fontSize: 11, color: isDark ? '#86EFAC' : '#15803D', marginTop: 2 }}>
+                        David Miller (IT Systems Admin) has been notified to review this topic.
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={{ gap: 8 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: tc.text }}>
+                      Report to IT Support Desk
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {[
+                        'Inappropriate language or behavior',
+                        'Harassment or disrespectful conduct',
+                        'Spam or off-topic solicitation',
+                        'Safety or privacy concern',
+                      ].map((reasonOption) => {
+                        const selected = reportReason === reasonOption;
+                        return (
+                          <Pressable
+                            key={reasonOption}
+                            onPress={() => setReportReason(reasonOption)}
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 5,
+                              paddingHorizontal: 10,
+                              paddingVertical: 7,
+                              borderRadius: 10,
+                              borderWidth: 1,
+                              backgroundColor: selected
+                                ? isDark
+                                  ? '#0C2A4A'
+                                  : '#EFF6FF'
+                                : isDark
+                                  ? '#1E293B'
+                                  : '#F8FAFC',
+                              borderColor: selected ? colors.primary : tc.border,
+                            }}
+                          >
+                            <Ionicons
+                              name={selected ? 'radio-button-on' : 'radio-button-off'}
+                              size={14}
+                              color={selected ? colors.primary : tc.textMuted}
+                            />
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                color: selected ? colors.primary : tc.text,
+                                fontWeight: selected ? '700' : '500',
+                              }}
+                            >
+                              {reasonOption}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+
+                    <Pressable
+                      disabled={reportSubmitting}
+                      onPress={async () => {
+                        if (!api || !currentUserId || !reportingTopic) return;
+                        setReportSubmitting(true);
+                        try {
+                          const res = await forumRepo.reportContent(api, {
+                            reporterId: currentUserId,
+                            reporterName: userName,
+                            reporterRole: currentUserRole,
+                            targetType: 'topic',
+                            targetId: reportingTopic.id,
+                            targetAuthorId: reportingTopic.authorId,
+                            targetAuthorName: reportingTopic.authorName,
+                            targetContent: `${reportingTopic.title} — ${reportingTopic.content}`,
+                            contextTitle: reportingTopic.title,
+                            reason: reportReason,
+                          });
+                          setReportSuccessTicket(res.ticket.ticketNumber);
+                        } catch {
+                          // fallback
+                        } finally {
+                          setReportSubmitting(false);
+                        }
+                      }}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        paddingVertical: 12,
+                        borderRadius: 12,
+                        backgroundColor: '#D97706',
+                        marginTop: 4,
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Send Report Ticket to IT"
+                    >
+                      {reportSubmitting ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Ionicons name="flag" size={16} color="#FFFFFF" />
+                          <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }}>
+                            Send Report Ticket to IT
+                          </Text>
+                        </>
+                      )}
+                    </Pressable>
+                  </View>
+                )}
+
+                {reportingTopic.authorId === currentUserId || canManage ? (
+                  <Pressable
+                    onPress={async () => {
+                      const targetId = reportingTopic.id;
+                      setReportingTopic(null);
+                      await handleDeleteTopic(targetId);
+                    }}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      paddingVertical: 11,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      backgroundColor: isDark ? '#3F1D1D' : '#FEE2E2',
+                      borderColor: isDark ? '#7F1D1D' : '#FCA5A5',
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Delete Topic"
+                  >
+                    <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                    <Text style={{ color: '#DC2626', fontSize: 13, fontWeight: '800' }}>
+                      Delete Discussion Topic
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

@@ -8,6 +8,19 @@ import { resetStore } from '@/storage/demoStore';
 import { scheduleRepo } from '@/repositories/scheduleRepo';
 import { registrationRepo } from '@/repositories/registrationRepo';
 import { savedClassesRepo } from '@/repositories/savedClassesRepo';
+import { notificationRepo } from '@/repositories/notificationRepo';
+import {
+  YMCA_CLASS_CATALOG,
+  getClassCatalogEntry,
+  getClassShortSummary,
+  getClassFullDescription,
+  requiresAdvanceRegistration,
+} from '@/domain/classCatalog';
+import {
+  buildGoogleCalendarUrl,
+  buildIcsContent,
+  toIcsTimestamp,
+} from '@/utils/calendarExport';
 
 describe('Official YMCA Silver Spring Fall 1 Group Exercise Schedule', () => {
   let adapter: MockProtivityAdapter;
@@ -280,7 +293,109 @@ describe('Official YMCA Silver Spring Fall 1 Group Exercise Schedule', () => {
     });
   });
 
-  describe('Member Booking & Favorites Workflow', () => {
+  describe('Official YMCA Class Descriptions & Short Schedule Summaries', () => {
+    it('contains all 25+ official YMCA class catalog entries from the Mind-Body, Cardio, and Strength PDF', () => {
+      const pdfTitles = [
+        'All Levels Yoga',
+        'Ashtanga Flow',
+        'BodyBalance',
+        'CoreFusion',
+        'Core Power Yoga',
+        'Hatha Yoga',
+        'Iyengar Yoga',
+        'Qigong',
+        'Rocket Yoga',
+        'Tai Chi',
+        'Yoga 101',
+        'Vinyasa Flow Yoga',
+        'Aqua Aerobics',
+        'BodyPump',
+        'Burn',
+        'Cardiolite',
+        'Cycle',
+        'Y-Fusion Dance',
+        'Zumba',
+        'Barre',
+        'Body Weight Training',
+        'Express Core',
+        'Iron Warriors',
+        'Strength & Balance',
+        'Total Body Conditioning',
+      ];
+
+      expect(YMCA_CLASS_CATALOG.length).toBeGreaterThanOrEqual(25);
+      for (const title of pdfTitles) {
+        const entry = getClassCatalogEntry(title);
+        expect(entry).toBeDefined();
+        expect(entry?.shortSummary.length).toBeGreaterThan(15);
+        expect(entry?.shortSummary.length).toBeLessThanOrEqual(140);
+        expect(entry?.description.length).toBeGreaterThanOrEqual(entry!.shortSummary.length);
+      }
+    });
+
+    it('enriches every schedule item with a concise shortSummary and full description', async () => {
+      const allClasses = await scheduleRepo.listAll(adapter, 'silver-spring');
+      expect(allClasses.length).toBeGreaterThan(0);
+
+      for (const item of allClasses) {
+        const shortSummary = getClassShortSummary(item);
+        const fullDesc = getClassFullDescription(item);
+        expect(shortSummary.length).toBeGreaterThan(10);
+        expect(fullDesc.length).toBeGreaterThan(20);
+      }
+    });
+
+    it('distinguishes advance-registration classes from drop-in star-only classes', async () => {
+      const mondayClasses = await scheduleRepo.list(adapter, {
+        branchId: 'silver-spring',
+        from: '2026-09-14',
+        to: '2026-09-14',
+      });
+
+      const fullCircle = mondayClasses.find((c) => c.title === 'Full Circle Health')!;
+      const bodyPump = mondayClasses.find((c) => c.title === 'BodyPump')!;
+
+      expect(requiresAdvanceRegistration(fullCircle)).toBe(true);
+      expect(requiresAdvanceRegistration(bodyPump)).toBe(false);
+
+      const allClasses = await scheduleRepo.listAll(adapter, 'silver-spring');
+      for (const cls of allClasses) {
+        expect(requiresAdvanceRegistration(cls)).toBe(Boolean(cls.registrationRequired));
+      }
+    });
+  });
+
+  describe('Calendar Export (.ICS & Google Calendar)', () => {
+    it('generates valid RFC 5545 .ics calendar invite content and Google Calendar URLs', () => {
+      const event = {
+        title: 'BodyPump',
+        startIso: '2026-09-14T18:00:00-04:00',
+        endIso: '2026-09-14T19:00:00-04:00',
+        location: 'Gym',
+        description: 'Barbell resistance training for total body strength.',
+        instructorName: 'Alex Rivera',
+      };
+
+      const stamp = toIcsTimestamp(event.startIso);
+      expect(stamp).toMatch(/^\d{8}T\d{6}Z$/);
+
+      const ics = buildIcsContent(event);
+      expect(ics).toContain('BEGIN:VCALENDAR');
+      expect(ics).toContain('BEGIN:VEVENT');
+      expect(ics).toContain('SUMMARY:YMCA: BodyPump');
+      expect(ics).toContain('LOCATION:YMCA Silver Spring (Gym)');
+      expect(ics).toContain('Instructor: Alex Rivera');
+      expect(ics).toContain('BEGIN:VALARM');
+      expect(ics).toContain('END:VCALENDAR');
+
+      const gcalUrl = buildGoogleCalendarUrl(event);
+      expect(gcalUrl).toContain('https://calendar.google.com/calendar/render?');
+      expect(gcalUrl).toContain('action=TEMPLATE');
+      expect(gcalUrl).toContain('BodyPump');
+    });
+  });
+
+  describe('Member Booking & Star-to-Notify Workflow', () => {
     it('allows member to register for a Registration Required class and verify booking', async () => {
       const reg = await registrationRepo.register(adapter, 'member-jordan', 'sched-mon-fullcircle-0745');
       expect(reg.id).toBeDefined();
@@ -290,18 +405,29 @@ describe('Official YMCA Silver Spring Fall 1 Group Exercise Schedule', () => {
       expect(mine.some((r) => r.scheduleItemId === 'sched-mon-fullcircle-0745')).toBe(true);
     });
 
-    it('allows member to toggle favorite star for rapid filtering', async () => {
+    it('creates an in-app notification reminder when starring a drop-in class and removes it when unstarred', async () => {
       const isSaved = await savedClassesRepo.toggle('member-jordan', 'sched-tue-zumba-1815');
       expect(isSaved).toBe(true);
 
       let saved = await savedClassesRepo.list('member-jordan');
       expect(saved.some((s) => s.scheduleItemId === 'sched-tue-zumba-1815')).toBe(true);
 
+      let notifs = await notificationRepo.list(adapter, 'member-jordan');
+      const starNotif = notifs.find((n) => n.id === 'notif-star-member-jordan-sched-tue-zumba-1815');
+      expect(starNotif).toBeDefined();
+      expect(starNotif?.title).toContain('Class Reminder Set: Zumba');
+      expect(starNotif?.body).toContain('You will be notified when this class is happening!');
+
       const unSaved = await savedClassesRepo.toggle('member-jordan', 'sched-tue-zumba-1815');
       expect(unSaved).toBe(false);
 
       saved = await savedClassesRepo.list('member-jordan');
       expect(saved.some((s) => s.scheduleItemId === 'sched-tue-zumba-1815')).toBe(false);
+
+      notifs = await notificationRepo.list(adapter, 'member-jordan');
+      expect(notifs.some((n) => n.id === 'notif-star-member-jordan-sched-tue-zumba-1815')).toBe(false);
     });
   });
 });
+
+

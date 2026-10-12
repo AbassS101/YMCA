@@ -60,14 +60,20 @@ export type DemoState = {
   clientGoals: Record<string, ClientFitnessGoal>;
   surveys: Survey[];
   surveyResponses: SurveyResponse[];
+  schemaVersion?: number;
 };
 
+const CURRENT_SCHEMA_VERSION = 4;
+
 function cloneSeed(): DemoState {
-  return JSON.parse(JSON.stringify(SEED)) as DemoState;
+  const cloned = JSON.parse(JSON.stringify(SEED)) as DemoState;
+  cloned.schemaVersion = CURRENT_SCHEMA_VERSION;
+  return cloned;
 }
 
 function migrateState(raw: DemoState): DemoState {
   const seed = cloneSeed();
+  const seedScheduleMap = new Map(seed.schedules.map((s) => [s.id, s]));
 
   let schedules = raw.schedules;
   if (!schedules || schedules.length === 0) {
@@ -75,13 +81,22 @@ function migrateState(raw: DemoState): DemoState {
   } else {
     const existingIds = new Set(schedules.map((s) => s.id));
     const missingSeed = seed.schedules.filter((s) => !existingIds.has(s.id));
-    schedules = [...schedules, ...missingSeed].map((item) => ({
-      ...item,
-      priceCents: item.priceCents ?? 0,
-      seniorFriendly: item.seniorFriendly ?? false,
-      isSpecialEvent: item.isSpecialEvent ?? false,
-      capacity: item.capacity ?? 20,
-    }));
+    schedules = [...schedules, ...missingSeed].map((item) => {
+      const seedMatch = seedScheduleMap.get(item.id);
+      return {
+        ...item,
+        priceCents: item.priceCents ?? seedMatch?.priceCents ?? 0,
+        seniorFriendly: item.seniorFriendly ?? seedMatch?.seniorFriendly ?? false,
+        isSpecialEvent: item.isSpecialEvent ?? seedMatch?.isSpecialEvent ?? false,
+        registrationRequired:
+          seedMatch !== undefined
+            ? Boolean(seedMatch.registrationRequired)
+            : Boolean(item.registrationRequired),
+        shortSummary: item.shortSummary ?? seedMatch?.shortSummary,
+        description: item.description ?? seedMatch?.description,
+        capacity: item.capacity ?? seedMatch?.capacity ?? 20,
+      };
+    });
   }
 
   let mergedStaff = raw.staff ?? seed.staff;
@@ -95,6 +110,12 @@ function migrateState(raw: DemoState): DemoState {
     const itStaff = seed.staff.find((s) => s.id === 'staff-itadmin');
     if (itStaff) {
       mergedStaff = [itStaff, ...mergedStaff];
+    }
+  }
+  if (!mergedStaff.some((s) => s.id === 'staff-celine')) {
+    const celineStaff = seed.staff.find((s) => s.id === 'staff-celine');
+    if (celineStaff) {
+      mergedStaff = [...mergedStaff, celineStaff];
     }
   }
 
@@ -128,6 +149,12 @@ function migrateState(raw: DemoState): DemoState {
     const itCred = seed.credentials.find((c) => c.email === 'itadmin@silverspring.ymca');
     if (itCred) {
       mergedCreds = [itCred, ...mergedCreds];
+    }
+  }
+  if (!mergedCreds.some((c) => c.email === 'celine@silverspring.ymca')) {
+    const celineCred = seed.credentials.find((c) => c.email === 'celine@silverspring.ymca');
+    if (celineCred) {
+      mergedCreds = [...mergedCreds, celineCred];
     }
   }
   if (!mergedCreds.some((c) => c.email === 'guest@silverspring.ymca')) {
@@ -176,14 +203,25 @@ function migrateState(raw: DemoState): DemoState {
     };
   });
 
+  const scheduleById = new Map(schedules.map((s) => [s.id, s]));
+  let cleanedRegistrations = raw.classRegistrations ?? [];
+  if (raw.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+    cleanedRegistrations = cleanedRegistrations.filter((reg) => {
+      const sched = scheduleById.get(reg.scheduleItemId);
+      if (!sched) return false;
+      return Boolean(sched.registrationRequired) || Boolean(sched.isSpecialEvent) || sched.category === 'event';
+    });
+  }
+
   return {
     ...seed,
     ...raw,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     members: mergedMembers,
     memberships: mergedMemberships,
     staff: mergedStaff,
     schedules,
-    classRegistrations: raw.classRegistrations ?? [],
+    classRegistrations: cleanedRegistrations,
     lessonSlots: raw.lessonSlots ?? seed.lessonSlots,
     privateLessons: raw.privateLessons ?? [],
     announcements: raw.announcements ?? seed.announcements,

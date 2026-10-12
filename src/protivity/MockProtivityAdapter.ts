@@ -1,6 +1,7 @@
 import { computeCancelDates } from '@/domain/cancelDates';
 import { getDemoToday } from '@/domain/demoClock';
 import {
+  filterProfanity,
   isAdminRole,
   YMCA_MEMBERSHIP_PLANS,
   type Announcement,
@@ -14,6 +15,7 @@ import {
   type ComplaintSuggestion,
   type Donation,
   type FeedbackStatus,
+  type ForumContentReportInput,
   type ForumReply,
   type ForumTopic,
   type ForumTopicCategory,
@@ -1208,21 +1210,26 @@ export class MockProtivityAdapter implements ProtivityPort {
     };
     state.schedules[idx] = updated;
 
-    // If time or location changed, notify registered members
+    // If time or location changed, notify registered and starred members
     const timeChanged = updates.start && updates.start !== oldItem.start;
     if (timeChanged) {
-      const rosterRegs = state.classRegistrations.filter(
-        (r) => r.scheduleItemId === id && r.status === 'registered'
-      );
+      const rosterMemberIds = new Set<string>([
+        ...state.classRegistrations
+          .filter((r) => r.scheduleItemId === id && r.status === 'registered')
+          .map((r) => r.memberId),
+        ...state.savedClasses
+          .filter((sc) => sc.scheduleItemId === id)
+          .map((sc) => sc.memberId),
+      ]);
       const nowIso = new Date().toISOString();
       const newTimeStr = new Date(updated.start).toLocaleTimeString(undefined, {
         hour: 'numeric',
         minute: '2-digit',
       });
-      for (const reg of rosterRegs) {
+      for (const recipientId of rosterMemberIds) {
         state.notifications.unshift({
-          id: `notif-sched-upd-${Date.now()}-${reg.memberId}`,
-          userId: reg.memberId,
+          id: `notif-sched-upd-${Date.now()}-${recipientId}`,
+          userId: recipientId,
           title: `Schedule Update: ${updated.title}`,
           body: `${updated.title} has been moved to ${newTimeStr} at ${updated.location}.`,
           type: 'event',
@@ -1244,15 +1251,20 @@ export class MockProtivityAdapter implements ProtivityPort {
       return;
     }
 
-    // If notifyReason is provided, dispatch alerts to all rostered members
-    const rosterRegs = state.classRegistrations.filter(
-      (r) => r.scheduleItemId === id && r.status === 'registered'
-    );
+    // Dispatch alerts to all rostered and starred members
+    const recipientIds = new Set<string>([
+      ...state.classRegistrations
+        .filter((r) => r.scheduleItemId === id && r.status === 'registered')
+        .map((r) => r.memberId),
+      ...state.savedClasses
+        .filter((sc) => sc.scheduleItemId === id)
+        .map((sc) => sc.memberId),
+    ]);
     const nowIso = new Date().toISOString();
-    for (const reg of rosterRegs) {
+    for (const recipientId of recipientIds) {
       state.notifications.unshift({
-        id: `notif-cancel-${Date.now()}-${reg.memberId}`,
-        userId: reg.memberId,
+        id: `notif-cancel-${Date.now()}-${recipientId}`,
+        userId: recipientId,
         title: `Cancelled: ${item.title}`,
         body: notifyReason
           ? `${item.title} has been cancelled. Reason: ${notifyReason}`
@@ -1824,7 +1836,7 @@ export class MockProtivityAdapter implements ProtivityPort {
       authorName: input.authorName,
       authorRole: input.authorRole as any,
       authorAvatarUrl: input.authorAvatarUrl,
-      content: input.content.trim(),
+      content: filterProfanity(input.content.trim()),
       createdAt: now,
       pinned: input.pinned ?? false,
       mentionedUserIds,
@@ -1927,7 +1939,8 @@ export class MockProtivityAdapter implements ProtivityPort {
       requesterStaff &&
       (classItem.staffId === requesterUserId ||
         (requesterStaff.name &&
-          classItem.instructorName.toLowerCase().includes(requesterStaff.name.toLowerCase())));
+          (classItem.instructorName.toLowerCase().includes(requesterStaff.name.toLowerCase()) ||
+            requesterStaff.name.toLowerCase().includes(classItem.instructorName.toLowerCase()))));
 
     if (!isAuthor && !isStaffOrITAdmin && !isClassTrainer) {
       throw new Error('Only the post author, class trainer, or IT/Staff Admins can delete this message.');
@@ -2098,8 +2111,8 @@ export class MockProtivityAdapter implements ProtivityPort {
     const now = new Date().toISOString();
     const topic: ForumTopic = {
       id: `topic-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      title: input.title.trim(),
-      content: input.content.trim(),
+      title: filterProfanity(input.title.trim()),
+      content: filterProfanity(input.content.trim()),
       category: input.category,
       authorId: input.authorId,
       authorName: input.authorName,
@@ -2412,7 +2425,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     const reply: ForumReply = {
       id: `freply-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       topicId: input.topicId,
-      content: input.content.trim(),
+      content: filterProfanity(input.content.trim()),
       authorId: input.authorId,
       authorName: input.authorName,
       authorRole: input.authorRole as any,
@@ -2476,7 +2489,7 @@ export class MockProtivityAdapter implements ProtivityPort {
           title: isStaffAll
             ? `@ Staff Desk: Reply from ${input.authorName}`
             : `Reply Mention from ${input.authorName}`,
-          body: `Tagged in "${topic?.title ?? 'discussion'}": "${input.content.slice(0, 70)}..."`,
+          body: `Tagged in "${topic?.title ?? 'discussion'}": "${reply.content.slice(0, 70)}..."`,
           type: isStaffAll ? 'staff_inquiry' : 'forum_mention',
           createdAt: now,
           read: false,
@@ -2499,7 +2512,7 @@ export class MockProtivityAdapter implements ProtivityPort {
           title: input.isStaffReply
             ? `Official YMCA Response: ${input.authorName}`
             : `New Reply from ${input.authorName}`,
-          body: `In "${topic.title}": "${input.content.slice(0, 70)}..."`,
+          body: `In "${topic.title}": "${reply.content.slice(0, 70)}..."`,
           type: 'forum_reply',
           createdAt: now,
           read: false,
@@ -2545,7 +2558,7 @@ export class MockProtivityAdapter implements ProtivityPort {
             : wasParticipant
               ? `New Reply in Thread You Chatted In: ${input.authorName}`
               : `New Reply in Followed Topic: ${input.authorName}`,
-          body: `In "${topic.title}": "${input.content.slice(0, 70)}..."`,
+          body: `In "${topic.title}": "${reply.content.slice(0, 70)}..."`,
           type: 'forum_reply',
           createdAt: now,
           read: false,
@@ -2569,24 +2582,29 @@ export class MockProtivityAdapter implements ProtivityPort {
     }
 
     const reply = state.forumReplies[idx];
+    const topic = (state.forumTopics ?? []).find((t) => t.id === reply.topicId);
     const requesterStaff = state.staff.find((s) => s.id === requesterUserId);
     const requesterCred = state.credentials.find((c) => c.userId === requesterUserId);
 
     const isAuthor = reply.authorId === requesterUserId;
+    const isTopicOwner = Boolean(topic && topic.authorId === requesterUserId);
     const isStaffOrAdmin =
       isAdminRole(requesterStaff?.staffRole) ||
       isAdminRole(requesterCred?.role) ||
+      requesterStaff?.staffRole === 'trainer' ||
+      requesterStaff?.staffRole === 'desk' ||
       requesterCred?.role === 'staff' ||
       requesterCred?.role === 'trainer';
 
-    if (!isAuthor && !isStaffOrAdmin) {
-      throw new Error('Only the reply author or staff/admin can delete this message.');
+    if (!isAuthor && !isTopicOwner && !isStaffOrAdmin) {
+      throw new Error(
+        'Only the reply author, thread owner, trainer, or staff/admin can delete this message.'
+      );
     }
 
     state.forumReplies.splice(idx, 1);
 
     // Decrement count on topic
-    const topic = (state.forumTopics ?? []).find((t) => t.id === reply.topicId);
     if (topic && topic.replyCount > 0) {
       topic.replyCount -= 1;
     }
@@ -2622,6 +2640,70 @@ export class MockProtivityAdapter implements ProtivityPort {
     state.forumReplies[idx] = reply;
     await saveStore(state);
     return reply;
+  }
+
+  async reportForumContent(
+    input: ForumContentReportInput
+  ): Promise<{ ticket: SupportTicket; thread: Thread; initialMessage: Message }> {
+    const state = await loadStore();
+    const member = state.members.find((m) => m.id === input.reporterId);
+    const staff = state.staff.find((s) => s.id === input.reporterId);
+    const cred = state.credentials.find((c) => c.userId === input.reporterId);
+    const reporterEmail =
+      input.reporterEmail ||
+      member?.email ||
+      staff?.email ||
+      cred?.email ||
+      `${input.reporterId}@silverspring.ymca`;
+
+    const targetLabel =
+      input.targetType === 'topic'
+        ? 'Community Forum Topic'
+        : input.targetType === 'reply'
+          ? 'Community Forum Reply'
+          : 'Class Forum Message';
+
+    const title = `Forum Report (${input.reason}): ${targetLabel} by ${input.targetAuthorName}`;
+    const descriptionLines = [
+      `Reported Item: ${targetLabel} (ID: ${input.targetId})`,
+      `Reported Author: ${input.targetAuthorName} (${input.targetAuthorId})`,
+      input.contextTitle ? `Thread / Class Context: "${input.contextTitle}"` : '',
+      `Violation Reason: ${input.reason}`,
+      input.details?.trim() ? `Reporter Notes: ${input.details.trim()}` : '',
+      `Reported Content Snippet:\n"${input.targetContent.slice(0, 300)}"`,
+    ].filter(Boolean);
+
+    const result = await this.createSupportTicket({
+      userId: input.reporterId,
+      userName: input.reporterName,
+      userEmail: reporterEmail,
+      userRole: input.reporterRole,
+      type: 'problem_report',
+      title,
+      description: descriptionLines.join('\n'),
+      category: 'community_moderation',
+      priority: 'high',
+    });
+
+    // Also notify IT Admin (staff-itadmin) directly about the moderation ticket
+    const latestState = await loadStore();
+    if (!latestState.notifications) {
+      latestState.notifications = [];
+    }
+    latestState.notifications.unshift({
+      id: `notif-it-report-${Date.now()}`,
+      userId: 'staff-itadmin',
+      title: `🚨 Forum Report Ticket #${result.ticket.ticketNumber}`,
+      body: `${input.reporterName} reported a ${targetLabel.toLowerCase()} by ${input.targetAuthorName} for "${input.reason}".`,
+      type: 'staff_inquiry',
+      createdAt: new Date().toISOString(),
+      read: false,
+      relatedId: result.ticket.id,
+      link: '/(staff)/(tabs)/messages',
+    });
+    await saveStore(latestState);
+
+    return result;
   }
 
   async createSupportTicket(input: {

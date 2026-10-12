@@ -58,7 +58,7 @@ const THEME_OPTIONS: { key: ThemeMode; label: string; icon: keyof typeof Ionicon
 
 const DEMO_ACCOUNTS = [
   {
-    name: 'Jordan Hale',
+    name: 'John Doe',
     email: 'jordan@silverspring.ymca',
     role: 'YMCA Member (Active)',
     icon: 'person' as const,
@@ -72,25 +72,39 @@ const DEMO_ACCOUNTS = [
     color: '#D97706',
   },
   {
-    name: 'Jane Smith',
+    name: 'David',
     email: 'admin@silverspring.ymca',
-    role: 'Staff Admin · Director',
+    role: 'Staff Admin · Branch Director',
     icon: 'shield' as const,
     color: '#D97706',
   },
   {
-    name: 'Alex Rivera',
+    name: 'Doc',
     email: 'alex@silverspring.ymca',
     role: 'Trainer · Personal Wellness',
     icon: 'barbell' as const,
     color: '#15803D',
   },
   {
-    name: 'David Miller',
+    name: 'Abass Shikur',
     email: 'itadmin@silverspring.ymca',
     role: 'IT Admin · Systems Administrator',
     icon: 'shield-checkmark' as const,
     color: '#7C3AED',
+  },
+  {
+    name: 'Celine',
+    email: 'celine@silverspring.ymca',
+    role: 'Wellness Director (Incharge of Personal training)',
+    icon: 'fitness' as const,
+    color: '#EC4899',
+  },
+  {
+    name: 'Billy Deveaux',
+    email: 'wellness@silverspring.ymca',
+    role: 'Membership Director · 301 585 2120 ext 2506',
+    icon: 'business' as const,
+    color: '#D97706',
   },
 ];
 

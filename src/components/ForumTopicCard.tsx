@@ -2,7 +2,13 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
-import { FORUM_CATEGORIES, type ForumTopic, type UserRole, type StaffRole } from '@/domain/types';
+import {
+  filterProfanity,
+  FORUM_CATEGORIES,
+  type ForumTopic,
+  type UserRole,
+  type StaffRole,
+} from '@/domain/types';
 import { UserAvatar } from '@/components/UserAvatar';
 import { colors } from '@/theme/colors';
 
@@ -10,6 +16,8 @@ export type ForumTopicCardProps = {
   topic: ForumTopic;
   currentUserId: string;
   onPress: () => void;
+  onLongPress?: () => void;
+  onReport?: () => void;
   onToggleLike: () => void;
   onToggleInterested?: () => void;
   isInterested?: boolean;
@@ -53,6 +61,8 @@ export function ForumTopicCard({
   topic,
   currentUserId,
   onPress,
+  onLongPress,
+  onReport,
   onToggleLike,
   onToggleInterested,
   isInterested: isInterestedProp,
@@ -84,6 +94,8 @@ export function ForumTopicCard({
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress ?? onReport}
+      delayLongPress={300}
       style={({ pressed }) => [
         styles.card,
         {
@@ -99,7 +111,7 @@ export function ForumTopicCard({
         pressed && styles.cardPressed,
       ]}
       accessibilityRole="button"
-      accessibilityLabel={`Forum topic: ${topic.title}. ${topic.replyCount} replies. Tap to open discussion.`}
+      accessibilityLabel={`Forum topic: ${filterProfanity(topic.title)}. ${topic.replyCount} replies. Tap to open discussion, hold down to report or moderate.`}
     >
       {/* Top Meta Bar: Author & Primary Badges */}
       <View style={styles.topMetaRow}>
@@ -176,6 +188,21 @@ export function ForumTopicCard({
                 size={14}
                 color={isInterested ? '#D97706' : tc.textMuted}
               />
+            </Pressable>
+          ) : null}
+
+          {onReport ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                onReport();
+              }}
+              hitSlop={8}
+              style={styles.iconBtn}
+              accessibilityRole="button"
+              accessibilityLabel={`Report topic ${topic.title} to IT`}
+            >
+              <Ionicons name="flag-outline" size={14} color={tc.textMuted} />
             </Pressable>
           ) : null}
 
@@ -286,12 +313,12 @@ export function ForumTopicCard({
 
       {/* Topic Title */}
       <Text style={[styles.title, { color: tc.text }]} numberOfLines={2}>
-        {topic.title}
+        {filterProfanity(topic.title)}
       </Text>
 
       {/* Topic Content Snippet */}
       <Text style={[styles.content, { color: tc.textMuted }]} numberOfLines={2}>
-        {topic.content}
+        {filterProfanity(topic.content)}
       </Text>
 
       {/* Highlighted @ Mention Tag Row */}

@@ -1,7 +1,11 @@
 import type {
+  ForumContentReportInput,
   ForumReply,
   ForumTopic,
   ForumTopicCategory,
+  Message,
+  SupportTicket,
+  Thread,
   UserForumInterests,
   UserRole,
 } from '@/domain/types';
@@ -124,5 +128,12 @@ export const forumRepo = {
 
   toggleLikeReply(api: ProtivityPort, replyId: string, userId: string): Promise<ForumReply> {
     return api.toggleLikeForumReply(replyId, userId);
+  },
+
+  reportContent(
+    api: ProtivityPort,
+    input: ForumContentReportInput
+  ): Promise<{ ticket: SupportTicket; thread: Thread; initialMessage: Message }> {
+    return api.reportForumContent(input);
   },
 };

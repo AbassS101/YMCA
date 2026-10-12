@@ -19,7 +19,12 @@ import { MentionAutocomplete } from '@/components/MentionAutocomplete';
 import { TextField } from '@/components/TextField';
 import { useAccessibility } from '@/context/AccessibilityContext';
 import { useTheme } from '@/context/ThemeContext';
-import { FORUM_CATEGORIES, type ForumTopicCategory } from '@/domain/types';
+import {
+  containsProfanity,
+  filterProfanity,
+  FORUM_CATEGORIES,
+  type ForumTopicCategory,
+} from '@/domain/types';
 import { colors } from '@/theme/colors';
 
 type StaffTagOption = {
@@ -31,10 +36,11 @@ type StaffTagOption = {
 
 const AVAILABLE_STAFF_TAGS: StaffTagOption[] = [
   { id: 'staff-all', name: 'All Staff Desk', roleLabel: 'Operations & Welcome Desk', icon: 'business' },
-  { id: 'staff-alex', name: 'Alex Rivera', roleLabel: 'Personal Wellness Trainer', icon: 'barbell' },
-  { id: 'staff-sarah', name: 'Sarah Davis', roleLabel: 'Senior Mobility & Aqua Coach', icon: 'water' },
-  { id: 'staff-desk', name: 'Marcus Taylor', roleLabel: 'Aquatics & Operations Desk', icon: 'people' },
-  { id: 'staff-admin', name: 'Jane Smith', roleLabel: 'Branch Director', icon: 'shield-checkmark' },
+  { id: 'staff-alex', name: 'Doc', roleLabel: 'Personal Wellness Trainer', icon: 'barbell' },
+  { id: 'staff-sarah', name: 'Jane Doe', roleLabel: 'Senior Mobility & Aqua Coach', icon: 'water' },
+  { id: 'staff-celine', name: 'Celine', roleLabel: 'Wellness Director (Incharge of PT)', icon: 'fitness' },
+  { id: 'staff-desk', name: 'Billy Deveaux', roleLabel: 'Membership Director', icon: 'people' },
+  { id: 'staff-admin', name: 'David', roleLabel: 'Staff Admin & Branch Director', icon: 'shield-checkmark' },
 ];
 
 type TopicTemplate = {
@@ -206,8 +212,8 @@ export function NewTopicModal({
       );
 
       await onSubmit({
-        title: trimmedTitle,
-        content: trimmedContent,
+        title: filterProfanity(trimmedTitle),
+        content: filterProfanity(trimmedContent),
         category,
         pinned,
         mentionedStaffIds: selectedStaffIds,
@@ -244,7 +250,8 @@ export function NewTopicModal({
             {
               backgroundColor: tc.cardBg,
               borderColor: tc.border,
-              paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 44 : 20) + 4,
+              paddingTop: 10,
+              paddingBottom: 10,
               paddingLeft: Math.max(16, insets.left),
               paddingRight: Math.max(16, insets.right),
             },
@@ -532,6 +539,27 @@ export function NewTopicModal({
               onBlur={() => setIsFocused(false)}
             />
           </View>
+
+          {containsProfanity(title) || containsProfanity(content) ? (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 10,
+                backgroundColor: isDark ? '#3B2F0C' : '#FFFBEB',
+                borderWidth: 1,
+                borderColor: isDark ? '#B45309' : '#FDE68A',
+              }}
+            >
+              <Ionicons name="shield-checkmark" size={15} color="#D97706" />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: isDark ? '#FDE68A' : '#92400E', flex: 1 }}>
+                Family-friendly filter active: profanity will be automatically masked (***) when posted.
+              </Text>
+            </View>
+          ) : null}
 
           {/* Big Publish Button */}
           <Pressable

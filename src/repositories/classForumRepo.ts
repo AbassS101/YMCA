@@ -1,4 +1,11 @@
-import type { ClassForumPost, UserRole } from '@/domain/types';
+import type {
+  ClassForumPost,
+  ForumContentReportInput,
+  Message,
+  SupportTicket,
+  Thread,
+  UserRole,
+} from '@/domain/types';
 import type { ProtivityPort } from '@/protivity/ProtivityPort';
 
 export const classForumRepo = {
@@ -37,5 +44,15 @@ export const classForumRepo = {
     requesterUserId: string
   ): Promise<ClassForumPost> {
     return api.togglePinClassForumPost(postId, requesterUserId);
+  },
+
+  reportPost(
+    api: ProtivityPort,
+    input: Omit<ForumContentReportInput, 'targetType'>
+  ): Promise<{ ticket: SupportTicket; thread: Thread; initialMessage: Message }> {
+    return api.reportForumContent({
+      ...input,
+      targetType: 'class_post',
+    });
   },
 };

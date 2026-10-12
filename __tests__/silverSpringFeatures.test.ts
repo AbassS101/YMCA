@@ -99,13 +99,13 @@ test('staff list separates into personal trainers and wellness desk with distinc
   const desk = allStaff.find((s) => s.id === 'staff-desk');
 
   expect(trainers.length).toBeGreaterThanOrEqual(3);
-  expect(trainers.map((t) => t.name)).toContain('Alex Rivera');
-  expect(trainers.map((t) => t.name)).toContain('Sarah Davis');
+  expect(trainers.map((t) => t.name)).toContain('Doc');
+  expect(trainers.map((t) => t.name)).toContain('Jane Doe');
   expect(trainers.map((t) => t.name)).toContain('Emily Wilson');
 
   expect(desk).toBeDefined();
-  expect(desk?.name).toBe('Marcus Taylor');
-  expect(desk?.roleLabel).toContain('Wellness Desk');
+  expect(desk?.name).toBe('Billy Deveaux');
+  expect(desk?.roleLabel).toContain('Membership Director');
 
   // Verify separate messaging threads can be created and messaged
   const trainerThread = await api.getOrCreateThread('member-jordan', 'staff-alex');

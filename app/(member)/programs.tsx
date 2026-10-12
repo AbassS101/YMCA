@@ -1,8 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
 import {
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,7 +13,7 @@ import { SecondaryButton } from '@/components/SecondaryButton';
 import { YHeader } from '@/components/YHeader';
 import { useTheme } from '@/context/ThemeContext';
 import { cardStyle } from '@/theme/card';
-import { radii, spacing, tapTarget, typography } from '@/theme/typography';
+import { radii, spacing, typography } from '@/theme/typography';
 
 type ProgramSection = {
   id: string;
@@ -30,6 +28,24 @@ type ProgramSection = {
 };
 
 const PROGRAMS: ProgramSection[] = [
+  {
+    id: 'wellness-training-programs',
+    title: 'Wellness Training Programs (Personal & Partner)',
+    category: 'Personal Fitness & Coaching',
+    badge: 'Nationally Certified Trainers',
+    icon: 'fitness-outline',
+    description: 'Evidence-based 60-minute, 30-minute express, and partner wellness training packages supported by nationally certified YMCA trainers. Every package includes a full functional assessment, goal planning, and custom program plan.',
+    highlights: [
+      'Full functional movement screening & post-assessment progress verification',
+      'Goal planning, behavioral habit modification & custom periodized protocol',
+      'Personal 60-Min ($60/session; 12-pack at $50/session saving $120+)',
+      'Personal 30-Min Express ($35/session) for focused conditioning',
+      'Partner Wellness Training ($45/person/session) - workout with a friend',
+      'Specialized expertise: chronic disease, corrective rehab, weight loss, athletics',
+    ],
+    ctaText: 'View Packages & Rates',
+    ctaRoute: '/(member)/(tabs)/trainers?tab=packages',
+  },
   {
     id: 'camps',
     title: 'YMCA Summer & Day Camps',
@@ -59,8 +75,8 @@ const PROGRAMS: ProgramSection[] = [
       'Masters Swim & Adult stroke refinement for fitness swimmers',
       'Small instructor-to-swimmer ratios with certified safety lifeguards',
     ],
-    ctaText: 'View Swim Class Schedule',
-    ctaRoute: '/(member)/(tabs)/schedules',
+    ctaText: 'View Fall 1 Aquatics Guide',
+    ctaRoute: '/(member)/aquatics-guide',
   },
   {
     id: 'child-care',
@@ -123,7 +139,7 @@ const PROGRAMS: ProgramSection[] = [
 
 export default function ProgramsScreen() {
   const router = useRouter();
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
 
   const cardTheme = {
     backgroundColor: colors.cardBg,

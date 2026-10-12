@@ -41,6 +41,7 @@ import { announcementRepo } from '@/repositories/announcementRepo';
 import { lessonRepo } from '@/repositories/lessonRepo';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { registrationRepo } from '@/repositories/registrationRepo';
+import { savedClassesRepo } from '@/repositories/savedClassesRepo';
 import { scheduleRepo } from '@/repositories/scheduleRepo';
 import { streakRepo } from '@/repositories/streakRepo';
 import { surveyRepo } from '@/repositories/surveyRepo';
@@ -57,7 +58,7 @@ const HOURS_WEEKEND = 'Sat 7:00 AM – 8:00 PM · Sun 8:00 AM – 8:00 PM';
 const CARD_WIDTH = Dimensions.get('window').width - 48;
 
 type WeekItem =
-  | { kind: 'class'; item: ScheduleItem; paidAmountCents?: number }
+  | { kind: 'class'; item: ScheduleItem; paidAmountCents?: number; starredOnly?: boolean }
   | { kind: 'lesson'; item: PrivateLesson };
 
 function formatBillingDateLabel(isoDate: string): string {
@@ -121,10 +122,11 @@ export default function MemberHomeScreen() {
       setError(false);
       const today = getDemoToday();
       const to = addDays(today, 6);
-      const [nextMember, nextMembership, regs, lessons, schedules, anns, surveysList, streakData] = await Promise.all([
+      const [nextMember, nextMembership, regs, savedList, lessons, schedules, anns, surveysList, streakData] = await Promise.all([
         api.getMember(memberId),
         membershipRepo.getMembership(api, memberId),
         registrationRepo.listMine(api, memberId),
+        savedClassesRepo.list(memberId),
         lessonRepo.listMine(api, memberId),
         scheduleRepo.list(api, { branchId: BRANCH_ID, from: today, to }),
         announcementRepo.list(api, BRANCH_ID),
@@ -132,11 +134,21 @@ export default function MemberHomeScreen() {
         streakRepo.getStreakProfile(memberId),
       ]);
       const byId = new Map<string, ScheduleItem>(schedules.map((s: ScheduleItem) => [s.id, s]));
+      const seenClassIds = new Set<string>();
       const classItems: WeekItem[] = [];
       for (const r of regs) {
         const s = byId.get(r.scheduleItemId);
         if (s) {
-          classItems.push({ kind: 'class', item: s, paidAmountCents: r.paidAmountCents });
+          seenClassIds.add(s.id);
+          classItems.push({ kind: 'class', item: s, paidAmountCents: r.paidAmountCents, starredOnly: false });
+        }
+      }
+      for (const sc of savedList) {
+        if (seenClassIds.has(sc.scheduleItemId)) continue;
+        const s = byId.get(sc.scheduleItemId);
+        if (s) {
+          seenClassIds.add(s.id);
+          classItems.push({ kind: 'class', item: s, starredOnly: true });
         }
       }
 
@@ -463,10 +475,34 @@ export default function MemberHomeScreen() {
           <Ionicons name="chevron-forward" size={18} color={colors.primary} />
         </Pressable>
 
+        {/* Dedicated Aquatics & Pool Schedule Callout */}
+        <Pressable
+          onPress={() => router.push('/(member)/pool-schedule')}
+          style={[styles.forumBanner, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
+          accessibilityRole="button"
+          accessibilityLabel="Open Official YMCA Pool Schedules"
+        >
+          <View style={[styles.forumBannerIcon, { backgroundColor: isDark ? '#0C4A6E' : '#E0F2FE' }]}>
+            <Ionicons name="water" size={24} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[styles.forumBannerTitle, { color: colors.text }]}>Indoor & Outdoor Pool Schedules</Text>
+              <View style={[styles.forumBadge, { backgroundColor: colors.primaryLight }]}>
+                <Text style={[styles.forumBadgeText, { color: colors.primary }]}>6 LANES</Text>
+              </View>
+            </View>
+            <Text style={[styles.forumBannerSub, { color: colors.textMuted }]}>
+              Live lap availability, heated outdoor pool & lessons (Oct 05, 2026)
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+        </Pressable>
+
         {/* Quick Branch Feature Hub */}
         <View style={styles.featureHubRow}>
           <Pressable
-            onPress={() => router.push('/(member)/branch-amenities')}
+            onPress={() => router.push('/(member)/pool-schedule')}
             style={[styles.featureTile, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
             accessibilityRole="button"
             accessibilityLabel="View Amenities and Heated Pools"
@@ -474,8 +510,8 @@ export default function MemberHomeScreen() {
             <View style={[styles.tileIconCircle, { backgroundColor: colors.primaryLight }]}>
               <Ionicons name="water-outline" size={20} color={colors.primary} />
             </View>
-            <Text style={[styles.tileTitle, { color: colors.text }]}>Pools & Saunas</Text>
-            <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>Heated Pool & Gym</Text>
+            <Text style={[styles.tileTitle, { color: colors.text }]}>Pool Schedules</Text>
+            <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>Indoor & Outdoor</Text>
           </Pressable>
 
           <Pressable
@@ -613,7 +649,7 @@ export default function MemberHomeScreen() {
         {/* This Week Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]} allowFontScaling>
-            Your Bookings This Week
+            Your Bookings & Starred Classes This Week
           </Text>
           {weekItems.length === 0 ? (
             <View
@@ -623,12 +659,12 @@ export default function MemberHomeScreen() {
               ]}
             >
               <Text style={[styles.muted, { color: colors.textMuted }]} allowFontScaling>
-                You have nothing booked yet this week. Browse classes or reserve your spot in a program!
+                You have nothing booked or starred yet this week. Star drop-in classes for reminders or reserve your spot in a program!
               </Text>
               <PrimaryButton
                 title="Explore Classes & Events"
                 onPress={() => router.push('/(member)/(tabs)/schedules')}
-                accessibilityHint="Go to Classes to register"
+                accessibilityHint="Go to Classes to star or register"
               />
             </View>
           ) : (
@@ -650,7 +686,11 @@ export default function MemberHomeScreen() {
                     <View style={styles.cardTopRow}>
                       <View style={styles.badgePill}>
                         <Text style={styles.badgePillText} allowFontScaling>
-                          {w.kind === 'class' ? 'Class' : 'Private Lesson'}
+                          {w.kind === 'class'
+                            ? w.starredOnly
+                              ? '★ Starred Reminder'
+                              : 'Booked Class'
+                            : 'Private Lesson'}
                         </Text>
                       </View>
                       {w.kind === 'class' && w.item.priceCents && w.item.priceCents > 0 ? (
@@ -661,7 +701,9 @@ export default function MemberHomeScreen() {
                         </View>
                       ) : (
                         <View style={styles.includedPill}>
-                          <Text style={styles.includedPillText}>Included Free</Text>
+                          <Text style={styles.includedPillText}>
+                            {w.kind === 'class' && w.starredOnly ? 'Drop-In · Alert On' : 'Included Free'}
+                          </Text>
                         </View>
                       )}
                     </View>

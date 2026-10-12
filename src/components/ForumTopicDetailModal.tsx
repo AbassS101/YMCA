@@ -19,11 +19,13 @@ import { MentionAutocomplete } from '@/components/MentionAutocomplete';
 import { useAccessibility } from '@/context/AccessibilityContext';
 import { useTheme } from '@/context/ThemeContext';
 import {
+  containsProfanity,
+  filterProfanity,
   FORUM_CATEGORIES,
   type ForumReply,
   type ForumTopic,
-  type UserRole,
   type StaffRole,
+  type UserRole,
 } from '@/domain/types';
 import { forumRepo } from '@/repositories/forumRepo';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -49,6 +51,23 @@ const QUICK_REACTION_TEMPLATES = [
   'See you there! 👍',
   'Count me in! 🎾',
 ];
+
+const REPORT_REASONS = [
+  'Profanity / Inappropriate Language',
+  'Harassment or Disrespectful Behavior',
+  'Spam or Promotional Content',
+  'Safety / Community Guidelines Violation',
+];
+
+type ActionSheetTarget = {
+  targetType: 'topic' | 'reply';
+  id: string;
+  authorId: string;
+  authorName: string;
+  content: string;
+  canDelete: boolean;
+  deleteRoleLabel?: string;
+};
 
 function roleBadge(role?: UserRole | StaffRole | string) {
   if (role === 'admin' || role === 'it_admin' || role === 'staff_admin') {
@@ -96,6 +115,13 @@ export function ForumTopicDetailModal({
   const [isFocused, setIsFocused] = useState(false);
   const [submittingReply, setSubmittingReply] = useState(false);
   const [topicOverride, setTopicOverride] = useState<ForumTopic | null>(null);
+
+  // Hold-down action & IT report sheet state
+  const [actionTarget, setActionTarget] = useState<ActionSheetTarget | null>(null);
+  const [selectedReason, setSelectedReason] = useState<string>(REPORT_REASONS[0]);
+  const [reportDetails, setReportDetails] = useState('');
+  const [submittingReport, setSubmittingReport] = useState(false);
+  const [reportSuccessTicket, setReportSuccessTicket] = useState<string | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
@@ -149,6 +175,10 @@ export function ForumTopicDetailModal({
           // ignore
         });
     }
+    if (!visible) {
+      setActionTarget(null);
+      setReportSuccessTicket(null);
+    }
     return () => {
       active = false;
     };
@@ -175,6 +205,81 @@ export function ForumTopicDetailModal({
   const mentionDisplayNames = Array.from(
     new Set([...(currentTopic.mentionedStaffNames ?? []), ...(currentTopic.mentionedUserNames ?? [])])
   );
+
+  const hasProfanityInDraft = containsProfanity(replyText);
+
+  const openTopicActionSheet = () => {
+    setSelectedReason(REPORT_REASONS[0]);
+    setReportDetails('');
+    setReportSuccessTicket(null);
+    setActionTarget({
+      targetType: 'topic',
+      id: currentTopic.id,
+      authorId: currentTopic.authorId,
+      authorName: currentTopic.authorName,
+      content: `${currentTopic.title} — ${currentTopic.content}`,
+      canDelete: isTopicAuthor || isStaffUser,
+      deleteRoleLabel: isTopicAuthor
+        ? 'Thread Owner'
+        : currentUserRole === 'it_admin'
+          ? 'IT Admin'
+          : currentUserRole === 'trainer'
+            ? 'Trainer Moderator'
+            : 'Staff Moderator',
+    });
+  };
+
+  const openReplyActionSheet = (reply: ForumReply) => {
+    const isReplyAuthor = reply.authorId === currentUserId;
+    const canDelete = isReplyAuthor || isTopicAuthor || isStaffUser;
+    const deleteRoleLabel = isReplyAuthor
+      ? 'Your Reply'
+      : isTopicAuthor
+        ? 'Thread Owner'
+        : currentUserRole === 'it_admin'
+          ? 'IT Admin'
+          : currentUserRole === 'trainer'
+            ? 'Trainer Moderator'
+            : 'Staff Moderator';
+
+    setSelectedReason(REPORT_REASONS[0]);
+    setReportDetails('');
+    setReportSuccessTicket(null);
+    setActionTarget({
+      targetType: 'reply',
+      id: reply.id,
+      authorId: reply.authorId,
+      authorName: reply.authorName,
+      content: reply.content,
+      canDelete,
+      deleteRoleLabel,
+    });
+  };
+
+  const handleSubmitReport = async () => {
+    if (!actionTarget || !api || !currentUserId) return;
+    setSubmittingReport(true);
+    try {
+      const { ticket } = await forumRepo.reportContent(api, {
+        reporterId: currentUserId,
+        reporterName: currentUserName,
+        reporterRole: currentUserRole,
+        targetType: actionTarget.targetType,
+        targetId: actionTarget.id,
+        targetAuthorId: actionTarget.authorId,
+        targetAuthorName: actionTarget.authorName,
+        targetContent: actionTarget.content,
+        contextTitle: currentTopic.title,
+        reason: selectedReason,
+        details: reportDetails,
+      });
+      setReportSuccessTicket(ticket.ticketNumber);
+    } catch {
+      // noop
+    } finally {
+      setSubmittingReport(false);
+    }
+  };
 
   const handleToggleTopicLike = async () => {
     if (!api || !currentUserId) return;
@@ -213,6 +318,7 @@ export function ForumTopicDetailModal({
     if (!api || !currentUserId) return;
     try {
       await forumRepo.deleteTopic(api, currentTopic.id, currentUserId);
+      setActionTarget(null);
       onTopicDeleted?.(currentTopic.id);
       onClose();
     } catch {
@@ -221,23 +327,26 @@ export function ForumTopicDetailModal({
   };
 
   const handleSendReply = async (customText?: string) => {
-    const text = (customText ?? replyText).trim();
-    if (!text || !api || !currentUserId) return;
+    const rawText = (customText ?? replyText).trim();
+    if (!rawText || !api || !currentUserId) return;
+    const text = filterProfanity(rawText);
 
     setSubmittingReply(true);
     try {
       const mentionedStaffIds: string[] = [];
       const lower = text.toLowerCase();
-      if (lower.includes('@alex') || lower.includes('@staff-alex')) mentionedStaffIds.push('staff-alex');
-      if (lower.includes('@sarah') || lower.includes('@staff-sarah')) mentionedStaffIds.push('staff-sarah');
-      if (lower.includes('@marcus') || lower.includes('@desk') || lower.includes('@staff-desk'))
+      if (lower.includes('@alex') || lower.includes('@doc') || lower.includes('@staff-alex')) mentionedStaffIds.push('staff-alex');
+      if (lower.includes('@sarah') || lower.includes('@jane doe') || lower.includes('@staff-sarah')) mentionedStaffIds.push('staff-sarah');
+      if (lower.includes('@celine') || lower.includes('@staff-celine')) mentionedStaffIds.push('staff-celine');
+      if (lower.includes('@marcus') || lower.includes('@billy') || lower.includes('@desk') || lower.includes('@staff-desk'))
         mentionedStaffIds.push('staff-desk');
-      if (lower.includes('@david') || lower.includes('@it') || lower.includes('@staff-itadmin'))
+      if (lower.includes('@david') || lower.includes('@abass') || lower.includes('@it') || lower.includes('@staff-itadmin'))
         mentionedStaffIds.push('staff-itadmin');
       if (
         lower.includes('@jane') ||
         lower.includes('@patricia') ||
         lower.includes('@pat') ||
+        lower.includes('@david') ||
         lower.includes('@staff-admin')
       )
         mentionedStaffIds.push('staff-admin');
@@ -302,19 +411,18 @@ export function ForumTopicDetailModal({
     try {
       await forumRepo.deleteReply(api, replyId, currentUserId);
       setReplies((prev) => prev.filter((r) => r.id !== replyId));
-      setTopicOverride((prev) =>
-        prev
-          ? {
-              ...prev,
-              replyCount: Math.max(0, (prev.replyCount ?? 1) - 1),
-            }
-          : currentTopic
-            ? {
-                ...currentTopic,
-                replyCount: Math.max(0, (currentTopic.replyCount ?? 1) - 1),
-              }
-            : null
-      );
+      setActionTarget(null);
+      const nextTopic = topicOverride && topicOverride.id === currentTopic.id
+        ? {
+            ...topicOverride,
+            replyCount: Math.max(0, (topicOverride.replyCount ?? 1) - 1),
+          }
+        : {
+            ...currentTopic,
+            replyCount: Math.max(0, (currentTopic.replyCount ?? 1) - 1),
+          };
+      setTopicOverride(nextTopic);
+      onTopicUpdated?.(nextTopic);
     } catch {
       // noop
     }
@@ -325,7 +433,7 @@ export function ForumTopicDetailModal({
       ? keyboardHeight
       : keyboardVisible && Platform.OS === 'android'
         ? 280
-        : Math.max(insets.bottom, 12);
+        : Math.max(insets.bottom, 10);
 
   return (
     <Modal
@@ -335,16 +443,17 @@ export function ForumTopicDetailModal({
       onRequestClose={onClose}
     >
       <View style={[styles.screen, { backgroundColor: tc.background }]}>
-        {/* Header */}
+        {/* Compact Header (No Excess Top Whitespace) */}
         <View
           style={[
             styles.header,
             {
               backgroundColor: tc.cardBg,
               borderColor: tc.border,
-              paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 44 : 20) + 4,
-              paddingLeft: Math.max(16, insets.left),
-              paddingRight: Math.max(16, insets.right),
+              paddingTop: 10,
+              paddingBottom: 10,
+              paddingLeft: Math.max(14, insets.left),
+              paddingRight: Math.max(14, insets.right),
             },
           ]}
         >
@@ -355,7 +464,7 @@ export function ForumTopicDetailModal({
             accessibilityRole="button"
             accessibilityLabel="Back to forum topics"
           >
-            <Ionicons name="arrow-back" size={22} color={tc.text} />
+            <Ionicons name="arrow-back" size={21} color={tc.text} />
           </Pressable>
 
           <View style={styles.headerTitleWrap}>
@@ -391,9 +500,19 @@ export function ForumTopicDetailModal({
             >
               <Ionicons
                 name={isTopicInterested ? 'star' : 'star-outline'}
-                size={19}
+                size={18}
                 color={isTopicInterested ? '#D97706' : tc.textMuted}
               />
+            </Pressable>
+
+            <Pressable
+              onPress={openTopicActionSheet}
+              hitSlop={8}
+              style={styles.headerActionBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Report topic to IT or moderate"
+            >
+              <Ionicons name="flag-outline" size={17} color={tc.textMuted} />
             </Pressable>
 
             {isStaffUser ? (
@@ -405,7 +524,7 @@ export function ForumTopicDetailModal({
               >
                 <Ionicons
                   name={currentTopic.pinned ? 'pin' : 'pin-outline'}
-                  size={18}
+                  size={17}
                   color={currentTopic.pinned ? '#D97706' : tc.textMuted}
                 />
               </Pressable>
@@ -418,7 +537,7 @@ export function ForumTopicDetailModal({
                 style={styles.headerActionBtn}
                 accessibilityLabel="Delete topic"
               >
-                <Ionicons name="trash-outline" size={18} color={colors.scarlet} />
+                <Ionicons name="trash-outline" size={17} color={colors.scarlet} />
               </Pressable>
             ) : null}
           </View>
@@ -435,9 +554,11 @@ export function ForumTopicDetailModal({
             contentContainerStyle={styles.listContent}
             ListHeaderComponent={
               <View style={styles.topicHeaderContainer}>
-                {/* Main Topic Hero Card */}
-                <View
-                  style={[
+                {/* Main Topic Hero Card (Long-press to Report or Delete) */}
+                <Pressable
+                  onLongPress={openTopicActionSheet}
+                  delayLongPress={300}
+                  style={({ pressed }) => [
                     styles.topicCard,
                     {
                       backgroundColor: tc.cardBg,
@@ -448,14 +569,16 @@ export function ForumTopicDetailModal({
                         : tc.cardBorder,
                       borderWidth: 1,
                     },
+                    pressed && { opacity: 0.96 },
                   ]}
+                  accessibilityHint="Hold down to report topic to IT or moderate"
                 >
                   {/* Topic Author Header */}
                   <View style={styles.authorRow}>
                     <UserAvatar
                       uri={currentTopic.authorAvatarUrl}
                       name={currentTopic.authorName}
-                      size={42}
+                      size={40}
                     />
                     <View style={styles.authorMeta}>
                       <View style={styles.nameAndBadge}>
@@ -475,6 +598,18 @@ export function ForumTopicDetailModal({
                             {topicBadge.label}
                           </Text>
                         </View>
+                        {isTopicAuthor ? (
+                          <View
+                            style={[
+                              styles.roleBadge,
+                              { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' },
+                            ]}
+                          >
+                            <Text style={[styles.roleBadgeText, { color: tc.text }]}>
+                              THREAD OWNER
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
                       <View style={styles.timeAndCatSub}>
                         <Text style={[styles.postDate, { color: tc.textMuted }]}>
@@ -508,9 +643,13 @@ export function ForumTopicDetailModal({
                     </View>
                   </View>
 
-                  {/* Title & Body */}
-                  <Text style={[styles.topicTitle, { color: tc.text }]}>{currentTopic.title}</Text>
-                  <Text style={[styles.topicBody, { color: tc.text }]}>{currentTopic.content}</Text>
+                  {/* Title & Body (Profanity Filtered) */}
+                  <Text style={[styles.topicTitle, { color: tc.text }]}>
+                    {filterProfanity(currentTopic.title)}
+                  </Text>
+                  <Text style={[styles.topicBody, { color: tc.text }]}>
+                    {filterProfanity(currentTopic.content)}
+                  </Text>
 
                   {/* Mention Box */}
                   {mentionDisplayNames.length > 0 ? (
@@ -535,9 +674,9 @@ export function ForumTopicDetailModal({
                     </View>
                   ) : null}
 
-                  {/* Like & Interested Buttons & Stats */}
+                  {/* Like, Interested & Report Footer */}
                   <View style={[styles.topicFooter, { borderTopColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <Pressable
                         onPress={() => void handleToggleTopicLike()}
                         style={({ pressed }) => [
@@ -612,25 +751,46 @@ export function ForumTopicDetailModal({
                           {isTopicInterested ? 'Following' : 'Follow'}
                         </Text>
                       </Pressable>
+
+                      <Pressable
+                        onPress={openTopicActionSheet}
+                        style={({ pressed }) => [
+                          styles.likeBtn,
+                          {
+                            backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+                            borderColor: tc.border,
+                          },
+                          pressed && { opacity: 0.8 },
+                        ]}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel="Report topic to IT"
+                      >
+                        <Ionicons name="flag-outline" size={13} color={tc.textMuted} />
+                        <Text style={[styles.likeCount, { color: tc.textMuted }]}>Report</Text>
+                      </Pressable>
                     </View>
 
                     <Text style={[styles.repliesCountLabel, { color: tc.textMuted }]}>
                       {replies.length} {replies.length === 1 ? 'Reply' : 'Replies'}
                     </Text>
                   </View>
-                </View>
+                </Pressable>
 
-                {/* Section Header */}
+                {/* Section Header + Hold-Down Hint */}
                 <View style={styles.repliesSectionHeader}>
                   <Text style={[styles.repliesSectionTitle, { color: tc.text }]}>
                     Replies & Discussion ({replies.length})
+                  </Text>
+                  <Text style={[styles.repliesSectionHint, { color: tc.textMuted }]}>
+                    Hold down any reply or topic to report to IT or delete
                   </Text>
                 </View>
               </View>
             }
             ListEmptyComponent={
               <View style={[styles.emptyRepliesBox, { backgroundColor: tc.cardBg, borderColor: tc.border }]}>
-                <Ionicons name="chatbubble-ellipses-outline" size={36} color={tc.textMuted} />
+                <Ionicons name="chatbubble-ellipses-outline" size={34} color={tc.textMuted} />
                 <Text style={[styles.emptyRepliesTitle, { color: tc.text }]}>No Replies Yet</Text>
                 <Text style={[styles.emptyRepliesSubtitle, { color: tc.textMuted }]}>
                   Be the first to share advice, answer questions, or connect with the community below!
@@ -640,11 +800,14 @@ export function ForumTopicDetailModal({
             renderItem={({ item: reply }) => {
               const replyBadge = roleBadge(reply.authorRole);
               const isReplyAuthor = reply.authorId === currentUserId;
+              const canDeleteReply = isReplyAuthor || isTopicAuthor || isStaffUser;
               const isReplyLiked = (reply.likedBy ?? []).includes(currentUserId);
 
               return (
-                <View
-                  style={[
+                <Pressable
+                  onLongPress={() => openReplyActionSheet(reply)}
+                  delayLongPress={300}
+                  style={({ pressed }) => [
                     styles.replyCard,
                     {
                       backgroundColor: reply.isStaffReply
@@ -659,7 +822,9 @@ export function ForumTopicDetailModal({
                         : tc.cardBorder,
                       borderWidth: reply.isStaffReply ? 1.5 : 1,
                     },
+                    pressed && { opacity: 0.94 },
                   ]}
+                  accessibilityHint="Hold down to report reply to IT or delete"
                 >
                   {/* Official Staff Response Banner */}
                   {reply.isStaffReply ? (
@@ -696,27 +861,52 @@ export function ForumTopicDetailModal({
                             {replyBadge.label}
                           </Text>
                         </View>
+                        {reply.authorId === currentTopic.authorId ? (
+                          <View
+                            style={[
+                              styles.roleBadge,
+                              { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' },
+                            ]}
+                          >
+                            <Text style={[styles.roleBadgeText, { color: tc.text }]}>OP</Text>
+                          </View>
+                        ) : null}
                       </View>
                       <Text style={[styles.replyDate, { color: tc.textMuted }]}>
                         {formatTime(reply.createdAt)}
                       </Text>
                     </View>
 
-                    {/* Delete reply if author or admin */}
-                    {isReplyAuthor || isStaffUser ? (
+                    {/* Report & Delete reply actions (Author, Thread Owner, Trainer, or IT/Staff Admin) */}
+                    <View style={styles.replyTopRightActions}>
                       <Pressable
-                        onPress={() => void handleDeleteReply(reply.id)}
+                        onPress={() => openReplyActionSheet(reply)}
                         hitSlop={8}
-                        style={styles.replyDeleteBtn}
-                        accessibilityLabel="Delete reply"
+                        style={styles.replyActionIconBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Report reply by ${reply.authorName} to IT`}
                       >
-                        <Ionicons name="trash-outline" size={15} color={colors.scarlet} />
+                        <Ionicons name="flag-outline" size={14} color={tc.textMuted} />
                       </Pressable>
-                    ) : null}
+
+                      {canDeleteReply ? (
+                        <Pressable
+                          onPress={() => void handleDeleteReply(reply.id)}
+                          hitSlop={8}
+                          style={styles.replyActionIconBtn}
+                          accessibilityRole="button"
+                          accessibilityLabel="Delete reply"
+                        >
+                          <Ionicons name="trash-outline" size={15} color={colors.scarlet} />
+                        </Pressable>
+                      ) : null}
+                    </View>
                   </View>
 
-                  {/* Reply Content */}
-                  <Text style={[styles.replyContent, { color: tc.text }]}>{reply.content}</Text>
+                  {/* Reply Content (Profanity Filtered) */}
+                  <Text style={[styles.replyContent, { color: tc.text }]}>
+                    {filterProfanity(reply.content)}
+                  </Text>
 
                   {/* Reply Footer Like Button */}
                   <View style={styles.replyFooter}>
@@ -748,7 +938,7 @@ export function ForumTopicDetailModal({
                       </Text>
                     </Pressable>
                   </View>
-                </View>
+                </Pressable>
               );
             }}
           />
@@ -763,6 +953,24 @@ export function ForumTopicDetailModal({
               },
             ]}
           >
+            {/* Profanity Filter Live Notice */}
+            {hasProfanityInDraft ? (
+              <View
+                style={[
+                  styles.profanityNoticeBar,
+                  {
+                    backgroundColor: isDark ? '#422006' : '#FEF3C7',
+                    borderColor: isDark ? '#B45309' : '#FDE68A',
+                  },
+                ]}
+              >
+                <Ionicons name="shield-checkmark" size={14} color="#D97706" />
+                <Text style={[styles.profanityNoticeText, { color: isDark ? '#FDE68A' : '#92400E' }]}>
+                  YMCA Family-Friendly Filter: Profanity will be automatically censored (****).
+                </Text>
+              </View>
+            ) : null}
+
             {/* Mention Autocomplete Popup */}
             <MentionAutocomplete
               text={replyText}
@@ -795,7 +1003,7 @@ export function ForumTopicDetailModal({
             {/* Quick @ mention helper */}
             <View style={styles.quickMentionRow}>
               <Text style={[styles.quickMentionLabel, { color: tc.textMuted }]}>Tag:</Text>
-              {['@All Staff Desk', '@Alex Rivera', '@Marcus Taylor', '@Sarah Davis'].map((mention) => (
+              {['@All Staff Desk', '@Doc', '@Billy Deveaux', '@Jane Doe'].map((mention) => (
                 <Pressable
                   key={mention}
                   onPress={() => setReplyText((prev) => (prev ? `${prev} ${mention} ` : `${mention} `))}
@@ -879,6 +1087,201 @@ export function ForumTopicDetailModal({
             </View>
           </View>
         </View>
+
+        {/* HOLD-DOWN REPORT TO IT & MODERATION SHEET MODAL */}
+        <Modal
+          visible={Boolean(actionTarget)}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setActionTarget(null)}
+        >
+          <Pressable style={styles.sheetBackdrop} onPress={() => setActionTarget(null)}>
+            <Pressable
+              style={[styles.sheetCard, { backgroundColor: tc.cardBg, borderColor: tc.border }]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              {actionTarget ? (
+                <>
+                  <View style={styles.sheetHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                      <Ionicons name="shield-half" size={20} color={colors.primary} />
+                      <Text style={[styles.sheetTitle, { color: tc.text }]}>
+                        {actionTarget.targetType === 'topic' ? 'Topic Options & IT Report' : 'Reply Options & IT Report'}
+                      </Text>
+                    </View>
+                    <Pressable onPress={() => setActionTarget(null)} hitSlop={8}>
+                      <Ionicons name="close" size={22} color={tc.textMuted} />
+                    </Pressable>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.sheetPreviewBox,
+                      {
+                        backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+                        borderColor: tc.border,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.sheetPreviewAuthor, { color: tc.text }]}>
+                      Posted by {actionTarget.authorName}
+                    </Text>
+                    <Text
+                      style={[styles.sheetPreviewContent, { color: tc.textMuted }]}
+                      numberOfLines={2}
+                    >
+                      "{filterProfanity(actionTarget.content)}"
+                    </Text>
+                  </View>
+
+                  {/* Delete Option (for Reply Author, Thread Owner, Class Trainer, or IT/Staff Admin) */}
+                  {actionTarget.canDelete ? (
+                    <Pressable
+                      onPress={() => {
+                        if (actionTarget.targetType === 'topic') {
+                          void handleDeleteTopic();
+                        } else {
+                          void handleDeleteReply(actionTarget.id);
+                        }
+                      }}
+                      style={({ pressed }) => [
+                        styles.sheetDeleteBtn,
+                        pressed && { opacity: 0.85 },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Delete ${actionTarget.targetType}`}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.sheetDeleteBtnTitle}>
+                          Delete {actionTarget.targetType === 'topic' ? 'Discussion Topic' : 'Reply'}
+                        </Text>
+                        <Text style={styles.sheetDeleteBtnSub}>
+                          Authorized as {actionTarget.deleteRoleLabel}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ) : null}
+
+                  {/* Report to IT Ticket Section */}
+                  {reportSuccessTicket ? (
+                    <View
+                      style={[
+                        styles.reportSuccessBox,
+                        {
+                          backgroundColor: isDark ? '#064E3B' : '#ECFDF5',
+                          borderColor: isDark ? '#047857' : '#A7F3D0',
+                        },
+                      ]}
+                    >
+                      <Ionicons name="checkmark-circle" size={24} color="#15803D" />
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={[styles.reportSuccessTitle, { color: isDark ? '#34D399' : '#065F46' }]}>
+                          IT Ticket #{reportSuccessTicket} Sent!
+                        </Text>
+                        <Text style={[styles.reportSuccessSub, { color: isDark ? '#A7F3D0' : '#047857' }]}>
+                          YMCA IT Systems (David Miller) has received your report and opened a support ticket for moderation review.
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={() => setActionTarget(null)}
+                        style={[styles.doneReportBtn, { backgroundColor: '#15803D' }]}
+                      >
+                        <Text style={styles.doneReportBtnText}>Done</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <View style={styles.reportFormWrap}>
+                      <Text style={[styles.reportSectionLabel, { color: tc.text }]}>
+                        Report to YMCA IT Support (Sends Ticket):
+                      </Text>
+                      <View style={styles.reasonsList}>
+                        {REPORT_REASONS.map((reason) => {
+                          const selected = selectedReason === reason;
+                          return (
+                            <Pressable
+                              key={reason}
+                              onPress={() => setSelectedReason(reason)}
+                              style={[
+                                styles.reasonOption,
+                                {
+                                  backgroundColor: selected
+                                    ? isDark
+                                      ? '#0C2A4A'
+                                    : '#EFF6FF'
+                                    : isDark
+                                      ? '#1E293B'
+                                      : '#F8FAFC',
+                                  borderColor: selected ? colors.primary : tc.border,
+                                },
+                              ]}
+                            >
+                              <Ionicons
+                                name={selected ? 'radio-button-on' : 'radio-button-off'}
+                                size={16}
+                                color={selected ? colors.primary : tc.textMuted}
+                              />
+                              <Text
+                                style={[
+                                  styles.reasonOptionText,
+                                  {
+                                    color: selected ? colors.primary : tc.text,
+                                    fontWeight: selected ? '700' : '500',
+                                  },
+                                ]}
+                              >
+                                {reason}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+
+                      <TextInput
+                        style={[
+                          styles.reportNotesInput,
+                          {
+                            backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+                            color: tc.text,
+                            borderColor: tc.border,
+                          },
+                        ]}
+                        placeholder="Optional details for IT Support..."
+                        placeholderTextColor={tc.textMuted}
+                        value={reportDetails}
+                        onChangeText={setReportDetails}
+                        maxLength={250}
+                      />
+
+                      <Pressable
+                        onPress={() => void handleSubmitReport()}
+                        disabled={submittingReport}
+                        style={({ pressed }) => [
+                          styles.submitReportBtn,
+                          { backgroundColor: colors.primary },
+                          pressed && { opacity: 0.9 },
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityLabel="Submit report and send ticket to IT"
+                      >
+                        {submittingReport ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <>
+                            <Ionicons name="flag" size={16} color="#FFFFFF" />
+                            <Text style={styles.submitReportBtnText}>
+                              Report & Send Ticket to IT
+                            </Text>
+                          </>
+                        )}
+                      </Pressable>
+                    </View>
+                  )}
+                </>
+              ) : null}
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
     </Modal>
   );
@@ -898,13 +1301,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderBottomWidth: 1,
   },
   backBtn: {
-    minWidth: 44,
-    minHeight: 44,
+    minWidth: 36,
+    minHeight: 36,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -927,27 +1330,28 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
   },
   headerActionBtn: {
-    minWidth: 38,
-    minHeight: 38,
+    minWidth: 34,
+    minHeight: 34,
     justifyContent: 'center',
     alignItems: 'center',
   },
   listContent: {
-    padding: 16,
-    paddingBottom: 24,
-    gap: 12,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 20,
+    gap: 10,
   },
   topicHeaderContainer: {
-    gap: 14,
-    marginBottom: 4,
+    gap: 10,
+    marginBottom: 2,
   },
   topicCard: {
     borderRadius: 16,
-    padding: 16,
-    gap: 12,
+    padding: 14,
+    gap: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -1026,15 +1430,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 12,
+    paddingTop: 10,
     borderTopWidth: 1,
+    gap: 8,
   },
   likeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 14,
     borderWidth: 1,
   },
@@ -1047,18 +1452,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   repliesSectionHeader: {
-    marginTop: 6,
+    marginTop: 2,
+    gap: 2,
   },
   repliesSectionTitle: {
     fontSize: 15,
     fontWeight: '800',
   },
+  repliesSectionHint: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
   emptyRepliesBox: {
     alignItems: 'center',
-    padding: 24,
+    padding: 20,
     borderRadius: 14,
     borderWidth: 1,
-    gap: 8,
+    gap: 6,
   },
   emptyRepliesTitle: {
     fontSize: 15,
@@ -1071,7 +1481,7 @@ const styles = StyleSheet.create({
   },
   replyCard: {
     borderRadius: 14,
-    padding: 13,
+    padding: 12,
     gap: 8,
   },
   staffResponseBanner: {
@@ -1103,6 +1513,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexWrap: 'wrap',
   },
   replyAuthorName: {
     fontSize: 13,
@@ -1111,7 +1522,12 @@ const styles = StyleSheet.create({
   replyDate: {
     fontSize: 10,
   },
-  replyDeleteBtn: {
+  replyTopRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  replyActionIconBtn: {
     padding: 4,
   },
   replyContent: {
@@ -1142,6 +1558,20 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 6,
     gap: 7,
+  },
+  profanityNoticeBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  profanityNoticeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    flex: 1,
   },
   quickReactionsScroll: {
     gap: 6,
@@ -1206,5 +1636,132 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 2,
+  },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    justifyContent: 'flex-end',
+    padding: 12,
+  },
+  sheetCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12,
+    maxWidth: 680,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  sheetPreviewBox: {
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 2,
+  },
+  sheetPreviewAuthor: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sheetPreviewContent: {
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  sheetDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  sheetDeleteBtnTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#B91C1C',
+  },
+  sheetDeleteBtnSub: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#DC2626',
+  },
+  reportFormWrap: {
+    gap: 8,
+  },
+  reportSectionLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  reasonsList: {
+    gap: 6,
+  },
+  reasonOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  reasonOptionText: {
+    fontSize: 13,
+  },
+  reportNotesInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+  },
+  submitReportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 2,
+  },
+  submitReportBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  reportSuccessBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  reportSuccessTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  reportSuccessSub: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  doneReportBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  doneReportBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

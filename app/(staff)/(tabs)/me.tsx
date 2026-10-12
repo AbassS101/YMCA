@@ -30,46 +30,53 @@ const THEME_OPTIONS: { key: ThemeMode; label: string; icon: keyof typeof Ionicon
 
 const DEMO_ACCOUNTS = [
   {
-    name: 'David Miller',
+    name: 'Abass Shikur',
     email: 'itadmin@silverspring.ymca',
     role: 'IT Admin · Systems Administrator',
     icon: 'shield-checkmark',
     color: '#7C3AED',
   },
   {
-    name: 'Jane Smith',
+    name: 'David',
     email: 'admin@silverspring.ymca',
-    role: 'Staff Admin · Director',
+    role: 'Staff Admin · Branch Director',
     icon: 'shield',
     color: colors.primary,
   },
   {
-    name: 'Alex Rivera',
+    name: 'Doc',
     email: 'alex@silverspring.ymca',
     role: 'Trainer · Personal Wellness',
     icon: 'barbell',
     color: '#15803D',
   },
   {
-    name: 'Sarah Davis',
+    name: 'Jane Doe',
     email: 'sarah@silverspring.ymca',
     role: 'Trainer · Senior Mobility',
     icon: 'heart',
     color: '#0284C7',
   },
   {
-    name: 'Marcus Taylor',
+    name: 'Celine',
+    email: 'celine@silverspring.ymca',
+    role: 'Wellness Director (Incharge of Personal training)',
+    icon: 'fitness',
+    color: '#EC4899',
+  },
+  {
+    name: 'Billy Deveaux',
     email: 'wellness@silverspring.ymca',
-    role: 'Staff · Front Desk & Member Services',
+    role: 'Membership Director · 301 585 2120 ext 2506',
     icon: 'business',
     color: '#D97706',
   },
   {
-    name: 'Jordan Hale',
+    name: 'John Doe',
     email: 'jordan@silverspring.ymca',
     role: 'YMCA Member',
     icon: 'person',
-    color: '#7C3AED',
+    color: '#2563EB',
   },
 ];
 

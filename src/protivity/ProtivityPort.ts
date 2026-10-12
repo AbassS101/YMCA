@@ -10,6 +10,7 @@ import type {
   ComplaintSuggestion,
   Donation,
   FeedbackStatus,
+  ForumContentReportInput,
   ForumReply,
   ForumTopic,
   ForumTopicCategory,
@@ -291,6 +292,9 @@ export interface ProtivityPort {
   }): Promise<ForumReply>;
   deleteForumReply(replyId: string, requesterUserId: string): Promise<void>;
   toggleLikeForumReply(replyId: string, userId: string): Promise<ForumReply>;
+  reportForumContent(
+    input: ForumContentReportInput
+  ): Promise<{ ticket: SupportTicket; thread: Thread; initialMessage: Message }>;
 
   // Support Tickets & IT Systems Chat
   createSupportTicket(input: {

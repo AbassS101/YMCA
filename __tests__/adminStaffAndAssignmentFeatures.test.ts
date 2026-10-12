@@ -82,7 +82,7 @@ describe('Admin Staff, Member Management, and Trainer Assignment Features', () =
 
     const updatedTrainer = await adapter.getAssignedTrainer(memberId);
     expect(updatedTrainer?.id).toBe(sarah.id);
-    expect(updatedTrainer?.name).toBe('Sarah Davis');
+    expect(updatedTrainer?.name).toBe('Jane Doe');
   });
 
   it('allows Admin to create a new member with active membership and instant barcode', async () => {

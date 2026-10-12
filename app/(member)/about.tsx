@@ -77,7 +77,7 @@ const AMENITIES = [
 
 const DEMO_ROLES = [
   {
-    name: 'Jordan Hale',
+    name: 'John Doe',
     email: 'jordan@silverspring.ymca',
     role: 'Member',
     color: '#2563EB',
@@ -91,25 +91,39 @@ const DEMO_ROLES = [
     icon: 'ticket' as const,
   },
   {
-    name: 'Jane Smith',
+    name: 'David',
     email: 'admin@silverspring.ymca',
-    role: 'Staff Admin · Director',
+    role: 'Staff Admin · Branch Director',
     color: '#D97706',
     icon: 'star' as const,
   },
   {
-    name: 'Alex Rivera',
+    name: 'Doc',
     email: 'alex@silverspring.ymca',
     role: 'Trainer · Wellness',
     color: '#15803D',
     icon: 'barbell' as const,
   },
   {
-    name: 'David Miller',
+    name: 'Abass Shikur',
     email: 'itadmin@silverspring.ymca',
     role: 'IT Admin · Chief Systems',
     color: '#7C3AED',
     icon: 'shield-checkmark' as const,
+  },
+  {
+    name: 'Celine',
+    email: 'celine@silverspring.ymca',
+    role: 'Wellness Director (Incharge of PT)',
+    color: '#EC4899',
+    icon: 'fitness' as const,
+  },
+  {
+    name: 'Billy Deveaux',
+    email: 'wellness@silverspring.ymca',
+    role: 'Membership Director',
+    color: '#D97706',
+    icon: 'business' as const,
   },
 ];
 

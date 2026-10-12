@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
@@ -10,6 +11,7 @@ import {
 
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { WellnessPackageModal } from '@/components/WellnessPackageModal';
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
@@ -57,6 +59,7 @@ export default function BookLessonScreen() {
   );
   const [slots, setSlots] = useState<LessonSlot[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [packageModalVisible, setPackageModalVisible] = useState(false);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -191,6 +194,43 @@ export default function BookLessonScreen() {
       </Pressable>
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
       <ScrollView contentContainerStyle={styles.scroll}>
+        {/* Wellness Training Rates & Packages Info Card */}
+        <Pressable
+          onPress={() => setPackageModalVisible(true)}
+          style={[
+            styles.packageBanner,
+            {
+              backgroundColor: isDark ? '#0F172A' : '#EFF6FF',
+              borderColor: colors.primary,
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="View Wellness Training Packages, Rates, and Assessments"
+        >
+          <View style={styles.packageBannerLeft}>
+            <View
+              style={[
+                styles.packageBannerIcon,
+                { backgroundColor: isDark ? '#1E3A8A' : '#DBEAFE' },
+              ]}
+            >
+              <Ionicons name="pricetag" size={16} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.packageBannerTitle, { color: colors.text }]} allowFontScaling>
+                Wellness Training Rates & Packages
+              </Text>
+              <Text style={[styles.packageBannerSubtitle, { color: colors.primary }]} allowFontScaling>
+                60-Min ($60) · 30-Min ($35) · Save up to $180 on multi-packs
+              </Text>
+            </View>
+          </View>
+          <View style={[styles.packageBannerBtn, { backgroundColor: colors.primary }]}>
+            <Text style={styles.packageBannerBtnText}>Rates</Text>
+            <Ionicons name="chevron-forward" size={12} color="#FFFFFF" />
+          </View>
+        </Pressable>
+
         {/* Trainer Selection Bar */}
         <View style={styles.trainerSelectorSection}>
           <Text style={[styles.trainerSelectorLabel, { color: colors.textMuted }]} allowFontScaling>
@@ -322,6 +362,11 @@ export default function BookLessonScreen() {
           />
         </View>
       </ScrollView>
+
+      <WellnessPackageModal
+        visible={packageModalVisible}
+        onClose={() => setPackageModalVisible(false)}
+      />
     </View>
   );
 }
@@ -342,6 +387,51 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm,
     paddingBottom: spacing.xl,
+  },
+  packageBanner: {
+    ...cardStyle,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderWidth: 1.5,
+    gap: 10,
+    marginBottom: 4,
+  },
+  packageBannerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  packageBannerIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  packageBannerTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  packageBannerSubtitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 1,
+  },
+  packageBannerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radii.full,
+  },
+  packageBannerBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
   },
   trainerSelectorSection: {
     gap: spacing.xs,

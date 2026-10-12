@@ -45,8 +45,8 @@ const AMENITIES: AmenityItem[] = [
       'Heated pool deck access and deck chairs',
     ],
     scheduleAction: {
-      label: 'View Swim Schedule',
-      route: '/(member)/(tabs)/schedules',
+      label: 'View Outdoor Pool Schedule',
+      route: '/(member)/pool-schedule?pool=outdoor',
     },
   },
   {
@@ -62,8 +62,8 @@ const AMENITIES: AmenityItem[] = [
       'Certified YMCA lifeguards always on duty',
     ],
     scheduleAction: {
-      label: 'Explore Aqua Classes',
-      route: '/(member)/(tabs)/schedules',
+      label: 'View Indoor Pool Schedule',
+      route: '/(member)/pool-schedule?pool=indoor',
     },
   },
   {

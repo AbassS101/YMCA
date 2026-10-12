@@ -3,7 +3,9 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 );
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { containsProfanity, filterProfanity } from '@/domain/types';
 import { MockProtivityAdapter } from '@/protivity/MockProtivityAdapter';
+import { classForumRepo } from '@/repositories/classForumRepo';
 import { forumRepo } from '@/repositories/forumRepo';
 import { resetStore } from '@/storage/demoStore';
 
@@ -370,7 +372,7 @@ describe('Dedicated YMCA Community Forum & @ Staff Mentions', () => {
       // Taylor @mentions Jordan Hale in a reply
       await forumRepo.createReply(adapter, {
         topicId: 'topic-pickleball',
-        content: 'Hey @Jordan Hale, are you coming to the 7pm pickleball session?',
+        content: 'Hey @member-jordan, are you coming to the 7pm pickleball session?',
         authorId: 'member-taylor',
         authorName: 'Taylor Brooks',
         authorRole: 'member',
@@ -388,7 +390,7 @@ describe('Dedicated YMCA Community Forum & @ Staff Mentions', () => {
         authorId: 'member-carlos',
         authorName: 'Carlos Mendez',
         authorRole: 'member',
-        content: '@Jordan Hale save a spot next to the kettlebells!',
+        content: '@member-jordan save a spot next to the kettlebells!',
       });
 
       const jordanAfterClass = await adapter.listNotifications('member-jordan');
@@ -397,5 +399,161 @@ describe('Dedicated YMCA Community Forum & @ Staff Mentions', () => {
       expect(jordanAfterClass[0].title).toContain('Carlos Mendez');
     });
   });
+
+  describe('10. Profanity Filtering Across Topics, Replies, and Class Forum Posts', () => {
+    it('detects and masks profanity while preserving benign words', () => {
+      expect(containsProfanity('Great morning workout at the pool!')).toBe(false);
+      expect(containsProfanity('Classic kettlebell routine and assistant coach')).toBe(false);
+      expect(containsProfanity('What the fuck is this bullshit')).toBe(true);
+      expect(containsProfanity('Total sh!t and f*ck')).toBe(true);
+
+      const cleaned = filterProfanity('This workout is damn hard and bullshit!');
+      expect(cleaned).not.toContain('damn');
+      expect(cleaned).not.toContain('bullshit');
+      expect(cleaned).toContain('****');
+    });
+
+    it('automatically filters profanity when creating topics, replies, and class posts', async () => {
+      const topic = await forumRepo.createTopic(adapter, {
+        title: 'Question about shit locker locks',
+        content: 'Why the fuck is locker 12 stuck?',
+        category: 'general',
+        authorId: 'member-jordan',
+        authorName: 'Jordan Hale',
+        authorRole: 'member',
+      });
+      expect(topic.title).toBe('Question about **** locker locks');
+      expect(topic.content).toBe('Why the **** is locker 12 stuck?');
+
+      const reply = await forumRepo.createReply(adapter, {
+        topicId: topic.id,
+        content: 'Stop talking bullshit in the forum!',
+        authorId: 'member-carlos',
+        authorName: 'Carlos Mendez',
+        authorRole: 'member',
+        isStaffReply: false,
+      });
+      expect(reply.content).toBe('Stop talking ******** in the forum!');
+
+      const classPost = await classForumRepo.create(adapter, {
+        classId: 'sched-hiit',
+        authorId: 'member-jordan',
+        authorName: 'Jordan Hale',
+        authorRole: 'member',
+        content: 'That burpee set was fucking intense!',
+      });
+      expect(classPost.content).toBe('That burpee set was ******* intense!');
+    });
+  });
+
+  describe('11. Reply Deletion by Thread Owner, Class Trainer, and IT Admin', () => {
+    it('allows the thread owner, trainer, and IT Admin to delete replies on a thread', async () => {
+      // Jordan creates a thread
+      const thread = await forumRepo.createTopic(adapter, {
+        title: 'Jordan Morning Swim Meetup',
+        content: 'Who is joining lane 3 at 7am?',
+        category: 'swim',
+        authorId: 'member-jordan',
+        authorName: 'Jordan Hale',
+        authorRole: 'member',
+      });
+
+      // Carlos posts 3 replies
+      const reply1 = await forumRepo.createReply(adapter, {
+        topicId: thread.id,
+        content: 'Reply 1 from Carlos',
+        authorId: 'member-carlos',
+        authorName: 'Carlos Mendez',
+        authorRole: 'member',
+        isStaffReply: false,
+      });
+      const reply2 = await forumRepo.createReply(adapter, {
+        topicId: thread.id,
+        content: 'Reply 2 from Carlos',
+        authorId: 'member-carlos',
+        authorName: 'Carlos Mendez',
+        authorRole: 'member',
+        isStaffReply: false,
+      });
+      const reply3 = await forumRepo.createReply(adapter, {
+        topicId: thread.id,
+        content: 'Reply 3 from Carlos',
+        authorId: 'member-carlos',
+        authorName: 'Carlos Mendez',
+        authorRole: 'member',
+        isStaffReply: false,
+      });
+
+      // Unrelated member (Taylor) cannot delete Carlos's reply on Jordan's thread
+      await expect(
+        forumRepo.deleteReply(adapter, reply1.id, 'member-taylor')
+      ).rejects.toThrow();
+
+      // Thread owner (Jordan) CAN delete Carlos's reply on Jordan's thread
+      await forumRepo.deleteReply(adapter, reply1.id, 'member-jordan');
+      let remaining = await forumRepo.listReplies(adapter, thread.id);
+      expect(remaining.some((r) => r.id === reply1.id)).toBe(false);
+
+      // Trainer (Alex Rivera, staff-alex) CAN delete reply2
+      await forumRepo.deleteReply(adapter, reply2.id, 'staff-alex');
+      remaining = await forumRepo.listReplies(adapter, thread.id);
+      expect(remaining.some((r) => r.id === reply2.id)).toBe(false);
+
+      // IT Admin (David Miller, staff-itadmin) CAN delete reply3
+      await forumRepo.deleteReply(adapter, reply3.id, 'staff-itadmin');
+      remaining = await forumRepo.listReplies(adapter, thread.id);
+      expect(remaining.some((r) => r.id === reply3.id)).toBe(false);
+    });
+  });
+
+  describe('12. Hold-Down Reporting of Topics, Replies, and Class Posts to IT Support Tickets', () => {
+    it('creates an IT Support Ticket and notifies IT when a reply, topic, or class post is reported', async () => {
+      const itNotifsBefore = (await adapter.listNotifications('staff-itadmin')).length;
+
+      // Report a forum reply to IT
+      const { ticket: ticketFromReply } = await forumRepo.reportContent(adapter, {
+        reporterId: 'member-jordan',
+        reporterName: 'Jordan Hale',
+        reporterRole: 'member',
+        targetType: 'reply',
+        targetId: 'reply-welcome-1',
+        targetAuthorId: 'member-carlos',
+        targetAuthorName: 'Carlos Mendez',
+        targetContent: 'Unwanted spam reply content',
+        contextTitle: 'Welcome to the Silver Spring YMCA Community Forum!',
+        reason: 'Inappropriate language or behavior',
+      });
+
+      expect(ticketFromReply.ticketNumber).toMatch(/^YMCA-IT-/);
+      expect(ticketFromReply.category).toBe('community_moderation');
+      expect(ticketFromReply.priority).toBe('high');
+
+      // Verify ticket appears in IT support tickets list
+      const allTickets = await adapter.listSupportTickets();
+      expect(allTickets.some((t) => t.id === ticketFromReply.id)).toBe(true);
+
+      // Verify IT admin received notification
+      const itNotifsAfter = await adapter.listNotifications('staff-itadmin');
+      expect(itNotifsAfter.length).toBeGreaterThan(itNotifsBefore);
+      expect(itNotifsAfter[0].title).toContain(ticketFromReply.ticketNumber);
+
+      // Report a class forum post to IT
+      const { ticket: ticketFromClass } = await classForumRepo.reportPost(adapter, {
+        reporterId: 'member-jordan',
+        reporterName: 'Jordan Hale',
+        reporterRole: 'member',
+        targetId: 'cf-post-1',
+        targetAuthorId: 'member-carlos',
+        targetAuthorName: 'Carlos Mendez',
+        targetContent: 'Off-topic solicitation in class chat',
+        contextTitle: 'HIIT Circuit',
+        reason: 'Spam or off-topic solicitation',
+      });
+
+      expect(ticketFromClass.ticketNumber).toMatch(/^YMCA-IT-/);
+      expect(ticketFromClass.category).toBe('community_moderation');
+    });
+  });
 });
+
 

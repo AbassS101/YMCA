@@ -615,7 +615,25 @@ export type TicketCategory =
   | 'account_access'
   | 'schedule_booking'
   | 'billing_membership'
+  | 'community_moderation'
   | 'other';
+
+export type ForumReportTargetType = 'topic' | 'reply' | 'class_post';
+
+export type ForumContentReportInput = {
+  reporterId: string;
+  reporterName: string;
+  reporterEmail?: string;
+  reporterRole: UserRole | string;
+  targetType: ForumReportTargetType;
+  targetId: string;
+  targetAuthorId: string;
+  targetAuthorName: string;
+  targetContent: string;
+  contextTitle?: string;
+  reason: string;
+  details?: string;
+};
 
 export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
 
@@ -783,3 +801,10 @@ export {
   countVisitsInWeek,
   isDateInHold,
 } from './attendanceStreak';
+
+export {
+  PROFANITY_WORD_LIST,
+  containsProfanity,
+  findProfanityWords,
+  filterProfanity,
+} from './profanityFilter';

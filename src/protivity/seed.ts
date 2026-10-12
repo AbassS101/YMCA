@@ -27,11 +27,12 @@ import type {
   UserForumInterests,
   UserRole,
 } from '@/domain/types';
+import { getClassFullDescription, getClassShortSummary } from '@/domain/classCatalog';
 
 const BRANCH = 'silver-spring';
 
 /** Seeded week anchored on demo clock date 2026-09-14 (Monday). Official Fall 1 Schedule (Aug 24 - Nov 11). */
-const schedules: ScheduleItem[] = [
+const rawSchedules: ScheduleItem[] = [
   // ==========================================
   // MONDAY (2026-09-14)
   // ==========================================
@@ -1270,6 +1271,125 @@ const schedules: ScheduleItem[] = [
     description: 'Core and lumbar stabilization workout.',
   },
   {
+    id: 'sched-sat-barre-1015',
+    branchId: BRANCH,
+    category: 'groupEx',
+    title: 'Barre',
+    start: '2026-09-19T10:15:00-04:00',
+    end: '2026-09-19T11:15:00-04:00',
+    location: 'Studio',
+    instructorName: 'Mikayla',
+    staffId: 'staff-mikayla',
+    capacity: 20,
+    priceCents: 0,
+    registrationRequired: false,
+    intensity: 'Moderate',
+    description:
+      'A combination of Pilates and Yoga inspired by dance exercises. This class is focused around the “ballet barre,” where you will stretch, lift and burn!',
+  },
+  {
+    id: 'sched-sat-bodyweight-1230',
+    branchId: BRANCH,
+    category: 'groupEx',
+    title: 'Body Weight Training',
+    start: '2026-09-19T12:30:00-04:00',
+    end: '2026-09-19T13:30:00-04:00',
+    location: 'Gym',
+    instructorName: 'Alex Rivera',
+    staffId: 'staff-alex',
+    capacity: 25,
+    priceCents: 0,
+    registrationRequired: false,
+    intensity: 'Moderate',
+    description:
+      'This total body workout uses various exercises to target every muscle group.',
+  },
+  {
+    id: 'sched-sat-alllevelsyoga-1400',
+    branchId: BRANCH,
+    category: 'groupEx',
+    title: 'All Levels Yoga',
+    start: '2026-09-19T14:00:00-04:00',
+    end: '2026-09-19T15:00:00-04:00',
+    location: 'Studio',
+    instructorName: 'Danielle',
+    staffId: 'staff-danielle',
+    capacity: 22,
+    priceCents: 0,
+    registrationRequired: false,
+    intensity: 'All Levels',
+    description:
+      'Includes yoga poses and variations suitable for those new to yoga and also challenging poses for those with a more advanced practice.',
+  },
+  {
+    id: 'sched-sat-ashtanga-1530',
+    branchId: BRANCH,
+    category: 'groupEx',
+    title: 'Ashtanga Flow',
+    start: '2026-09-19T15:30:00-04:00',
+    end: '2026-09-19T16:30:00-04:00',
+    location: 'Studio',
+    instructorName: 'Jim',
+    staffId: 'staff-jim',
+    capacity: 20,
+    priceCents: 0,
+    registrationRequired: false,
+    intensity: 'High',
+    description:
+      'Ashtanga translates to eight limbs. The classical, physical practice of Ashtanga yoga focuses on a couple of these limbs, the breath, the postures, as well as gazing points and inner locks. Ashtanga yoga is an athletic vinyasa practice that is made up of several set sequences.',
+  },
+  {
+    id: 'sched-sun-hathayoga-0800',
+    branchId: BRANCH,
+    category: 'groupEx',
+    title: 'Hatha Yoga',
+    start: '2026-09-20T08:00:00-04:00',
+    end: '2026-09-20T09:00:00-04:00',
+    location: 'Studio',
+    instructorName: 'Dian',
+    staffId: 'staff-dian',
+    capacity: 22,
+    priceCents: 0,
+    registrationRequired: false,
+    intensity: 'All Levels',
+    description:
+      'Hatha Yoga is the most widely practiced form of yoga in America. Hatha Yoga uses bodily postures (asanas), breathing techniques (pranyayama), and meditation (dyana) with the goal of bring about a sound healthy body and clear, peaceful mind. Hatha Yoga postures also stretch and align the body, promoting balance and flexibility.',
+  },
+  {
+    id: 'sched-sun-corepoweryoga-1330',
+    branchId: BRANCH,
+    category: 'groupEx',
+    title: 'Core Power Yoga',
+    start: '2026-09-20T13:30:00-04:00',
+    end: '2026-09-20T14:30:00-04:00',
+    location: 'Studio',
+    instructorName: 'Lisa',
+    staffId: 'staff-lisa',
+    capacity: 20,
+    priceCents: 0,
+    registrationRequired: false,
+    intensity: 'High',
+    description:
+      'Designed to be physically challenging, Core Power Yoga works the entire core, building balance, central strength, and functional stability over time.',
+  },
+  {
+    id: 'sched-sun-rocketyoga-1500',
+    branchId: BRANCH,
+    category: 'groupEx',
+    title: 'Rocket Yoga',
+    start: '2026-09-20T15:00:00-04:00',
+    end: '2026-09-20T16:00:00-04:00',
+    location: 'Studio',
+    instructorName: 'Anne',
+    staffId: 'staff-anne',
+    capacity: 20,
+    priceCents: 0,
+    registrationRequired: false,
+    intensity: 'High',
+    description:
+      'Rocket Yoga is a dynamic and fast-paced style of yoga, inspired by Ashtanga Vinyasa Yoga. It is a powerful and invigorating practice that challenges both the body and mind.',
+  },
+  {
     id: 'sched-event-cpr-sun',
     branchId: BRANCH,
     category: 'event',
@@ -1284,6 +1404,13 @@ const schedules: ScheduleItem[] = [
     description: 'Official certification course in adult & pediatric CPR/AED and First Aid. Includes handbook and certificate.',
   },
 ];
+
+const schedules: ScheduleItem[] = rawSchedules.map((item) => ({
+  ...item,
+  registrationRequired: Boolean(item.registrationRequired),
+  shortSummary: getClassShortSummary(item),
+  description: getClassFullDescription(item),
+}));
 
 const lessonSlots: LessonSlot[] = [
   {
@@ -1426,7 +1553,7 @@ export const SEED: {
   members: [
     {
       id: 'member-jordan',
-      name: 'Jordan Hale',
+      name: 'John Doe',
       email: 'jordan@silverspring.ymca',
       phone: '(301) 555-0142',
       address: '123 Georgia Ave, Silver Spring, MD 20910',
@@ -1450,15 +1577,15 @@ export const SEED: {
   staff: [
     {
       id: 'staff-admin',
-      name: 'Jane Smith',
+      name: 'David',
       email: 'admin@silverspring.ymca',
-      roleLabel: 'Branch Director & Staff Admin',
+      roleLabel: 'Staff Admin & Branch Director',
       homeBranchId: BRANCH,
       staffRole: 'staff_admin',
     },
     {
       id: 'staff-itadmin',
-      name: 'David Miller',
+      name: 'Abass Shikur',
       email: 'itadmin@silverspring.ymca',
       roleLabel: 'IT Systems & Security Administrator',
       homeBranchId: BRANCH,
@@ -1466,7 +1593,7 @@ export const SEED: {
     },
     {
       id: 'staff-alex',
-      name: 'Alex Rivera',
+      name: 'Doc',
       email: 'alex@silverspring.ymca',
       roleLabel: 'Personal Wellness Trainer',
       homeBranchId: BRANCH,
@@ -1474,7 +1601,7 @@ export const SEED: {
     },
     {
       id: 'staff-sarah',
-      name: 'Sarah Davis',
+      name: 'Jane Doe',
       email: 'sarah@silverspring.ymca',
       roleLabel: 'Senior Mobility & Aquatics Specialist',
       homeBranchId: BRANCH,
@@ -1489,10 +1616,18 @@ export const SEED: {
       staffRole: 'trainer',
     },
     {
+      id: 'staff-celine',
+      name: 'Celine',
+      email: 'celine@silverspring.ymca',
+      roleLabel: 'Wellness Director (Incharge of Personal training)',
+      homeBranchId: BRANCH,
+      staffRole: 'trainer',
+    },
+    {
       id: 'staff-desk',
-      name: 'Marcus Taylor',
+      name: 'Billy Deveaux',
       email: 'wellness@silverspring.ymca',
-      roleLabel: 'Wellness Desk & Member Services',
+      roleLabel: 'Membership Director',
       homeBranchId: BRANCH,
       staffRole: 'desk',
     },
@@ -1703,6 +1838,12 @@ export const SEED: {
       email: 'elena@silverspring.ymca',
       password: 'ymca-demo',
       userId: 'staff-elena',
+      role: 'trainer',
+    },
+    {
+      email: 'celine@silverspring.ymca',
+      password: 'ymca-demo',
+      userId: 'staff-celine',
       role: 'trainer',
     },
     {
