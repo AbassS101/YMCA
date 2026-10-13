@@ -1,6 +1,22 @@
-export type UserRole = 'member' | 'guest' | 'staff' | 'admin' | 'trainer' | 'it_admin' | 'staff_admin';
+export type UserRole =
+  | 'member'
+  | 'guest'
+  | 'staff'
+  | 'admin'
+  | 'trainer'
+  | 'it_admin'
+  | 'staff_admin'
+  | 'wellness_director'
+  | 'membership_director';
 export type MemberStatus = 'active' | 'paused' | 'cancel_pending' | 'cancelled';
-export type StaffRole = 'it_admin' | 'staff_admin' | 'trainer' | 'desk' | 'admin';
+export type StaffRole =
+  | 'it_admin'
+  | 'staff_admin'
+  | 'trainer'
+  | 'desk'
+  | 'admin'
+  | 'wellness_director'
+  | 'membership_director';
 export type ScheduleCategory = 'groupEx' | 'swim' | 'childWatch' | 'event' | 'seniors';
 export type RegistrationStatus = 'registered' | 'cancelled';
 export type AttendanceStatus = 'unmarked' | 'attended' | 'no_show';
@@ -202,7 +218,10 @@ export type CancelRequest = {
   requestedAt: string;
   lastBillDate: string;
   accessThrough: string;
-  status: 'submitted';
+  status: 'submitted' | 'approved';
+  reviewedById?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
 };
 
 export type AuthSession = { userId: string; role: UserRole };
