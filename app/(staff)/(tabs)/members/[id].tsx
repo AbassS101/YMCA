@@ -21,9 +21,11 @@ import { UserAvatar } from '@/components/UserAvatar';
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
+import { useTheme } from '@/context/ThemeContext';
+import { useStaffCapabilities } from '@/context/useStaffCapabilities';
+import { PersonaBanner } from '@/components/staff/PersonaBanner';
 import { cancelRequestedCopy, formatShortDate } from '@/domain/displayDates';
 import {
-  isAdminRole,
   YMCA_MEMBERSHIP_PLANS,
   type ClassRegistration,
   type ClientFitnessGoal,
@@ -53,9 +55,14 @@ export default function StaffMemberDetailScreen() {
   const memberId = id ?? '';
   const { session, api } = useSession();
   const staffId = session?.userId ?? '';
-  const isITAdmin = session?.role === 'it_admin';
-  const isAdmin = isAdminRole(session?.role);
-  const isTrainer = session?.role === 'trainer' || (!isAdmin && session?.role === 'staff');
+  const { colors: tc } = useTheme();
+  const { can, isAdmin, isITAdmin, isMembershipDirector, isWellnessDirector, theme } = useStaffCapabilities();
+  const canEditProfiles = can('editMemberProfiles');
+  const canChangePlans = can('changePlans');
+  const canApproveCancellations = can('approveCancellations');
+  const canDeleteMembers = can('deleteMembers');
+  const canAssignClients = can('assignClients');
+  const canCoach = can('logWorkouts');
 
   const [member, setMember] = useState<Member | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
@@ -210,12 +217,17 @@ export default function StaffMemberDetailScreen() {
     }
     setSavingProfile(true);
     try {
-      await membershipRepo.updateAdmin(api, memberId, {
-        name: editName.trim(),
-        email: editEmail.trim(),
-        phone: editPhone.trim(),
-        address: editAddress.trim(),
-      });
+      await membershipRepo.updateAdmin(
+        api,
+        memberId,
+        {
+          name: editName.trim(),
+          email: editEmail.trim(),
+          phone: editPhone.trim(),
+          address: editAddress.trim(),
+        },
+        staffId
+      );
       setEditProfileVisible(false);
       dialog.alert('Updated!', 'Member profile details updated successfully.', [{ text: 'OK' }], 'checkmark');
       await load();
@@ -260,7 +272,7 @@ export default function StaffMemberDetailScreen() {
   }
 
   function openReassignTrainer() {
-    setSelectedTrainerId(assignedTrainer?.id ?? (allStaff[0]?.id || null));
+    setSelectedTrainerId(assignedTrainer?.id ?? (assignableTrainers[0]?.id || null));
     setTrainerModalVisible(true);
   }
 
@@ -292,7 +304,13 @@ export default function StaffMemberDetailScreen() {
     if (!selectedPlan) return;
     setSavingPlan(true);
     try {
-      await membershipRepo.changeMembership(api, memberId, selectedPlan.name, selectedPlan.monthlyAmountCents);
+      await membershipRepo.changeMembership(
+        api,
+        memberId,
+        selectedPlan.name,
+        selectedPlan.monthlyAmountCents,
+        staffId
+      );
       setPlanModalVisible(false);
       dialog.alert(
         'Plan Updated!',
@@ -310,7 +328,7 @@ export default function StaffMemberDetailScreen() {
 
   async function handleUpdateStatus(newStatus: 'active' | 'paused' | 'cancelled') {
     try {
-      await membershipRepo.updateMembershipAdmin(api, memberId, { status: newStatus });
+      await membershipRepo.updateMembershipAdmin(api, memberId, { status: newStatus }, staffId);
       dialog.alert('Status Updated', `Membership status set to ${newStatus.toUpperCase()}.`, [{ text: 'OK' }], 'checkmark');
       await load();
     } catch (err: any) {
@@ -320,11 +338,26 @@ export default function StaffMemberDetailScreen() {
 
   async function handleRescindCancellation() {
     try {
-      await membershipRepo.rescindCancel(api, memberId);
+      await membershipRepo.rescindCancel(api, memberId, staffId);
       dialog.alert('Restored', 'Cancellation request rescinded and membership restored.', [{ text: 'OK' }], 'checkmark');
       await load();
     } catch (err: any) {
       dialog.alert('Error', err?.message || 'Failed to restore membership.', [{ text: 'OK' }]);
+    }
+  }
+
+  async function handleApproveCancellation() {
+    try {
+      const approved = await membershipRepo.approveCancel(api, memberId, staffId);
+      dialog.alert(
+        'Cancellation Approved',
+        `${member?.name ?? 'The member'} keeps access through ${formatShortDate(approved.accessThrough)}.`,
+        [{ text: 'OK' }],
+        'checkmark'
+      );
+      await load();
+    } catch (err: any) {
+      dialog.alert('Error', err?.message || 'Failed to approve cancellation.', [{ text: 'OK' }]);
     }
   }
 
@@ -351,7 +384,7 @@ export default function StaffMemberDetailScreen() {
   async function handleDeleteAccount() {
     setDeleting(true);
     try {
-      await membershipRepo.deleteAccount(api, memberId);
+      await membershipRepo.deleteAccount(api, memberId, staffId);
       setDeleteConfirmVisible(false);
       dialog.alert(
         'Account Deleted',
@@ -386,15 +419,46 @@ export default function StaffMemberDetailScreen() {
       ? cancelRequestedCopy(membership.lastBillDate, membership.cancelEffectiveDate)
       : null;
 
+  const assignableTrainers = allStaff.filter(
+    (st) => st.staffRole === 'trainer' || st.staffRole === 'wellness_director'
+  );
+
   return (
-    <View style={styles.screen}>
-      <YHeader subtitle={isAdmin ? (isITAdmin ? 'IT Admin · Member Management' : 'Staff Admin · Member Management') : 'Member Details'} />
+    <View style={[styles.screen, { backgroundColor: tc.background }]}>
+      <YHeader
+        subtitle={
+          isAdmin
+            ? isITAdmin
+              ? 'IT Admin · Member Management'
+              : 'Staff Admin · Member Management'
+            : isMembershipDirector
+              ? 'Membership Director · Member Account'
+              : isWellnessDirector
+                ? 'Wellness Director · Client Profile'
+                : 'Member Details'
+        }
+      />
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <Pressable onPress={() => router.back()} accessibilityRole="button">
-          <Text style={styles.back}>← Back to Members</Text>
+          <Text style={[styles.back, { color: tc.primary }]}>← Back to Members</Text>
         </Pressable>
+
+        <PersonaBanner
+          theme={theme}
+          text={
+            isAdmin
+              ? 'Admin override: every account, plan and coaching tool is available'
+              : isMembershipDirector
+                ? 'Account, plan and cancellation tools. Coaching tools are hidden.'
+                : isWellnessDirector
+                  ? 'Coaching tools plus trainer assignment'
+                  : canCoach
+                    ? 'Coaching tools for this client'
+                    : 'Read-only member lookup'
+          }
+        />
 
         {/* Member Profile Card */}
         {member ? (
@@ -441,8 +505,7 @@ export default function StaffMemberDetailScreen() {
               </View>
             </View>
 
-            {/* Admin Edit Profile & Password Shortcuts */}
-            {isAdmin ? (
+            {canEditProfiles ? (
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                 <Pressable
                   onPress={openEditProfile}
@@ -472,7 +535,7 @@ export default function StaffMemberDetailScreen() {
               <Ionicons name="barbell" size={18} color={colors.primary} />
               <Text style={styles.sectionTitle}>Assigned Trainer</Text>
             </View>
-            {isAdmin ? (
+            {canAssignClients ? (
               <Pressable onPress={openReassignTrainer} style={styles.badgeBtn} accessibilityRole="button">
                 <Text style={styles.badgeBtnText}>{assignedTrainer ? 'Reassign ›' : 'Assign Trainer ›'}</Text>
               </Pressable>
@@ -494,9 +557,8 @@ export default function StaffMemberDetailScreen() {
           )}
         </View>
 
-        {/* ========================================================= */}
-        {/* CLIENT FITNESS GOALS & HEALTH SAFETY PROFILE              */}
-        {/* ========================================================= */}
+        {canCoach ? (
+        <>
         <View style={styles.card}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 160 }}>
@@ -767,13 +829,15 @@ export default function StaffMemberDetailScreen() {
             Schedule an upcoming private coaching session with {member?.name} and send calendar confirmation.
           </Text>
         </View>
+        </>
+        ) : null}
 
         {/* Membership Details & Admin Plan Actions */}
         {member && membership ? (
           <View style={styles.card}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={styles.sectionTitle}>Membership Plan</Text>
-              {isAdmin ? (
+              {canChangePlans ? (
                 <Pressable onPress={openChangePlan} style={styles.badgeBtn} accessibilityRole="button">
                   <Text style={styles.badgeBtnText}>Change Plan ›</Text>
                 </Pressable>
@@ -797,7 +861,7 @@ export default function StaffMemberDetailScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cancelAlertTitle}>Cancellation Requested</Text>
                   <Text style={styles.cancelAlertBody}>{cancelBanner}</Text>
-                  {isAdmin ? (
+                  {canApproveCancellations ? (
                     <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
                       <Pressable
                         onPress={() => void handleRescindCancellation()}
@@ -806,10 +870,10 @@ export default function StaffMemberDetailScreen() {
                         <Text style={styles.smallActionText}>Restore / Keep Active</Text>
                       </Pressable>
                       <Pressable
-                        onPress={() => void handleUpdateStatus('cancelled')}
+                        onPress={() => void handleApproveCancellation()}
                         style={[styles.smallActionBtn, { backgroundColor: colors.scarlet }]}
                       >
-                        <Text style={styles.smallActionText}>Approve & Terminate</Text>
+                        <Text style={styles.smallActionText}>Approve Cancellation</Text>
                       </Pressable>
                     </View>
                   ) : null}
@@ -817,11 +881,10 @@ export default function StaffMemberDetailScreen() {
               </View>
             ) : null}
 
-            {/* Admin Quick Status Overrides */}
-            {isAdmin ? (
+            {canChangePlans ? (
               <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 }}>
                 <Text style={{ fontSize: 12, fontWeight: '700', color: colors.muted, marginBottom: 6 }}>
-                  ADMIN STATUS CONTROL:
+                  MEMBERSHIP STATUS CONTROL:
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <Pressable
@@ -868,7 +931,7 @@ export default function StaffMemberDetailScreen() {
                     {reg.scheduleItem?.location} · {reg.scheduleItem ? formatShortDate(reg.scheduleItem.start) : ''}
                   </Text>
                 </View>
-                {isAdmin ? (
+                {canEditProfiles ? (
                   <Pressable
                     onPress={() => void handleCancelRegistration(reg.scheduleItemId, reg.scheduleItem?.title ?? 'class')}
                     style={styles.cancelBookingBtn}
@@ -897,7 +960,7 @@ export default function StaffMemberDetailScreen() {
                     Status: {les.status.toUpperCase()}
                   </Text>
                 </View>
-                {isAdmin && les.status === 'booked' ? (
+                {(canEditProfiles || canCoach) && les.status === 'booked' ? (
                   <Pressable
                     onPress={() => void handleCancelPrivateLesson(les.id)}
                     style={styles.cancelBookingBtn}
@@ -917,8 +980,7 @@ export default function StaffMemberDetailScreen() {
           onPress={() => void handleOpenOrCreateMessage()}
         />
 
-        {/* ADMIN DANGER ZONE: DELETE MEMBER ACCOUNT */}
-        {isAdmin ? (
+        {canDeleteMembers ? (
           <View style={styles.dangerZoneCard}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Ionicons name="warning" size={20} color={colors.scarlet} />
@@ -1033,7 +1095,7 @@ export default function StaffMemberDetailScreen() {
             </Text>
 
             <ScrollView style={{ maxHeight: 340 }} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
-              {allStaff.map((st) => {
+              {assignableTrainers.map((st) => {
                 const isSelected = selectedTrainerId === st.id;
                 return (
                   <Pressable

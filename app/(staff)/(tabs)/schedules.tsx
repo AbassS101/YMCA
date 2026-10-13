@@ -23,8 +23,10 @@ import { TrainerClientWorkoutModal } from '@/components/TrainerClientWorkoutModa
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
+import { useStaffCapabilities } from '@/context/useStaffCapabilities';
+import { PersonaBanner } from '@/components/staff/PersonaBanner';
 import { formatShortDate } from '@/domain/displayDates';
-import { isAdminRole, type LessonSlot, type Member, type PrivateLesson, type ScheduleCategory, type ScheduleItem, type Staff } from '@/domain/types';
+import { type LessonSlot, type Member, type PrivateLesson, type ScheduleCategory, type ScheduleItem, type Staff } from '@/domain/types';
 import { registrationRepo } from '@/repositories/registrationRepo';
 import { scheduleRepo } from '@/repositories/scheduleRepo';
 import { trainerRepo } from '@/repositories/trainerRepo';
@@ -69,8 +71,13 @@ function formatDate(iso: string): string {
 export default function StaffSchedulesScreen() {
   const { session, api } = useSession();
   const staffId = session?.userId ?? '';
-  const isAdmin = isAdminRole(session?.role);
-  const isTrainer = session?.role === 'trainer' || (!isAdmin && session?.role === 'staff');
+  const { can, isAdmin, isWellnessDirector, isMembershipDirector, theme } = useStaffCapabilities();
+  const canManageSchedules = can('manageSchedules');
+  const canManageOwnSlots = can('manageOwnLessonSlots');
+  const canManageAllSlots = can('manageAllLessonSlots');
+  const seesBranchSchedule = isAdmin || !canManageOwnSlots;
+  const [slotTrainerId, setSlotTrainerId] = useState<string>(staffId);
+  const lessonStaffId = canManageAllSlots && slotTrainerId ? slotTrainerId : staffId;
 
   const [staffProfile, setStaffProfile] = useState<Staff | null>(null);
   const [allStaff, setAllStaff] = useState<Staff[]>([]);
@@ -159,7 +166,7 @@ export default function StaffSchedulesScreen() {
       setAllStaff(staffList);
 
       let classList: ScheduleItem[] = [];
-      if (isAdmin) {
+      if (seesBranchSchedule) {
         classList = await scheduleRepo.listAll(api, BRANCH_ID);
       } else {
         classList = await scheduleRepo.listTrainerSchedule(api, staffId);
@@ -177,10 +184,10 @@ export default function StaffSchedulesScreen() {
       setRosterCounts(counts);
 
       // Load private lessons & slots if trainer or admin
-      const slots = await api.listLessonSlots(staffId, '2026-09-01', '2026-09-30').catch(() => []);
+      const slots = await api.listLessonSlots(lessonStaffId, '2026-09-01', '2026-09-30').catch(() => []);
       setLessonSlots(slots);
 
-      const dayLessons = await api.listStaffLessons(staffId, '2026-09-15').catch(() => []);
+      const dayLessons = await api.listStaffLessons(lessonStaffId, '2026-09-15').catch(() => []);
       setPrivateLessons(dayLessons);
 
       const allMembers = await api.listAllMembers(BRANCH_ID).catch(() => []);
@@ -192,7 +199,7 @@ export default function StaffSchedulesScreen() {
     } catch {
       setError(true);
     }
-  }, [api, staffId, isAdmin]);
+  }, [api, staffId, seesBranchSchedule, lessonStaffId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -390,7 +397,7 @@ export default function StaffSchedulesScreen() {
       const startIso = `${slotDate}T${slotStart}:00-04:00`;
       const endIso = `${slotDate}T${slotEnd}:00-04:00`;
       await api.addLessonSlot({
-        staffId,
+        staffId: lessonStaffId,
         branchId: BRANCH_ID,
         start: startIso,
         end: endIso,
@@ -417,13 +424,37 @@ export default function StaffSchedulesScreen() {
 
   return (
     <View style={styles.screen}>
-      <YHeader subtitle={isAdmin ? 'Staff Admin · Schedules & Events' : 'Trainer Portal · Schedules'} />
+      <YHeader
+        subtitle={
+          isAdmin
+            ? 'Staff Admin · Schedules & Events'
+            : isWellnessDirector
+              ? 'Wellness Director · Team Schedules'
+              : isMembershipDirector
+                ? 'Membership Director · Branch Schedule'
+                : canManageOwnSlots
+                  ? 'Trainer Portal · Schedules'
+                  : 'Branch Schedule'
+        }
+      />
       {error ? <ErrorBanner onRetry={() => void loadData()} /> : null}
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Quick Action Buttons */}
+        <PersonaBanner
+          theme={theme}
+          text={
+            canManageSchedules
+              ? 'Create, edit and cancel any class or event'
+              : canManageAllSlots
+                ? 'Manage your classes and open lesson slots for any trainer'
+                : canManageOwnSlots
+                  ? 'Your classes, private lessons and open slots'
+                  : 'Read-only branch schedule with rosters and attendance'
+          }
+        />
+
         <View style={styles.actionRow}>
-          {isAdmin ? (
+          {canManageSchedules ? (
             <Pressable
               onPress={openCreateModal}
               style={[styles.primaryActionBtn, { backgroundColor: colors.primary }]}
@@ -432,7 +463,7 @@ export default function StaffSchedulesScreen() {
               <Ionicons name="add-circle" size={20} color="#FFFFFF" />
               <Text style={styles.primaryActionText}>+ New Class or Event</Text>
             </Pressable>
-          ) : (
+          ) : canManageOwnSlots ? (
             <Pressable
               onPress={() => setSlotModalVisible(true)}
               style={[styles.primaryActionBtn, { backgroundColor: '#15803D' }]}
@@ -441,11 +472,10 @@ export default function StaffSchedulesScreen() {
               <Ionicons name="time" size={20} color="#FFFFFF" />
               <Text style={styles.primaryActionText}>+ Add Available Slot</Text>
             </Pressable>
-          )}
+          ) : null}
         </View>
 
-        {/* Trainer Tab Switcher */}
-        {isTrainer && !isAdmin ? (
+        {canManageOwnSlots && !isAdmin ? (
           <View style={styles.segmentContainer}>
             <Pressable
               onPress={() => setActiveTab('classes')}
@@ -588,23 +618,27 @@ export default function StaffSchedulesScreen() {
                         <Text style={[styles.actionBtnText, { color: '#7C3AED' }]}>Forum</Text>
                       </Pressable>
 
-                      <Pressable
-                        onPress={() => openEditModal(item)}
-                        style={styles.actionBtnOutline}
-                        accessibilityRole="button"
-                      >
-                        <Ionicons name="create-outline" size={16} color={colors.primary} />
-                        <Text style={styles.actionBtnText}>Edit</Text>
-                      </Pressable>
+                      {canManageSchedules || canManageOwnSlots ? (
+                        <>
+                          <Pressable
+                            onPress={() => openEditModal(item)}
+                            style={styles.actionBtnOutline}
+                            accessibilityRole="button"
+                          >
+                            <Ionicons name="create-outline" size={16} color={colors.primary} />
+                            <Text style={styles.actionBtnText}>Edit</Text>
+                          </Pressable>
 
-                      <Pressable
-                        onPress={() => promptCancel(item)}
-                        style={styles.actionBtnDestructive}
-                        accessibilityRole="button"
-                      >
-                        <Ionicons name="close-circle-outline" size={16} color={colors.scarlet} />
-                        <Text style={[styles.actionBtnText, { color: colors.scarlet }]}>Cancel</Text>
-                      </Pressable>
+                          <Pressable
+                            onPress={() => promptCancel(item)}
+                            style={styles.actionBtnDestructive}
+                            accessibilityRole="button"
+                          >
+                            <Ionicons name="close-circle-outline" size={16} color={colors.scarlet} />
+                            <Text style={[styles.actionBtnText, { color: colors.scarlet }]}>Cancel</Text>
+                          </Pressable>
+                        </>
+                      ) : null}
                     </View>
                   </View>
                 );
@@ -618,7 +652,32 @@ export default function StaffSchedulesScreen() {
         {/* ========================================== */}
         {activeTab === 'lessons' ? (
           <View style={{ gap: 16 }}>
-            {/* Booked Lessons */}
+            {canManageAllSlots ? (
+              <View style={{ gap: 6 }}>
+                <Text style={styles.sectionHeader}>Trainer</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
+                  {allStaff
+                    .filter((st) => st.staffRole === 'trainer' || st.staffRole === 'wellness_director')
+                    .map((st) => {
+                      const active = lessonStaffId === st.id;
+                      return (
+                        <Pressable
+                          key={st.id}
+                          onPress={() => setSlotTrainerId(st.id)}
+                          style={[styles.categoryChip, active && styles.categoryChipActive]}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: active }}
+                        >
+                          <Text style={[styles.categoryText, active && styles.categoryTextActive]}>
+                            {st.id === staffId ? 'Me' : st.name}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                </ScrollView>
+              </View>
+            ) : null}
+
             <Text style={styles.sectionHeader}>Booked Private Lessons</Text>
             {privateLessons.length === 0 ? (
               <View style={styles.emptyCard}>

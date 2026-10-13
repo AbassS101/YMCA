@@ -19,7 +19,8 @@ import { useAccessibility, type TextScale } from '@/context/AccessibilityContext
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
-import { isAdminRole, type Message, type NotificationPreferences, type Staff, type TicketType } from '@/domain/types';
+import { useStaffCapabilities } from '@/context/useStaffCapabilities';
+import { type Message, type NotificationPreferences, type Staff, type TicketType } from '@/domain/types';
 import { messageRepo } from '@/repositories/messageRepo';
 import { notificationRepo } from '@/repositories/notificationRepo';
 import { cardStyle } from '@/theme/card';
@@ -45,9 +46,7 @@ export default function StaffSettingsScreen() {
   const { textScale, setTextScale } = useAccessibility();
 
   const staffId = session?.userId ?? '';
-  const isITAdmin = session?.role === 'it_admin';
-  const isStaffAdmin = session?.role === 'staff_admin';
-  const isAdmin = isAdminRole(session?.role);
+  const { can, persona, theme: personaStyle } = useStaffCapabilities();
 
   const [staff, setStaff] = useState<Staff | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -164,18 +163,23 @@ export default function StaffSettingsScreen() {
     }
   };
 
-  const roleLabel = isITAdmin
-    ? 'IT Administrator'
-    : isStaffAdmin
-      ? 'Staff Administrator'
-      : isAdmin
-        ? 'Administrator'
-        : session?.role === 'trainer'
+  const roleLabel =
+    persona === 'it'
+      ? 'IT Administrator'
+      : persona === 'admin'
+        ? 'Staff Administrator'
+        : persona === 'trainer'
           ? 'Personal Trainer / Coach'
-          : 'Front Desk / Member Services';
+          : persona === 'wellnessDirector'
+            ? 'Wellness Director · Trainer Team Lead'
+            : persona === 'membershipDirector'
+              ? 'Membership Director · Member Services Lead'
+              : 'Front Desk / Member Services';
 
-  const roleBadgeColor = isITAdmin ? '#7C3AED' : isAdmin ? colors.primary : '#15803D';
-  const roleBadgeBg = isITAdmin ? '#F5F3FF' : isAdmin ? '#EFF6FF' : '#F0FDF4';
+  const roleBadgeColor = isDark ? '#FFFFFF' : personaStyle.color;
+  const roleBadgeBg = isDark ? personaStyle.darkSoftBg : personaStyle.softBg;
+  const canManageStaff = can('manageStaff');
+  const canManageComplaints = can('manageComplaints');
 
   return (
     <View style={[styles.screen, { backgroundColor: tc.background }]}>
@@ -219,7 +223,7 @@ export default function StaffSettingsScreen() {
                   <Text style={[styles.staffName, { color: tc.text }]}>{staff.name}</Text>
                   <View style={[styles.badge, { backgroundColor: roleBadgeBg }]}>
                     <Text style={[styles.badgeText, { color: roleBadgeColor }]}>
-                      {isITAdmin ? 'IT ADMIN' : isStaffAdmin ? 'STAFF ADMIN' : isAdmin ? 'ADMIN' : 'STAFF'}
+                      {personaStyle.badge}
                     </Text>
                   </View>
                 </View>
@@ -497,8 +501,7 @@ export default function StaffSettingsScreen() {
           </Pressable>
         </View>
 
-        {/* ADMIN CONTROLS: STAFF ROSTER & FEEDBACK */}
-        {isAdmin ? (
+        {canManageStaff || canManageComplaints ? (
           <View
             style={[
               styles.card,
@@ -507,12 +510,17 @@ export default function StaffSettingsScreen() {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Ionicons name="people-circle-outline" size={22} color={colors.primary} />
-              <Text style={[styles.sectionTitle, { color: tc.text }]}>Branch Administration</Text>
+              <Text style={[styles.sectionTitle, { color: tc.text }]}>
+                {canManageStaff ? 'Branch Administration' : 'Member Services'}
+              </Text>
             </View>
             <Text style={[styles.sectionDesc, { color: tc.textMuted }]}>
-              Administrative tools for both Staff Admin and IT Admin to configure staff accounts and review member feedback.
+              {canManageStaff
+                ? 'Configure staff accounts and review member feedback.'
+                : 'Review and respond to member complaints and suggestions.'}
             </Text>
 
+            {canManageStaff ? (
             <Pressable
               onPress={() => router.push('/(staff)/staff-management')}
               style={[styles.securityActionBtn, { borderColor: tc.border, marginTop: 4 }]}
@@ -524,7 +532,9 @@ export default function StaffSettingsScreen() {
               </Text>
               <Ionicons name="chevron-forward" size={16} color={tc.textMuted} />
             </Pressable>
+            ) : null}
 
+            {canManageComplaints ? (
             <Pressable
               onPress={() => router.push('/(staff)/complaints-suggestions')}
               style={[styles.securityActionBtn, { borderColor: tc.border, marginTop: 6 }]}
@@ -536,6 +546,7 @@ export default function StaffSettingsScreen() {
               </Text>
               <Ionicons name="chevron-forward" size={16} color={tc.textMuted} />
             </Pressable>
+            ) : null}
           </View>
         ) : null}
 

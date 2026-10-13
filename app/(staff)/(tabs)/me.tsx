@@ -10,7 +10,8 @@ import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
-import { isAdminRole, type Staff } from '@/domain/types';
+import { useStaffCapabilities } from '@/context/useStaffCapabilities';
+import { type Staff } from '@/domain/types';
 import { cardStyle } from '@/theme/card';
 import { colors } from '@/theme/colors';
 import { radii, typography } from '@/theme/typography';
@@ -62,14 +63,14 @@ const DEMO_ACCOUNTS = [
     email: 'celine@silverspring.ymca',
     role: 'Wellness Director (Incharge of Personal training)',
     icon: 'fitness',
-    color: '#EC4899',
+    color: '#9D174D',
   },
   {
     name: 'Billy Deveaux',
     email: 'wellness@silverspring.ymca',
     role: 'Membership Director · 301 585 2120 ext 2506',
     icon: 'business',
-    color: '#D97706',
+    color: '#4338CA',
   },
   {
     name: 'John Doe',
@@ -86,9 +87,7 @@ export default function StaffMeScreen() {
   const { themeMode, setThemeMode, colors: tc, isDark } = useTheme();
 
   const staffId = session?.userId ?? '';
-  const isITAdmin = session?.role === 'it_admin';
-  const isStaffAdmin = session?.role === 'staff_admin';
-  const isAdmin = isAdminRole(session?.role);
+  const { can, theme: persona } = useStaffCapabilities();
 
   const [staff, setStaff] = useState<Staff | null>(null);
   const [error, setError] = useState(false);
@@ -136,7 +135,7 @@ export default function StaffMeScreen() {
     setSwitchingEmail(email);
     try {
       const next = await login(email, 'ymca-demo');
-      if (next.role === 'member') {
+      if (next.role === 'member' || next.role === 'guest') {
         router.replace('/(member)/home');
       } else {
         router.replace('/(staff)/today');
@@ -146,27 +145,11 @@ export default function StaffMeScreen() {
     }
   }
 
-  const roleBadgeLabel = isITAdmin
-    ? 'IT ADMIN'
-    : isStaffAdmin
-      ? 'STAFF ADMIN'
-      : isAdmin
-        ? 'ADMIN'
-        : session?.role === 'trainer'
-          ? 'TRAINER'
-          : 'STAFF';
-
-  const roleBadgeBg = isITAdmin
-    ? '#F5F3FF'
-    : isStaffAdmin || isAdmin
-      ? '#EFF6FF'
-      : '#F0FDF4';
-
-  const roleBadgeColor = isITAdmin
-    ? '#7C3AED'
-    : isStaffAdmin || isAdmin
-      ? colors.primary
-      : '#15803D';
+  const roleBadgeLabel = persona.badge;
+  const roleBadgeBg = isDark ? persona.darkSoftBg : persona.softBg;
+  const roleBadgeColor = isDark ? '#FFFFFF' : persona.color;
+  const hasStaffTools =
+    can('manageStaff') || can('manageTrainers') || can('manageSurveys') || can('broadcast') || can('manageComplaints');
 
   return (
     <View style={[styles.screen, { backgroundColor: tc.background }]}>
@@ -175,7 +158,12 @@ export default function StaffMeScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Profile Card */}
         {staff ? (
-          <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: tc.cardBg, borderColor: tc.cardBorder, borderTopWidth: 4, borderTopColor: persona.color },
+            ]}
+          >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               <UserAvatar
                 uri={staff.avatarUrl}
@@ -262,17 +250,17 @@ export default function StaffMeScreen() {
           </View>
         </View>
 
-        {/* Staff Administration & Feedback */}
+        {hasStaffTools ? (
         <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Ionicons name="briefcase-outline" size={22} color={colors.primary} />
-            <Text style={[styles.sectionTitle, { color: tc.text }]}>Staff Operations & Feedback</Text>
+            <Text style={[styles.sectionTitle, { color: tc.text }]}>{persona.title} Tools</Text>
           </View>
           <Text style={[styles.meta, { color: tc.textMuted }]}>
-            Branch tools for staff accounts, role management, and member complaints & suggestions.
+            Branch tools available to your role.
           </Text>
 
-          {isAdmin ? (
+          {can('manageStaff') || can('manageTrainers') ? (
             <Pressable
               onPress={() => router.push('/(staff)/staff-management')}
               style={[styles.adminActionBtn, { borderColor: tc.border, marginTop: 10 }]}
@@ -281,9 +269,13 @@ export default function StaffMeScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
                 <Ionicons name="people" size={20} color={colors.primary} />
                 <View>
-                  <Text style={[styles.adminActionTitle, { color: tc.text }]}>Manage Staff Accounts</Text>
+                  <Text style={[styles.adminActionTitle, { color: tc.text }]}>
+                    {can('manageStaff') ? 'Manage Staff Accounts' : 'Trainer Team Directory'}
+                  </Text>
                   <Text style={[styles.adminActionSub, { color: tc.textMuted }]}>
-                    Create, edit, or customize credentials for both Staff Admin & IT Admin
+                    {can('manageStaff')
+                      ? 'Create, edit, or customize credentials for every staff role'
+                      : 'See every trainer on your team and how to reach them'}
                   </Text>
                 </View>
               </View>
@@ -291,6 +283,7 @@ export default function StaffMeScreen() {
             </Pressable>
           ) : null}
 
+          {can('manageSurveys') ? (
           <Pressable
             onPress={() => router.push('/(staff)/surveys')}
             style={[styles.adminActionBtn, { borderColor: tc.border, marginTop: 8 }]}
@@ -307,7 +300,9 @@ export default function StaffMeScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={tc.textMuted} />
           </Pressable>
+          ) : null}
 
+          {can('broadcast') ? (
           <Pressable
             onPress={() => router.push('/(staff)/announcements')}
             style={[styles.adminActionBtn, { borderColor: tc.border, marginTop: 8 }]}
@@ -324,7 +319,9 @@ export default function StaffMeScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={tc.textMuted} />
           </Pressable>
+          ) : null}
 
+          {can('manageComplaints') ? (
           <Pressable
             onPress={() => router.push('/(staff)/complaints-suggestions')}
             style={[styles.adminActionBtn, { borderColor: tc.border, marginTop: 8 }]}
@@ -341,13 +338,15 @@ export default function StaffMeScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={tc.textMuted} />
           </Pressable>
+          ) : null}
         </View>
+        ) : null}
 
         {/* Quick Demo Switcher */}
         <View style={[styles.switcherCard, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
           <Text style={[styles.switcherTitle, { color: tc.text }]}>Quick Switch Role (Testing)</Text>
           <Text style={[styles.switcherSubtitle, { color: tc.textMuted }]}>
-            Switch instantly between IT Admin, Staff Admin, Trainers, Desk Staff, and Members without signing out.
+            Switch instantly between IT Admin, Staff Admin, Trainers, the Wellness and Membership Directors, and Members without signing out.
           </Text>
 
           <View style={{ gap: 8, marginTop: 10 }}>

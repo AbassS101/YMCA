@@ -21,13 +21,15 @@ import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { formatShortDate } from '@/domain/displayDates';
 import {
-  isAdminRole,
   YMCA_MEMBERSHIP_PLANS,
   type ClientFitnessGoal,
   type Member,
   type Membership,
 } from '@/domain/types';
 import { useSession } from '@/context/SessionContext';
+import { useTheme } from '@/context/ThemeContext';
+import { useStaffCapabilities } from '@/context/useStaffCapabilities';
+import { PersonaBanner } from '@/components/staff/PersonaBanner';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { trainerRepo } from '@/repositories/trainerRepo';
 import { cardStyle } from '@/theme/card';
@@ -57,12 +59,17 @@ export default function StaffMembersScreen() {
   const router = useRouter();
   const { session, api } = useSession();
   const staffId = session?.userId ?? '';
-  const isITAdmin = session?.role === 'it_admin';
-  const isAdmin = isAdminRole(session?.role);
-  const isTrainer = session?.role === 'trainer' || (!isAdmin && session?.role === 'staff');
+  const { colors: tc } = useTheme();
+  const { can, coachesClients, isAdmin, isITAdmin, isMembershipDirector, isWellnessDirector, theme } =
+    useStaffCapabilities();
+  const canCreateMembers = can('createMembers');
+  const canLogWorkouts = can('logWorkouts');
 
   const [rows, setRows] = useState<MemberRow[]>([]);
-  const [filterMode, setFilterMode] = useState<'all' | 'assigned'>(isTrainer ? 'assigned' : 'all');
+  const [filterMode, setFilterMode] = useState<'all' | 'assigned' | 'unassigned'>(
+    coachesClients ? 'assigned' : 'all'
+  );
+  const [trainerNames, setTrainerNames] = useState<Record<string, string | null>>({});
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'cancel_pending'>('all');
   const [clientGoals, setClientGoals] = useState<Record<string, ClientFitnessGoal | null>>({});
   const [query, setQuery] = useState('');
@@ -102,7 +109,22 @@ export default function StaffMembersScreen() {
       );
       const validRows = allMemberships.filter((r): r is MemberRow => r != null);
 
-      if (isAdmin || filterMode === 'all') {
+      if (isWellnessDirector) {
+        const names: Record<string, string | null> = {};
+        await Promise.all(
+          validRows.map(async (r) => {
+            const trainer = await api.getAssignedTrainer(r.member.id).catch(() => null);
+            names[r.member.id] = trainer?.name ?? null;
+          })
+        );
+        setTrainerNames(names);
+        if (filterMode === 'unassigned') {
+          setRows(validRows.filter((r) => names[r.member.id] == null && r.member.status !== 'cancelled'));
+          return;
+        }
+      }
+
+      if (!coachesClients || filterMode === 'all') {
         setRows(validRows);
       } else {
         const assigned = await api.listAssignedMembers(staffId);
@@ -126,7 +148,7 @@ export default function StaffMembersScreen() {
     } catch {
       setError(true);
     }
-  }, [api, staffId, isAdmin, filterMode]);
+  }, [api, staffId, coachesClients, isWellnessDirector, filterMode]);
 
   useFocusEffect(
     useCallback(() => {
@@ -196,16 +218,41 @@ export default function StaffMembersScreen() {
   }
 
   return (
-    <View style={styles.screen}>
-      <YHeader subtitle={isAdmin ? (isITAdmin ? 'IT Admin · Member Accounts' : 'Staff Admin · Member Accounts') : 'Members Directory'} />
+    <View style={[styles.screen, { backgroundColor: tc.background }]}>
+      <YHeader
+        subtitle={
+          isAdmin
+            ? isITAdmin
+              ? 'IT Admin · Member Accounts'
+              : 'Staff Admin · Member Accounts'
+            : isMembershipDirector
+              ? 'Membership Director · Member Accounts'
+              : coachesClients
+                ? 'Clients & Members'
+                : 'Members Directory'
+        }
+      />
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
 
-      {/* Admin Privilege Banner & Create Action */}
-      {isAdmin ? (
+      <View style={styles.bannerWrap}>
+        <PersonaBanner
+          theme={theme}
+          text={
+            isAdmin
+              ? 'Full account, plan and delete access (override)'
+              : isMembershipDirector
+                ? 'You own enrollments, plan changes and cancellation decisions'
+                : isWellnessDirector
+                  ? 'See every client, spot unassigned members and pair them with trainers'
+                  : coachesClients
+                    ? 'Your assigned clients, goals and workout logs'
+                    : 'Look up members for check-in and front desk help'
+          }
+        />
+      </View>
+
+      {canCreateMembers ? (
         <View style={styles.adminBadgeWrap}>
-          <View style={styles.adminBadge}>
-            <Text style={styles.adminBadgeText}>⭐ Admin Superpower: Full Account, Plan, & Delete Access</Text>
-          </View>
           <Pressable
             onPress={openCreateModal}
             style={styles.createBtn}
@@ -216,8 +263,9 @@ export default function StaffMembersScreen() {
             <Text style={styles.createBtnText}>+ New Member</Text>
           </Pressable>
         </View>
-      ) : (
-        /* Trainer Filter Tabs: All vs My Clients */
+      ) : null}
+
+      {coachesClients ? (
         <View style={styles.tabRow}>
           <Pressable
             onPress={() => setFilterMode('all')}
@@ -232,11 +280,21 @@ export default function StaffMembersScreen() {
             style={[styles.tabBtn, filterMode === 'assigned' && styles.tabBtnActive]}
           >
             <Text style={[styles.tabText, filterMode === 'assigned' && styles.tabTextActive]}>
-              My Assigned Clients
+              My Clients
             </Text>
           </Pressable>
+          {isWellnessDirector ? (
+            <Pressable
+              onPress={() => setFilterMode('unassigned')}
+              style={[styles.tabBtn, filterMode === 'unassigned' && styles.tabBtnActive]}
+            >
+              <Text style={[styles.tabText, filterMode === 'unassigned' && styles.tabTextActive]}>
+                Unassigned
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
-      )}
+      ) : null}
 
       {/* Status Filter Chips */}
       <View style={styles.statusChipRow}>
@@ -265,7 +323,7 @@ export default function StaffMembersScreen() {
 
       <ScrollView contentContainerStyle={styles.list}>
         {filtered.length === 0 ? (
-          <Text style={styles.empty}>
+          <Text style={[styles.empty, { color: tc.textMuted }]}>
             {rows.length === 0 ? 'No members found.' : 'No matches for your search.'}
           </Text>
         ) : (
@@ -274,7 +332,7 @@ export default function StaffMembersScreen() {
             return (
               <View
                 key={member.id}
-                style={[styles.row, { gap: 10 }]}
+                style={[styles.row, { gap: 10, backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}
               >
                 <Pressable
                   onPress={() => router.push(`/(staff)/members/${member.id}`)}
@@ -284,20 +342,26 @@ export default function StaffMembersScreen() {
                   <UserAvatar uri={member.avatarUrl} name={member.name} size={46} />
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={styles.name}>{member.name}</Text>
+                      <Text style={[styles.name, { color: tc.text }]}>{member.name}</Text>
                       {filterMode === 'assigned' || goal ? (
                         <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
                           <Text style={{ fontSize: 9, fontWeight: '800', color: '#15803D' }}>CLIENT</Text>
                         </View>
                       ) : null}
                     </View>
-                    <Text style={styles.meta}>
+                    <Text style={[styles.meta, { color: tc.textMuted }]}>
                       {member.email} · {member.phone}
                     </Text>
-                    <Text style={styles.meta}>
-                      Plan: <Text style={{ fontWeight: '700', color: colors.nearBlack }}>{member.type}</Text> · ${(membership.monthlyAmountCents / 100).toFixed(2)}/mo
+                    <Text style={[styles.meta, { color: tc.textMuted }]}>
+                      Plan: <Text style={{ fontWeight: '700', color: tc.text }}>{member.type}</Text> · ${(membership.monthlyAmountCents / 100).toFixed(2)}/mo
                     </Text>
-                    <Text style={styles.meta}>Next bill {formatShortDate(membership.nextBillingDate)}</Text>
+                    {isWellnessDirector ? (
+                      <Text style={[styles.meta, { color: tc.textMuted, fontWeight: '700' }]}>
+                        Trainer: {trainerNames[member.id] ?? 'Unassigned'}
+                      </Text>
+                    ) : (
+                      <Text style={[styles.meta, { color: tc.textMuted }]}>Next bill {formatShortDate(membership.nextBillingDate)}</Text>
+                    )}
                   </View>
                   <View
                     style={[
@@ -344,8 +408,7 @@ export default function StaffMembersScreen() {
                   </View>
                 ) : null}
 
-                {/* Trainer Action Buttons */}
-                {isTrainer ? (
+                {canLogWorkouts ? (
                   <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)', paddingTop: 8 }}>
                     <Pressable
                       onPress={() => {
@@ -529,22 +592,13 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.muted,
   },
-  adminBadgeWrap: {
+  bannerWrap: {
     paddingHorizontal: 16,
     paddingTop: 12,
   },
-  adminBadge: {
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#93C5FD',
-  },
-  adminBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
-    textAlign: 'center',
+  adminBadgeWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
   createBtn: {
     flexDirection: 'row',
