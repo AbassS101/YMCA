@@ -69,7 +69,7 @@ export default function StaffMembersScreen() {
 
   const [rows, setRows] = useState<MemberRow[]>([]);
   const [filterMode, setFilterMode] = useState<'all' | 'assigned' | 'team' | 'unassigned'>(
-    coachesClients ? 'assigned' : 'all'
+    isWellnessDirector ? 'team' : coachesClients ? 'assigned' : 'all'
   );
   const [trainerNames, setTrainerNames] = useState<Record<string, string | null>>({});
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'cancel_pending'>('all');
