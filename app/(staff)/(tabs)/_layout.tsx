@@ -1,22 +1,32 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 
-import { colors } from '@/theme/colors';
-import { tapTarget, typography } from '@/theme/typography';
+import { useTheme } from '@/context/ThemeContext';
+import { useStaffCapabilities } from '@/context/useStaffCapabilities';
+import { tapTarget } from '@/theme/typography';
 
 export default function StaffTabsLayout() {
+  const { colors: tc } = useTheme();
+  const { persona, theme, coachesClients, isAdmin } = useStaffCapabilities();
+
+  const isDeskPersona = persona === 'membershipDirector' || persona === 'frontDesk';
+  const todayLabel = isAdmin ? 'Branch' : isDeskPersona ? 'Front Desk' : 'Today';
+  const todayIcon = isAdmin ? 'business' : isDeskPersona ? 'storefront' : 'sunny';
+  const membersLabel = coachesClients ? 'Clients' : 'Members';
+  const schedulesLabel = coachesClients ? 'Lessons' : 'Schedules';
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.muted,
+        tabBarActiveTintColor: theme.color,
+        tabBarInactiveTintColor: tc.textMuted,
         tabBarStyle: {
           minHeight: tapTarget + 14,
           paddingTop: 8,
           paddingBottom: 10,
-          backgroundColor: colors.white,
-          borderTopColor: colors.border,
+          backgroundColor: tc.cardBg,
+          borderTopColor: tc.cardBorder,
           borderTopWidth: 1,
         },
         tabBarLabelStyle: {
@@ -32,31 +42,31 @@ export default function StaffTabsLayout() {
       <Tabs.Screen
         name="today"
         options={{
-          title: 'Today',
+          title: todayLabel,
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="sunny" size={Math.max(size, 26)} color={color} />
+            <Ionicons name={todayIcon} size={Math.max(size, 26)} color={color} />
           ),
-          tabBarAccessibilityLabel: 'Today',
+          tabBarAccessibilityLabel: todayLabel,
         }}
       />
       <Tabs.Screen
         name="schedules"
         options={{
-          title: 'Schedules',
+          title: schedulesLabel,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar" size={Math.max(size, 26)} color={color} />
           ),
-          tabBarAccessibilityLabel: 'Schedules and Events',
+          tabBarAccessibilityLabel: coachesClients ? 'Lessons and Classes' : 'Schedules and Events',
         }}
       />
       <Tabs.Screen
         name="members"
         options={{
-          title: 'Members',
+          title: membersLabel,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="people" size={Math.max(size, 26)} color={color} />
           ),
-          tabBarAccessibilityLabel: 'Members',
+          tabBarAccessibilityLabel: membersLabel,
         }}
       />
       <Tabs.Screen

@@ -66,7 +66,7 @@ export default function StaffMembersScreen() {
   const canLogWorkouts = can('logWorkouts');
 
   const [rows, setRows] = useState<MemberRow[]>([]);
-  const [filterMode, setFilterMode] = useState<'all' | 'assigned' | 'unassigned'>(
+  const [filterMode, setFilterMode] = useState<'all' | 'assigned' | 'team' | 'unassigned'>(
     coachesClients ? 'assigned' : 'all'
   );
   const [trainerNames, setTrainerNames] = useState<Record<string, string | null>>({});
@@ -120,6 +120,10 @@ export default function StaffMembersScreen() {
         setTrainerNames(names);
         if (filterMode === 'unassigned') {
           setRows(validRows.filter((r) => names[r.member.id] == null && r.member.status !== 'cancelled'));
+          return;
+        }
+        if (filterMode === 'team') {
+          setRows(validRows.filter((r) => names[r.member.id] != null));
           return;
         }
       }
@@ -266,29 +270,39 @@ export default function StaffMembersScreen() {
       ) : null}
 
       {coachesClients ? (
-        <View style={styles.tabRow}>
+        <View style={[styles.tabRow, { backgroundColor: tc.cardBorder }]}>
           <Pressable
             onPress={() => setFilterMode('all')}
-            style={[styles.tabBtn, filterMode === 'all' && styles.tabBtnActive]}
+            style={[styles.tabBtn, filterMode === 'all' && [styles.tabBtnActive, { backgroundColor: tc.cardBg }]]}
           >
-            <Text style={[styles.tabText, filterMode === 'all' && styles.tabTextActive]}>
+            <Text style={[styles.tabText, { color: tc.textMuted }, filterMode === 'all' && [styles.tabTextActive, { color: theme.color }]]}>
               All Members
             </Text>
           </Pressable>
           <Pressable
             onPress={() => setFilterMode('assigned')}
-            style={[styles.tabBtn, filterMode === 'assigned' && styles.tabBtnActive]}
+            style={[styles.tabBtn, filterMode === 'assigned' && [styles.tabBtnActive, { backgroundColor: tc.cardBg }]]}
           >
-            <Text style={[styles.tabText, filterMode === 'assigned' && styles.tabTextActive]}>
+            <Text style={[styles.tabText, { color: tc.textMuted }, filterMode === 'assigned' && [styles.tabTextActive, { color: theme.color }]]}>
               My Clients
             </Text>
           </Pressable>
           {isWellnessDirector ? (
             <Pressable
-              onPress={() => setFilterMode('unassigned')}
-              style={[styles.tabBtn, filterMode === 'unassigned' && styles.tabBtnActive]}
+              onPress={() => setFilterMode('team')}
+              style={[styles.tabBtn, filterMode === 'team' && [styles.tabBtnActive, { backgroundColor: tc.cardBg }]]}
             >
-              <Text style={[styles.tabText, filterMode === 'unassigned' && styles.tabTextActive]}>
+              <Text style={[styles.tabText, { color: tc.textMuted }, filterMode === 'team' && [styles.tabTextActive, { color: theme.color }]]}>
+                Team Clients
+              </Text>
+            </Pressable>
+          ) : null}
+          {isWellnessDirector ? (
+            <Pressable
+              onPress={() => setFilterMode('unassigned')}
+              style={[styles.tabBtn, filterMode === 'unassigned' && [styles.tabBtnActive, { backgroundColor: tc.cardBg }]]}
+            >
+              <Text style={[styles.tabText, { color: tc.textMuted }, filterMode === 'unassigned' && [styles.tabTextActive, { color: theme.color }]]}>
                 Unassigned
               </Text>
             </Pressable>
