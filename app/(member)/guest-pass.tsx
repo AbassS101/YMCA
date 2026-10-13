@@ -112,7 +112,7 @@ const TODAY_DROP_IN_CLASSES = [
 const GYM_COMPARISON_POINTS = [
   {
     feature: 'Join Initiation Fee',
-    ymca: '$0 for Guests (Save $50)',
+    ymca: '$0 enrollment fee for guests',
     gym: '$50 to $100 Initiation',
   },
   {
@@ -152,7 +152,7 @@ const GYM_COMPARISON_POINTS = [
   },
   {
     feature: 'Financial Assistance',
-    ymca: 'Open Doors Sliding Scale (from $17.50/mo)',
+    ymca: 'Open Doors aid through Member Services',
     gym: 'None Offered',
   },
 ];
@@ -386,7 +386,9 @@ export default function GuestPassScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Navigation Back */}
         <Pressable
-          onPress={() => router.back()}
+          onPress={() =>
+            router.canGoBack() ? router.back() : router.replace('/(member)/home')
+          }
           style={styles.backButton}
           accessibilityRole="button"
           accessibilityLabel="Back"
@@ -652,18 +654,18 @@ export default function GuestPassScreen() {
               <View style={styles.joinPromoPill}>
                 <Ionicons name="flash" size={14} color="#1D4ED8" />
                 <AppText style={styles.joinPromoPillText}>
-                  EXCLUSIVE GUEST OFFER: $0 JOIN FEE (SAVE $50)
+                  EXCLUSIVE GUEST OFFER: $0 ENROLLMENT FEE
                 </AppText>
               </View>
 
               <AppText style={[styles.joinHeroTitle, { color: tc.text }]}>
-                Love Your Workout Today? Join YMCA & Save $50!
+                Love Your Workout Today? Join the Y!
               </AppText>
 
               <AppText style={[styles.joinHeroDesc, { color: tc.textMuted }]}>
                 Turn today’s guest pass into a lifetime of strength, community, and vitality. Join YMCA Silver Spring within 48 hours of your guest visit and we will{' '}
                 <AppText style={{ fontWeight: '800', color: colors.primary }}>
-                  completely waive the $50 joining fee!
+                  completely waive your one-time enrollment fee!
                 </AppText>{' '}
                 Plus, all YMCA memberships include unlimited Nationwide Reciprocity at over 2,500 YMCAs across North America.
               </AppText>
@@ -740,7 +742,7 @@ export default function GuestPassScreen() {
               />
 
               <AppText style={[styles.joinFooterNotice, { color: tc.textMuted }]}>
-                Includes Open Doors income-based sliding scale assistance starting at $17.50/mo. No long-term lock-in contracts.
+                No long-term lock-in contracts. Ask Member Services about Open Doors financial aid options.
               </AppText>
             </View>
 
