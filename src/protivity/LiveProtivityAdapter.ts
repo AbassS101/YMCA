@@ -14,6 +14,9 @@ import type {
   ForumReply,
   ForumTopic,
   ForumTopicCategory,
+  BookLessonOptions,
+  LessonPricing,
+  SwimClassEnrollment,
   LessonSlot,
   Member,
   Membership,
@@ -167,7 +170,39 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
-  async bookPrivateLesson(_memberId: string, _slotId: string): Promise<PrivateLesson> {
+  async bookPrivateLesson(
+    _memberId: string,
+    _slotId: string,
+    _options?: BookLessonOptions
+  ): Promise<PrivateLesson> {
+    throw new ProtivityNotConnected();
+  }
+
+  async getLessonPricing(): Promise<LessonPricing> {
+    throw new ProtivityNotConnected();
+  }
+
+  async updateLessonPricing(_updates: Partial<LessonPricing>): Promise<LessonPricing> {
+    throw new ProtivityNotConnected();
+  }
+
+  async enrollInSwimClass(
+    _memberId: string,
+    _classId: string,
+    _participantName?: string
+  ): Promise<SwimClassEnrollment> {
+    throw new ProtivityNotConnected();
+  }
+
+  async cancelSwimEnrollment(_memberId: string, _enrollmentId: string): Promise<SwimClassEnrollment> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listMySwimEnrollments(_memberId: string): Promise<SwimClassEnrollment[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listSwimClassEnrollments(_classId: string): Promise<SwimClassEnrollment[]> {
     throw new ProtivityNotConnected();
   }
 
@@ -205,6 +240,7 @@ export class LiveProtivityAdapter implements ProtivityPort {
     payment: { brand: string; last4: string };
     donationCents?: number;
     password?: string;
+    waiveEnrollmentFee?: boolean;
   }): Promise<{ member: Member; membership: Membership }> {
     throw new ProtivityNotConnected();
   }

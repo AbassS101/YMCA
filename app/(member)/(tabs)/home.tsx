@@ -391,13 +391,13 @@ export default function MemberHomeScreen() {
           >
             <View style={styles.guestPromoPill}>
               <Ionicons name="sparkles" size={13} color="#1D4ED8" />
-              <Text style={styles.guestPromoPillText}>EXCLUSIVE GUEST BENEFIT: $0 JOIN FEE</Text>
+              <Text style={styles.guestPromoPillText}>EXCLUSIVE GUEST BENEFIT: $0 ENROLLMENT FEE</Text>
             </View>
             <Text style={[styles.guestPromoTitle, { color: colors.text }]}>
-              Love Your Workout Today? Join YMCA & Save $50!
+              Love Your Workout Today? Join the Y as a Member!
             </Text>
             <Text style={[styles.guestPromoDesc, { color: colors.textMuted }]}>
-              Turn today’s 1-day guest pass into a full membership within 48 hours and we’ll completely waive the $50 joining fee. Access 2,500+ YMCAs across North America!
+              Turn today’s guest pass into a full membership within 48 hours and we’ll completely waive your one-time enrollment fee. Access 2,500+ YMCAs across North America!
             </Text>
             <View style={styles.guestPromoBtnRow}>
               <Pressable

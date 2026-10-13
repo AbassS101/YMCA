@@ -435,22 +435,6 @@ export default function ChangeMembershipScreen() {
           );
         })}
 
-        {/* Insurance Coverage Information */}
-        <View style={[styles.insuranceCard, cardTheme]}>
-          <View style={styles.insuranceHeader}>
-            <Ionicons name="shield-checkmark" size={24} color={colors.primary} />
-            <AppText style={[styles.insuranceTitle, { color: colors.text }]}>
-              Insurance Wellness Benefits
-            </AppText>
-          </View>
-          <AppText style={[styles.insuranceText, { color: colors.textMuted }]}>
-            Do you have SilverSneakers, Renew Active, or Silver & Fit through Medicare or your health insurance? Your YMCA Silver Spring membership may be 100% covered at no charge to you!
-          </AppText>
-          <AppText style={[styles.insuranceHelp, { color: colors.text }]}>
-            Bring your health insurance card or fitness confirmation ID to the Silver Spring Member Services desk (or call 301-585-2120) to verify your eligibility on the spot.
-          </AppText>
-        </View>
-
         {/* Change Confirmation Bottom Bar */}
         {!isCurrent && (
           <View style={[styles.bottomBar, cardTheme]}>
@@ -717,32 +701,6 @@ const styles = StyleSheet.create({
   radioLabel: {
     ...typography.body,
     fontSize: 14,
-  },
-  insuranceCard: {
-    ...cardStyle,
-    gap: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#0EA5E9',
-  },
-  insuranceHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  insuranceTitle: {
-    ...typography.bodyStrong,
-    fontSize: 16,
-  },
-  insuranceText: {
-    ...typography.body,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  insuranceHelp: {
-    ...typography.body,
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
   },
   bottomBar: {
     ...cardStyle,

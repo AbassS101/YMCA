@@ -417,7 +417,7 @@ export default function LoginScreen() {
                   New to YMCA? Join & Buy Membership
                 </Text>
                 <Text style={[styles.joinSub, { color: tc.textMuted }]}>
-                  Browse Adult, Family, Senior & Community Assistance plans
+                  Browse Adult, Family, Senior & more membership plans
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.primary} />

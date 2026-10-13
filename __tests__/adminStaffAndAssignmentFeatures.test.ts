@@ -91,7 +91,7 @@ describe('Admin Staff, Member Management, and Trainer Assignment Features', () =
       email: 'eleanor.vance@example.com',
       phone: '240-555-8899',
       address: '742 Evergreen Terr, Silver Spring, MD',
-      planId: 'senior',
+      planId: 'senior-adult',
       password: 'eleanor-password',
       homeBranchId: 'silver-spring',
     });

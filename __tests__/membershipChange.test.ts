@@ -15,24 +15,18 @@ describe('YMCA Silver Spring Membership Plan Changing & Features', () => {
     const planNames = YMCA_MEMBERSHIP_PLANS.map((p) => p.name);
     expect(planNames).toContain('Adult');
     expect(planNames).toContain('Young Adult');
-    expect(planNames).toContain('Senior / Active Older Adult');
-    expect(planNames).toContain('Family / Household');
-    expect(planNames).toContain('Two Adults');
-    expect(planNames).toContain('Community Assistance (Open Doors)');
+    expect(planNames).toContain('Senior Adult');
+    expect(planNames).toContain('Family I');
 
     // Verify rates
     const adult = YMCA_MEMBERSHIP_PLANS.find((p) => p.id === 'adult');
-    expect(adult?.monthlyAmountCents).toBe(8000);
+    expect(adult?.monthlyAmountCents).toBe(8900);
 
     const youngAdult = YMCA_MEMBERSHIP_PLANS.find((p) => p.id === 'young-adult');
-    expect(youngAdult?.monthlyAmountCents).toBe(5400);
+    expect(youngAdult?.monthlyAmountCents).toBe(6900);
 
-    const family = YMCA_MEMBERSHIP_PLANS.find((p) => p.id === 'family');
-    expect(family?.monthlyAmountCents).toBe(14500);
-    expect(family?.features.some((f) => f.includes('Child Watch'))).toBe(true);
-
-    const assistance = YMCA_MEMBERSHIP_PLANS.find((p) => p.id === 'community-assistance');
-    expect(assistance?.monthlyAmountCents).toBe(1750);
+    const family = YMCA_MEMBERSHIP_PLANS.find((p) => p.id === 'family-1');
+    expect(family?.monthlyAmountCents).toBe(9900);
   });
 
   test('changeMembership switches plan from Adult to Family / Household', async () => {
@@ -42,7 +36,7 @@ describe('YMCA Silver Spring Membership Plan Changing & Features', () => {
 
     expect(initialMember.type).toBe('Adult');
     expect(initialMembership.rateName).toBe('Adult');
-    expect(initialMembership.monthlyAmountCents).toBe(8000);
+    expect(initialMembership.monthlyAmountCents).toBe(8900);
 
     // Switch to Family / Household ($145.00/mo)
     const updated = await api.changeMembership('member-jordan', 'Family / Household', 14500);
@@ -55,22 +49,6 @@ describe('YMCA Silver Spring Membership Plan Changing & Features', () => {
     expect(memberAfter.type).toBe('Family / Household');
   });
 
-  test('changeMembership switches plan to Community Assistance $17.50/mo', async () => {
-    const api = new MockProtivityAdapter();
-
-    const updated = await api.changeMembership(
-      'member-jordan',
-      'Community Assistance (Open Doors)',
-      1750
-    );
-
-    expect(updated.rateName).toBe('Community Assistance (Open Doors)');
-    expect(updated.monthlyAmountCents).toBe(1750);
-
-    const membershipAfter = await api.getMembership('member-jordan');
-    expect(membershipAfter.monthlyAmountCents).toBe(1750);
-  });
-
   test('changeMembership throws error when member does not exist', async () => {
     const api = new MockProtivityAdapter();
     await expect(
@@ -78,3 +56,4 @@ describe('YMCA Silver Spring Membership Plan Changing & Features', () => {
     ).rejects.toThrow('Membership not found: non-existent-member');
   });
 });
+

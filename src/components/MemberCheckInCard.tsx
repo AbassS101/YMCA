@@ -201,13 +201,9 @@ export function MemberCheckInCard({
             accessibilityHint="Maximizes screen brightness and enlarges barcode to full screen for easy front desk scanning"
           >
             <View style={styles.barcodeHeaderRow}>
-              <View style={styles.scannerBadge}>
-                <Ionicons name="scan-outline" size={14} color={colors.primary} />
-                <AppText style={styles.scannerBadgeText}>OPTICAL PASS</AppText>
-              </View>
               <View style={styles.tapToFocusBadge}>
                 <Ionicons name="expand-outline" size={13} color={colors.primaryDark} />
-                <AppText style={styles.tapToFocusText}>Tap to Enlarge & Focus</AppText>
+                <AppText style={styles.tapToFocusText}>Tap barcode to enlarge</AppText>
               </View>
             </View>
 
@@ -232,53 +228,37 @@ export function MemberCheckInCard({
             <AppText style={styles.barcodeNumbers}>{barcodeLabel}</AppText>
           </Pressable>
 
-          {/* Scanner Action Buttons Row */}
-          <View style={styles.actionRow}>
-            <Pressable
-              onPress={handleOpenScanMode}
-              style={({ pressed }) => [
-                styles.primaryScanButton,
-                pressed && { opacity: 0.9 },
+          <Pressable
+            onPress={handleToggleBrightness}
+            style={({ pressed }) => [
+              styles.brightnessButton,
+              isBrightnessBoosted && styles.brightnessButtonActive,
+              pressed && { opacity: 0.8 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isBrightnessBoosted
+                ? 'Screen brightness maximized. Tap to revert'
+                : 'Boost screen brightness for scanner'
+            }
+          >
+            <Ionicons
+              name={isBrightnessBoosted ? 'sunny' : 'sunny-outline'}
+              size={16}
+              color={isBrightnessBoosted ? '#B45309' : colors.primaryDark}
+            />
+            <AppText
+              style={[
+                styles.brightnessButtonText,
+                isBrightnessBoosted && styles.brightnessButtonTextActive,
               ]}
-              accessibilityRole="button"
-              accessibilityLabel="Open Full-Screen Barcode"
             >
-              <Ionicons name="scan" size={16} color={colors.white} />
-              <AppText style={styles.primaryScanButtonText}>Enlarge for Scanner</AppText>
-            </Pressable>
-
-            <Pressable
-              onPress={handleToggleBrightness}
-              style={({ pressed }) => [
-                styles.brightnessButton,
-                isBrightnessBoosted && styles.brightnessButtonActive,
-                pressed && { opacity: 0.8 },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel={
-                isBrightnessBoosted
-                  ? 'Screen brightness maximized. Tap to revert'
-                  : 'Boost screen brightness for scanner'
-              }
-            >
-              <Ionicons
-                name={isBrightnessBoosted ? 'sunny' : 'sunny-outline'}
-                size={16}
-                color={isBrightnessBoosted ? '#B45309' : colors.primaryDark}
-              />
-              <AppText
-                style={[
-                  styles.brightnessButtonText,
-                  isBrightnessBoosted && styles.brightnessButtonTextActive,
-                ]}
-              >
-                {isBrightnessBoosted ? '100% Bright' : 'Max Bright'}
-              </AppText>
-            </Pressable>
-          </View>
+              {isBrightnessBoosted ? 'Brightness at 100%' : 'Boost brightness'}
+            </AppText>
+          </Pressable>
 
           <AppText style={styles.hint}>
-            Hold phone near the optical scanner at the Silver Spring welcome desk or turnstiles
+            Hold your phone near the welcome desk or turnstiles to check in
           </AppText>
         </View>
       ) : null}
@@ -590,20 +570,8 @@ const styles = StyleSheet.create({
   barcodeHeaderRow: {
     width: '100%',
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  scannerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  scannerBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 0.8,
   },
   tapToFocusBadge: {
     flexDirection: 'row',
@@ -650,36 +618,11 @@ const styles = StyleSheet.create({
     letterSpacing: 2.8,
     color: '#0F172A',
   },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  primaryScanButton: {
-    flex: 1,
+  brightnessButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: colors.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  primaryScanButtonText: {
-    color: colors.white,
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  brightnessButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
     backgroundColor: '#F1F5F9',
     borderWidth: 1,
     borderColor: '#CBD5E1',

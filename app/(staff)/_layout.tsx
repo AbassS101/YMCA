@@ -9,6 +9,7 @@ export default function StaffLayout() {
       <Stack.Screen name="announcements" />
       <Stack.Screen name="surveys" />
       <Stack.Screen name="settings" />
+      <Stack.Screen name="lesson-pricing" />
     </Stack>
   );
 }

@@ -49,6 +49,7 @@ export const membershipRepo = {
       payment: { brand: string; last4: string };
       donationCents?: number;
       password?: string;
+      waiveEnrollmentFee?: boolean;
     }
   ): Promise<{ member: Member; membership: Membership }> {
     return api.buyMembership(input);

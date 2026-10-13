@@ -22,6 +22,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { tokenizePaymentInput } from '@/domain/paymentTokenizer';
 import {
   YMCA_MEMBERSHIP_PLANS,
+  effectiveEnrollmentFeeCents,
   type MembershipPlan,
 } from '@/domain/types';
 import { membershipRepo } from '@/repositories/membershipRepo';
@@ -60,7 +61,13 @@ export default function JoinMembershipScreen() {
   const selectedPlan =
     YMCA_MEMBERSHIP_PLANS.find((p) => p.id === selectedPlanId) ?? YMCA_MEMBERSHIP_PLANS[0];
 
-  const totalFirstMonthCents = selectedPlan.monthlyAmountCents + donationCents;
+  const isGuestConverting = session?.role === 'guest';
+  const enrollmentFeeDueCents = effectiveEnrollmentFeeCents(selectedPlan, {
+    waiveEnrollmentFee: isGuestConverting,
+  });
+
+  const totalFirstMonthCents =
+    selectedPlan.monthlyAmountCents + enrollmentFeeDueCents + donationCents;
 
   const handlePurchase = async () => {
     setFormError(null);
@@ -105,6 +112,7 @@ export default function JoinMembershipScreen() {
           last4: tokenized.last4,
         },
         donationCents: donationCents > 0 ? donationCents : undefined,
+        waiveEnrollmentFee: isGuestConverting,
       });
 
       // If not logged in, automatically log in as the newly created member!
@@ -198,25 +206,39 @@ export default function JoinMembershipScreen() {
                   accessibilityState={{ selected }}
                 >
                   <View style={styles.planOptionTop}>
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <AppText style={[styles.planOptionName, { color: colors.text }]}>
-                          {plan.name}
-                        </AppText>
-                        {plan.badge ? (
-                          <View style={[styles.miniBadge, { backgroundColor: colors.primaryLight }]}>
-                            <AppText style={[styles.miniBadgeText, { color: colors.primary }]}>
-                              {plan.badge}
-                            </AppText>
-                          </View>
-                        ) : null}
-                      </View>
+                    <View style={styles.planOptionLeft}>
+                      <AppText style={[styles.planOptionName, { color: colors.text }]}>
+                        {plan.name}
+                      </AppText>
+                      {plan.badge ? (
+                        <View
+                          style={[
+                            styles.miniBadge,
+                            {
+                              backgroundColor: plan.recommended
+                                ? colors.gold
+                                : colors.primaryLight,
+                            },
+                          ]}
+                        >
+                          <AppText
+                            style={[
+                              styles.miniBadgeText,
+                              {
+                                color: plan.recommended ? '#FFFFFF' : colors.primary,
+                              },
+                            ]}
+                          >
+                            {plan.badge}
+                          </AppText>
+                        </View>
+                      ) : null}
                       <AppText style={[styles.planOptionSub, { color: colors.textMuted }]}>
                         {plan.subtitle}
                       </AppText>
                     </View>
 
-                    <View style={{ alignItems: 'flex-end' }}>
+                    <View style={styles.planOptionPriceCol}>
                       <AppText style={[styles.planOptionPrice, { color: colors.primary }]}>
                         {formatCents(plan.monthlyAmountCents)}
                       </AppText>
@@ -391,13 +413,38 @@ export default function JoinMembershipScreen() {
               </View>
             ) : null}
 
+            {isGuestConverting ? (
+              <View style={[styles.guestFeeBanner, { backgroundColor: isDark ? '#14532D33' : '#DCFCE7', borderColor: colors.success }]}>
+                <AppText style={{ color: colors.success, fontSize: 13, fontWeight: '700' }}>
+                  Guest pass benefit: one-time enrollment fee waived
+                </AppText>
+              </View>
+            ) : null}
+
             <View style={styles.summaryRow}>
               <AppText style={{ color: colors.textMuted, fontSize: 14 }}>
-                Joiner Fee / Signup Fee
+                Enrollment Fee (one-time)
               </AppText>
-              <AppText style={{ color: colors.success, fontWeight: '700', fontSize: 15 }}>
-                $0.00 (Waived)
-              </AppText>
+              {enrollmentFeeDueCents === 0 && selectedPlan.enrollmentFeeCents > 0 ? (
+                <View style={{ alignItems: 'flex-end' }}>
+                  <AppText
+                    style={{
+                      color: colors.textMuted,
+                      fontSize: 12,
+                      textDecorationLine: 'line-through',
+                    }}
+                  >
+                    {formatCents(selectedPlan.enrollmentFeeCents)}
+                  </AppText>
+                  <AppText style={{ color: colors.success, fontWeight: '700', fontSize: 15 }}>
+                    $0.00 (Waived)
+                  </AppText>
+                </View>
+              ) : (
+                <AppText style={{ color: colors.text, fontWeight: '700', fontSize: 15 }}>
+                  {formatCents(enrollmentFeeDueCents)}
+                </AppText>
+              )}
             </View>
 
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -484,14 +531,25 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 6,
   },
+  planOptionLeft: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
+  planOptionPriceCol: {
+    alignItems: 'flex-end',
+    flexShrink: 0,
+  },
   planOptionName: {
     fontSize: 17,
     fontWeight: '800',
   },
   miniBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.sm,
   },
   miniBadgeText: {
     fontSize: 10,
@@ -530,6 +588,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 14,
   },
+  guestFeeBanner: {
+    borderWidth: 1,
+    borderRadius: radii.md,
+    padding: spacing.sm,
+    marginBottom: 10,
+  },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -546,3 +610,4 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 });
+

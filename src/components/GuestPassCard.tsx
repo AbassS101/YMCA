@@ -221,11 +221,11 @@ export function GuestPassCard({
               onPress={() => router.push('/(member)/join-membership')}
               style={[styles.actionBtnJoin, { backgroundColor: colors.primary }]}
               accessibilityRole="button"
-              accessibilityLabel="Turn Guest Pass Into Membership, save fifty dollar join fee"
+              accessibilityLabel="Turn Guest Pass Into Membership with enrollment fee waived"
             >
               <Ionicons name="id-card" size={14} color="#FFFFFF" />
               <AppText style={styles.actionBtnJoinText}>
-                Join YMCA ($0 Join Fee) ›
+                Join YMCA ($0 Enrollment Fee) ›
               </AppText>
             </Pressable>
 

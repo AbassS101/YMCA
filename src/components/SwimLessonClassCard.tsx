@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
+import { useRouter } from 'expo-router';
 import {
-  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -29,12 +29,12 @@ export function SwimLessonClassCard({
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
-  const handleEnrollPress = async () => {
-    try {
-      await Linking.openURL('https://www.ymcadc.org');
-    } catch {
-      // fallback
-    }
+  const router = useRouter();
+  const handleEnrollPress = () => {
+    router.push({
+      pathname: '/(member)/book-lesson',
+      params: { tab: 'classes', classId: offering.id },
+    });
   };
 
   let ageColor = '#0284C7';

@@ -283,6 +283,25 @@ export default function StaffMeScreen() {
             </Pressable>
           ) : null}
 
+          {can('manageStaff') ? (
+            <Pressable
+              onPress={() => router.push('/(staff)/lesson-pricing')}
+              style={[styles.adminActionBtn, { borderColor: tc.border, marginTop: 8 }]}
+              accessibilityRole="button"
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                <Ionicons name="pricetags" size={20} color={colors.primary} />
+                <View>
+                  <Text style={[styles.adminActionTitle, { color: tc.text }]}>Lesson & Swim Pricing</Text>
+                  <Text style={[styles.adminActionSub, { color: tc.textMuted }]}>
+                    Edit private lesson and swim class prices
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={tc.textMuted} />
+            </Pressable>
+          ) : null}
+
           {can('manageSurveys') ? (
           <Pressable
             onPress={() => router.push('/(staff)/surveys')}

@@ -21,6 +21,39 @@ export type ScheduleCategory = 'groupEx' | 'swim' | 'childWatch' | 'event' | 'se
 export type RegistrationStatus = 'registered' | 'cancelled';
 export type AttendanceStatus = 'unmarked' | 'attended' | 'no_show';
 export type LessonStatus = 'booked' | 'cancelled' | 'completed' | 'no_show';
+export type LessonType = 'training' | 'swim';
+export type PricingTier = 'full' | 'program';
+
+export type LessonPricing = {
+  /** Price in cents keyed by duration in minutes. */
+  training: { 30: number; 60: number };
+  swim: { 30: number; 60: number };
+  /** Per-class overrides of the guide prices, keyed by AquaticsClassOffering id. */
+  swimClassOverrides: Record<string, { fullCents: number; programCents: number }>;
+};
+
+export type SwimClassEnrollment = {
+  id: string;
+  memberId: string;
+  classId: string;
+  participantName: string;
+  paidAmountCents: number;
+  paymentLast4?: string;
+  pricingTier: PricingTier;
+  status: 'enrolled' | 'cancelled';
+  enrolledAt: string;
+};
+
+export type BookLessonOptions = {
+  lessonType?: LessonType;
+  durationMin?: 30 | 60;
+  swimmerName?: string;
+  stageCode?: string;
+  notes?: string;
+  /** When rescheduling, reuse the amount already paid instead of charging again. */
+  carryOverPaidCents?: number;
+  carryOverPaymentLast4?: string;
+};
 
 export type GuestPassInfo = {
   id: string;
@@ -60,6 +93,8 @@ export type Staff = {
   homeBranchId: string;
   staffRole?: StaffRole;
   avatarUrl?: string;
+  /** Private lesson types this staff member offers. Undefined = training. */
+  lessonTypes?: LessonType[];
 };
 
 export type PendingMembershipChange = {
@@ -147,6 +182,12 @@ export type PrivateLesson = {
   status: LessonStatus;
   completedAt?: string;
   notes?: string;
+  lessonType?: LessonType;
+  durationMin?: number;
+  paidAmountCents?: number;
+  paymentLast4?: string;
+  swimmerName?: string;
+  stageCode?: string;
 };
 
 export type WorkoutExercise = {
@@ -230,6 +271,8 @@ export type MembershipPlan = {
   id: string;
   name: string;
   monthlyAmountCents: number;
+  enrollmentFeeCents: number;
+  ageRange: string;
   badge?: string;
   subtitle: string;
   description: string;
@@ -237,98 +280,215 @@ export type MembershipPlan = {
   recommended?: boolean;
 };
 
+const STANDARD_FEATURES = [
+  'Access to fitness center, free weights & cardio',
+  'Free weekly group exercise classes',
+  'Heated outdoor pool & indoor lap pool',
+  'Nationwide YMCA reciprocity access',
+];
+const PICKLEBALL_FEATURES = [
+  'Unlimited access to JOOLA pickleball courts',
+  'Open play & pickleball programs',
+];
+const ONE_Y_FEATURES = [
+  'ONE Y membership (new for 2026)',
+  'Access to all participating YMCA locations',
+  'Fitness center, pools, group exercise & courts',
+  'Nationwide YMCA reciprocity access',
+];
+const FAMILY_I_FEATURES = [
+  '1 adult on the membership plus all dependent children in the same household',
+  'FREE drop-off Child Watch (up to 2 hours daily)',
+  'Discounts & priority registration for camps and youth sports',
+  ...STANDARD_FEATURES,
+];
+const FAMILY_II_FEATURES = [
+  '2 adults on the membership plus all dependent children in the same household',
+  'FREE drop-off Child Watch (up to 2 hours daily)',
+  'Discounts & priority registration for camps and youth sports',
+  ...STANDARD_FEATURES,
+];
+
+/** One-time enrollment due at signup (guest pass conversions are waived in the app). */
+export function effectiveEnrollmentFeeCents(
+  plan: MembershipPlan,
+  options?: { waiveEnrollmentFee?: boolean }
+): number {
+  return options?.waiveEnrollmentFee ? 0 : plan.enrollmentFeeCents;
+}
+
 export const YMCA_MEMBERSHIP_PLANS: MembershipPlan[] = [
   {
-    id: 'adult',
-    name: 'Adult',
-    monthlyAmountCents: 8000,
-    subtitle: 'Ages 30–64',
-    description: 'Individual full access to wellness center, heated outdoor & indoor pools, group fitness, and pickleball.',
-    features: [
-      'Full access to fitness center, free weights & cardio',
-      'Over 40 free weekly group exercise classes',
-      'Heated outdoor pool (year-round) & 25m indoor lap pool',
-      'JOOLA pickleball courts & open gym basketball',
-      'Saunas, steam rooms & locker room amenities',
-      'Nationwide YMCA reciprocity access',
-    ],
+    id: 'youth',
+    name: 'Youth',
+    monthlyAmountCents: 5500,
+    enrollmentFeeCents: 1200,
+    ageRange: '13 to 17',
+    subtitle: 'Ages 13 to 17 - $12 enrollment fee',
+    description: 'Youth membership, ages 13 to 17.',
+    features: STANDARD_FEATURES,
   },
   {
     id: 'young-adult',
     name: 'Young Adult',
-    monthlyAmountCents: 5400,
-    badge: 'Popular for Under 30',
-    subtitle: 'Ages 18–29',
-    description: 'Budget-friendly full facility access tailored for students and young professionals launching their health journey.',
-    features: [
-      'Save $26/month compared to standard Adult rate',
-      'Unlimited fitness center, pool, and court access',
-      'All group exercise classes included at no extra cost',
-      'Free 1-on-1 member wellness consultation',
-      'Access to sports leagues and social events',
-      'Nationwide YMCA reciprocity access',
-    ],
+    monthlyAmountCents: 6900,
+    enrollmentFeeCents: 3000,
+    ageRange: '18 to 22',
+    subtitle: 'Ages 18 to 22 - $30 enrollment fee',
+    description: 'Young Adult membership, ages 18 to 22.',
+    features: STANDARD_FEATURES,
   },
   {
-    id: 'senior',
-    name: 'Senior / Active Older Adult',
-    monthlyAmountCents: 6800,
-    subtitle: 'Ages 65+',
-    description: 'Dedicated active aging programs, gentle mobility, joint-friendly warm water aqua classes, and community socials.',
-    features: [
-      'Specialized AOA classes: Gentle Chair Yoga, Fit & Well Seniors',
-      'Aqua Arthritis warm-water therapy pool sessions',
-      'Low-impact movement drills and mobility workouts',
-      'Senior coffee socials & community game days',
-      'Eligible for SilverSneakers & Renew Active verification',
-      'Full access to all wellness facility amenities',
-    ],
+    id: 'adult',
+    name: 'Adult',
+    monthlyAmountCents: 8900,
+    enrollmentFeeCents: 9900,
+    ageRange: '23 to 64',
+    subtitle: 'Ages 23 to 64 - $99 enrollment fee',
+    description: 'Adult membership, ages 23 to 64.',
+    features: STANDARD_FEATURES,
   },
   {
-    id: 'family',
-    name: 'Family / Household',
-    monthlyAmountCents: 14500,
-    badge: 'Best Value for Families',
+    id: 'senior-adult',
+    name: 'Senior Adult',
+    monthlyAmountCents: 6500,
+    enrollmentFeeCents: 6400,
+    ageRange: '65 to 99',
+    subtitle: 'Ages 65 to 99 - $64 enrollment fee',
+    description: 'Senior Adult membership, ages 65 to 99.',
+    features: STANDARD_FEATURES,
+  },
+  {
+    id: 'senior-family',
+    name: 'Senior Family',
+    monthlyAmountCents: 9500,
+    enrollmentFeeCents: 8400,
+    ageRange: '65 to 99',
+    subtitle: 'Ages 65 to 99 - $84 enrollment fee',
+    description: 'Senior Family membership, ages 65 to 99.',
+    features: STANDARD_FEATURES,
+  },
+  {
+    id: 'family-1',
+    name: 'Family I',
+    monthlyAmountCents: 9900,
+    enrollmentFeeCents: 9900,
+    ageRange: '18 to 64',
+    subtitle: '1 adult + all children · $99 enrollment fee',
+    description: 'Household membership for one adult and all dependent children living at the same address.',
+    features: FAMILY_I_FEATURES,
+  },
+  {
+    id: 'family-2',
+    name: 'Family II',
+    monthlyAmountCents: 11900,
+    enrollmentFeeCents: 13500,
+    ageRange: '18 to 99',
+    subtitle: '2 adults + all children · $135 enrollment fee',
+    description: 'Household membership for two adults and all dependent children living at the same address.',
+    features: FAMILY_II_FEATURES,
+  },
+  {
+    id: 'pickleball-youth',
+    name: 'Pickleball Only Youth',
+    monthlyAmountCents: 4000,
+    enrollmentFeeCents: 10000,
+    ageRange: 'under 18',
+    subtitle: 'Ages under 18 - $100 enrollment fee',
+    description: 'Pickleball Only Youth membership, ages under 18.',
+    features: PICKLEBALL_FEATURES,
+  },
+  {
+    id: 'pickleball-adult',
+    name: 'Pickleball Only Adult',
+    monthlyAmountCents: 5900,
+    enrollmentFeeCents: 10000,
+    ageRange: '18-65',
+    subtitle: 'Ages 18-65 - $100 enrollment fee',
+    description: 'Pickleball Only Adult membership, ages 18-65.',
+    features: PICKLEBALL_FEATURES,
+  },
+  {
+    id: 'pickleball-senior',
+    name: 'Pickleball Only Senior',
+    monthlyAmountCents: 5000,
+    enrollmentFeeCents: 10000,
+    ageRange: '65+',
+    subtitle: 'Ages 65+ - $100 enrollment fee',
+    description: 'Pickleball Only Senior membership, ages 65+.',
+    features: PICKLEBALL_FEATURES,
+  },
+  {
+    id: 'youth-oney',
+    name: 'Youth Mem ONE Y (New 2026)',
+    monthlyAmountCents: 6500,
+    enrollmentFeeCents: 1200,
+    ageRange: '13 to 17',
+    subtitle: 'Ages 13 to 17 - $12 enrollment fee',
+    description: 'Youth Mem ONE Y (New 2026) membership, ages 13 to 17.',
+    features: ONE_Y_FEATURES,
+  },
+  {
+    id: 'young-adult-oney',
+    name: 'Young Adult ONE Y (New 2026)',
+    monthlyAmountCents: 8500,
+    enrollmentFeeCents: 3000,
+    ageRange: '18 to 22',
+    subtitle: 'Ages 18 to 22 - $30 enrollment fee',
+    description: 'Young Adult ONE Y (New 2026) membership, ages 18 to 22.',
+    features: ONE_Y_FEATURES,
+  },
+  {
+    id: 'adult-oney',
+    name: 'Adult/Fitness ONE Y (New 2026)',
+    monthlyAmountCents: 10900,
+    enrollmentFeeCents: 9900,
+    ageRange: '23 to 64',
+    badge: 'ONE Y (New 2026)',
     recommended: true,
-    subtitle: 'Up to 2 Adults + Children under 26',
-    description: 'The ultimate YMCA experience with complimentary drop-off Child Watch, youth swim lesson discounts, and camp priority.',
-    features: [
-      'FREE drop-off Child Watch for up to 2 hours daily',
-      'Up to 2 adults and dependent children in same home',
-      'Discounts & priority registration for Summer Camps & Sports',
-      'Reduced fees on Youth Swim Academy lessons',
-      'Family fun nights, heated outdoor pool & open gym time',
-      'Nationwide YMCA reciprocity for entire family',
-    ],
+    subtitle: 'Ages 23 to 64 - $99 enrollment fee',
+    description: 'Adult/Fitness ONE Y (New 2026) membership, ages 23 to 64.',
+    features: ONE_Y_FEATURES,
   },
   {
-    id: 'two-adults',
-    name: 'Two Adults',
+    id: 'senior-adult-oney',
+    name: 'Senior Adult ONE Y (New 2026)',
+    monthlyAmountCents: 8500,
+    enrollmentFeeCents: 6400,
+    ageRange: '65 to 99',
+    subtitle: 'Ages 65 to 99 - $64 enrollment fee',
+    description: 'Senior Adult ONE Y (New 2026) membership, ages 65 to 99.',
+    features: ONE_Y_FEATURES,
+  },
+  {
+    id: 'senior-family-oney',
+    name: 'Senior Family ONE Y (New 2026)',
+    monthlyAmountCents: 14500,
+    enrollmentFeeCents: 8400,
+    ageRange: '65 to 99',
+    subtitle: 'Ages 65 to 99 - $84 enrollment fee',
+    description: 'Senior Family ONE Y (New 2026) membership, ages 65 to 99.',
+    features: ONE_Y_FEATURES,
+  },
+  {
+    id: 'family-1-oney',
+    name: 'Family I ONE Y (New 2026)',
     monthlyAmountCents: 12500,
-    subtitle: 'Two Adults in Household',
-    description: 'Shared fitness lifestyle for couples, partners, or roommates living at the same address.',
-    features: [
-      'Save $35/month compared to two separate Adult memberships',
-      'Both members receive full access to fitness, pools & courts',
-      'All group fitness & cycling classes included',
-      'Free wellness orientation for both adults',
-      'Nationwide YMCA reciprocity access',
-    ],
+    enrollmentFeeCents: 9900,
+    ageRange: '18 to 64',
+    subtitle: '1 adult + all children · $99 enrollment fee',
+    description: 'ONE Y household plan: one adult and all dependent children at the same address.',
+    features: [...FAMILY_I_FEATURES.slice(0, 3), ...ONE_Y_FEATURES],
   },
   {
-    id: 'community-assistance',
-    name: 'Community Assistance (Open Doors)',
-    monthlyAmountCents: 1750,
-    badge: 'Accessible Rate',
-    subtitle: 'Income / Program Eligible',
-    description: 'Ensuring YMCA wellness is accessible to everyone in Montgomery County and the Greater Washington community.',
-    features: [
-      'Subsidized rate starting at $17.50/month',
-      'Eligible with SNAP, WIC, Medicaid, or TANF verification',
-      '100% full access to all facility amenities and pools',
-      'Confidential and dignity-focused application process',
-      'Supported by YMCA Annual Campaign community donations',
-    ],
+    id: 'family-2-oney',
+    name: 'Family II ONE Y (New 2026)',
+    monthlyAmountCents: 19500,
+    enrollmentFeeCents: 13500,
+    ageRange: '18 to 99',
+    subtitle: '2 adults + all children · $135 enrollment fee',
+    description: 'ONE Y household plan: two adults and all dependent children at the same address.',
+    features: [...FAMILY_II_FEATURES.slice(0, 3), ...ONE_Y_FEATURES],
   },
 ];
 

@@ -1,5 +1,13 @@
 import { computeCancelDates } from '@/domain/cancelDates';
 import { getDemoToday } from '@/domain/demoClock';
+import { AQUATICS_CLASSES } from '@/domain/aquaticsGuideData';
+import {
+  lessonPriceCents,
+  normalizePricing,
+  pricingTierFor,
+  SWIM_CLASS_CAPACITY,
+  swimClassPriceCents,
+} from '@/domain/lessonPricing';
 import { hasCapability, isStaffRole, type StaffCapability } from '@/domain/staffCapabilities';
 import {
   filterProfanity,
@@ -20,6 +28,9 @@ import {
   type ForumReply,
   type ForumTopic,
   type ForumTopicCategory,
+  type BookLessonOptions,
+  type LessonPricing,
+  type SwimClassEnrollment,
   type LessonSlot,
   type Member,
   type Membership,
@@ -684,7 +695,11 @@ export class MockProtivityAdapter implements ProtivityPort {
     });
   }
 
-  async bookPrivateLesson(memberId: string, slotId: string): Promise<PrivateLesson> {
+  async bookPrivateLesson(
+    memberId: string,
+    slotId: string,
+    options?: BookLessonOptions
+  ): Promise<PrivateLesson> {
     const state = await loadStore();
     const slot = state.lessonSlots.find((s) => s.id === slotId);
     if (!slot) {
@@ -697,19 +712,131 @@ export class MockProtivityAdapter implements ProtivityPort {
       throw new Error('This time slot is no longer available');
     }
 
+    const lessonType = options?.lessonType ?? 'training';
+    const durationMin = options?.durationMin ?? 60;
+    const paidAmountCents =
+      options?.carryOverPaidCents ??
+      (options ? lessonPriceCents(state.lessonPricing, lessonType, durationMin) : 0);
+    const membership = state.memberships.find((m) => m.memberId === memberId);
+
+    const existingIdx = state.privateLessons.findIndex((l) => l.id === `lesson-${memberId}-${slotId}`);
+    const slotStart = new Date(slot.start).getTime();
+    const start = slot.start;
+    const end = options
+      ? new Date(slotStart + durationMin * 60000).toISOString()
+      : slot.end;
+
     const lesson: PrivateLesson = {
       id: `lesson-${memberId}-${slotId}`,
       memberId,
       staffId: slot.staffId,
       slotId: slot.id,
-      start: slot.start,
-      end: slot.end,
+      start,
+      end: options ? end : slot.end,
       location: slot.location,
       status: 'booked',
+      lessonType,
+      durationMin,
+      paidAmountCents,
+      paymentLast4:
+        paidAmountCents > 0
+          ? options?.carryOverPaymentLast4 ?? membership?.paymentLast4
+          : undefined,
+      swimmerName: options?.swimmerName?.trim() || undefined,
+      stageCode: options?.stageCode,
+      notes: options?.notes?.trim() || undefined,
     };
-    state.privateLessons.push(lesson);
+    if (existingIdx !== -1) {
+      state.privateLessons[existingIdx] = lesson;
+    } else {
+      state.privateLessons.push(lesson);
+    }
     await saveStore(state);
     return lesson;
+  }
+
+  async getLessonPricing(): Promise<LessonPricing> {
+    const state = await loadStore();
+    return state.lessonPricing;
+  }
+
+  async updateLessonPricing(updates: Partial<LessonPricing>): Promise<LessonPricing> {
+    const state = await loadStore();
+    const next = normalizePricing({ ...state.lessonPricing, ...updates });
+    for (const key of ['training', 'swim'] as const) {
+      for (const d of [30, 60] as const) {
+        const v = next[key][d];
+        if (!Number.isFinite(v) || v < 0) {
+          throw new Error('Prices must be zero or greater');
+        }
+      }
+    }
+    state.lessonPricing = next;
+    await saveStore(state);
+    return next;
+  }
+
+  async enrollInSwimClass(
+    memberId: string,
+    classId: string,
+    participantName?: string
+  ): Promise<SwimClassEnrollment> {
+    const state = await loadStore();
+    const offering = AQUATICS_CLASSES.find((c) => c.id === classId);
+    if (!offering) {
+      throw new Error('Swim class not found');
+    }
+    const member = state.members.find((m) => m.id === memberId);
+    const tier = pricingTierFor(member);
+    const active = state.swimEnrollments.filter(
+      (e) => e.classId === classId && e.status === 'enrolled'
+    );
+    if (active.some((e) => e.memberId === memberId)) {
+      throw new Error('Already enrolled in this class');
+    }
+    if (active.length >= SWIM_CLASS_CAPACITY) {
+      throw new Error('Class is full');
+    }
+    const paidAmountCents = swimClassPriceCents(state.lessonPricing, offering, tier);
+    const membership = state.memberships.find((m) => m.memberId === memberId);
+    const enrollment: SwimClassEnrollment = {
+      id: `swimenr-${memberId}-${classId}-${state.swimEnrollments.length + 1}`,
+      memberId,
+      classId,
+      participantName: participantName?.trim() || member?.name || 'Member',
+      paidAmountCents,
+      paymentLast4: paidAmountCents > 0 ? membership?.paymentLast4 : undefined,
+      pricingTier: tier,
+      status: 'enrolled',
+      enrolledAt: new Date().toISOString(),
+    };
+    state.swimEnrollments.push(enrollment);
+    await saveStore(state);
+    return enrollment;
+  }
+
+  async cancelSwimEnrollment(memberId: string, enrollmentId: string): Promise<SwimClassEnrollment> {
+    const state = await loadStore();
+    const idx = state.swimEnrollments.findIndex(
+      (e) => e.id === enrollmentId && e.memberId === memberId && e.status === 'enrolled'
+    );
+    if (idx === -1) {
+      throw new Error('No active enrollment found');
+    }
+    const updated: SwimClassEnrollment = { ...state.swimEnrollments[idx], status: 'cancelled' };
+    state.swimEnrollments[idx] = updated;
+    await saveStore(state);
+    return updated;
+  }
+
+  async listMySwimEnrollments(memberId: string): Promise<SwimClassEnrollment[]> {
+    const state = await loadStore();
+    return state.swimEnrollments.filter((e) => e.memberId === memberId && e.status === 'enrolled');
+  }
+
+  async listSwimClassEnrollments(classId: string): Promise<SwimClassEnrollment[]> {
+    const state = await loadStore();
+    return state.swimEnrollments.filter((e) => e.classId === classId && e.status === 'enrolled');
   }
 
   async cancelPrivateLesson(memberId: string, lessonId: string): Promise<PrivateLesson> {
@@ -822,6 +949,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     payment: { brand: string; last4: string };
     donationCents?: number;
     password?: string;
+    waiveEnrollmentFee?: boolean;
   }): Promise<{ member: Member; membership: Membership }> {
     const state = await loadStore();
     const plan =
@@ -833,6 +961,11 @@ export class MockProtivityAdapter implements ProtivityPort {
     const existingMemberIdx = state.members.findIndex(
       (m) => m.email.toLowerCase() === trimmedEmail
     );
+    const priorMemberType =
+      existingMemberIdx !== -1 ? state.members[existingMemberIdx].type : undefined;
+    const waiveEnrollment =
+      input.waiveEnrollmentFee === true || priorMemberType === '1-Day Guest Pass';
+    const enrollmentChargedCents = waiveEnrollment ? 0 : plan.enrollmentFeeCents;
 
     let member: Member;
     let membership: Membership;
@@ -931,7 +1064,13 @@ export class MockProtivityAdapter implements ProtivityPort {
       id: `notif-welcome-${Date.now()}`,
       userId: member.id,
       title: `Welcome to YMCA Silver Spring, ${member.name.split(' ')[0]}!`,
-      body: `Your ${plan.name} membership is active! Use your digital scan barcode at the welcome desk to access the facilities, heated pools, and fitness center.`,
+      body: `Your ${plan.name} membership is active!${
+        enrollmentChargedCents > 0
+          ? ` A one-time enrollment fee of $${(enrollmentChargedCents / 100).toFixed(2)} was included in your first charge.`
+          : plan.enrollmentFeeCents > 0
+            ? ' Your one-time enrollment fee was waived (guest pass benefit).'
+            : ''
+      } Use your digital scan barcode at the welcome desk to access the facilities, heated pools, and fitness center.`,
       type: 'membership',
       createdAt: nowIso,
       read: false,
@@ -3133,5 +3272,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     return (state.surveyResponses ?? []).filter((r) => r.memberId === memberId);
   }
 }
+
+
 
 

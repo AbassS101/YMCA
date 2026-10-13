@@ -27,6 +27,8 @@ import type {
   UserForumInterests,
   UserRole,
 } from '@/domain/types';
+import { cloneDefaultPricing } from '@/domain/lessonPricing';
+import type { LessonPricing, SwimClassEnrollment } from '@/domain/types';
 import { getClassFullDescription, getClassShortSummary } from '@/domain/classCatalog';
 
 const BRANCH = 'silver-spring';
@@ -1519,6 +1521,23 @@ const lessonSlots: LessonSlot[] = [
     end: '2026-09-18T16:00:00-04:00',
     location: 'Indoor Lap Pool (Lane 1)',
   },
+  ...[
+    ['elena-tue-1700', 'staff-elena', '2026-09-15T17:00:00-04:00', '2026-09-15T18:00:00-04:00'],
+    ['elena-thu-1600', 'staff-elena', '2026-09-17T16:00:00-04:00', '2026-09-17T17:00:00-04:00'],
+    ['elena-sat-1300', 'staff-elena', '2026-09-19T13:00:00-04:00', '2026-09-19T14:00:00-04:00'],
+    ['elena-sat-1400', 'staff-elena', '2026-09-19T14:00:00-04:00', '2026-09-19T15:00:00-04:00'],
+    ['elena-sun-1400', 'staff-elena', '2026-09-20T14:00:00-04:00', '2026-09-20T15:00:00-04:00'],
+    ['sarah-mon-1700', 'staff-sarah', '2026-09-14T17:00:00-04:00', '2026-09-14T18:00:00-04:00'],
+    ['sarah-sat-1000', 'staff-sarah', '2026-09-19T10:00:00-04:00', '2026-09-19T11:00:00-04:00'],
+    ['sarah-sun-1300', 'staff-sarah', '2026-09-20T13:00:00-04:00', '2026-09-20T14:00:00-04:00'],
+  ].map(([key, staffId, start, end]) => ({
+    id: `slot-pool-${key}`,
+    staffId,
+    branchId: BRANCH,
+    start,
+    end,
+    location: 'Indoor Pool (Instruction Lanes)',
+  })),
 ];
 
 export const SEED: {
@@ -1549,7 +1568,11 @@ export const SEED: {
   clientGoals: Record<string, ClientFitnessGoal>;
   surveys: Survey[];
   surveyResponses: SurveyResponse[];
+  lessonPricing: LessonPricing;
+  swimEnrollments: SwimClassEnrollment[];
 } = {
+  lessonPricing: cloneDefaultPricing(),
+  swimEnrollments: [],
   members: [
     {
       id: 'member-jordan',
@@ -1598,6 +1621,7 @@ export const SEED: {
       roleLabel: 'Personal Wellness Trainer',
       homeBranchId: BRANCH,
       staffRole: 'trainer',
+      lessonTypes: ['training'],
     },
     {
       id: 'staff-sarah',
@@ -1606,6 +1630,7 @@ export const SEED: {
       roleLabel: 'Senior Mobility & Aquatics Specialist',
       homeBranchId: BRANCH,
       staffRole: 'trainer',
+      lessonTypes: ['training', 'swim'],
     },
     {
       id: 'staff-elena',
@@ -1614,6 +1639,7 @@ export const SEED: {
       roleLabel: 'Aquatics Coach & Swim Instructor',
       homeBranchId: BRANCH,
       staffRole: 'trainer',
+      lessonTypes: ['swim'],
     },
     {
       id: 'staff-celine',
@@ -1636,7 +1662,7 @@ export const SEED: {
     {
       memberId: 'member-jordan',
       rateName: 'Adult',
-      monthlyAmountCents: 8000,
+      monthlyAmountCents: 8900,
       nextBillingDate: '2026-10-12',
       paymentBrand: 'Visa',
       paymentLast4: '4242',

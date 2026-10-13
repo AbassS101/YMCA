@@ -14,6 +14,9 @@ import type {
   ForumReply,
   ForumTopic,
   ForumTopicCategory,
+  BookLessonOptions,
+  LessonPricing,
+  SwimClassEnrollment,
   LessonSlot,
   Member,
   Membership,
@@ -81,6 +84,7 @@ export interface ProtivityPort {
     payment: { brand: string; last4: string };
     donationCents?: number;
     password?: string;
+    waiveEnrollmentFee?: boolean;
   }): Promise<{ member: Member; membership: Membership }>;
   submitCancelNotice(
     memberId: string,
@@ -104,7 +108,21 @@ export interface ProtivityPort {
   listClassRoster(scheduleItemId: string): Promise<Member[]>;
 
   listLessonSlots(staffId: string, from: string, to: string): Promise<LessonSlot[]>;
-  bookPrivateLesson(memberId: string, slotId: string): Promise<PrivateLesson>;
+  bookPrivateLesson(
+    memberId: string,
+    slotId: string,
+    options?: BookLessonOptions
+  ): Promise<PrivateLesson>;
+  getLessonPricing(): Promise<LessonPricing>;
+  updateLessonPricing(updates: Partial<LessonPricing>): Promise<LessonPricing>;
+  enrollInSwimClass(
+    memberId: string,
+    classId: string,
+    participantName?: string
+  ): Promise<SwimClassEnrollment>;
+  cancelSwimEnrollment(memberId: string, enrollmentId: string): Promise<SwimClassEnrollment>;
+  listMySwimEnrollments(memberId: string): Promise<SwimClassEnrollment[]>;
+  listSwimClassEnrollments(classId: string): Promise<SwimClassEnrollment[]>;
   cancelPrivateLesson(memberId: string, lessonId: string): Promise<PrivateLesson>;
   listMyLessons(memberId: string): Promise<PrivateLesson[]>;
   listStaffLessons(staffId: string, date: string): Promise<PrivateLesson[]>;

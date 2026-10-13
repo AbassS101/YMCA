@@ -27,21 +27,31 @@ describe('Guest Screen & Guest Pass Experience', () => {
     expect(guestUser.status).toBe('active');
   });
 
-  test('guest passes advertise $0 join fee and popular membership plans', () => {
+  test('guest passes advertise membership plans; guests waive enrollment fee at signup', async () => {
     expect(YMCA_MEMBERSHIP_PLANS.length).toBeGreaterThanOrEqual(4);
     const adult = YMCA_MEMBERSHIP_PLANS.find((p) => p.name === 'Adult');
-    const family = YMCA_MEMBERSHIP_PLANS.find((p) => p.name.includes('Family'));
-    const assistance = YMCA_MEMBERSHIP_PLANS.find((p) => p.name.includes('Community Assistance'));
+    const family = YMCA_MEMBERSHIP_PLANS.find((p) => p.id === 'family-1');
 
     expect(adult).toBeDefined();
-    expect(adult?.monthlyAmountCents).toBe(8000); // $80/mo
+    expect(adult?.monthlyAmountCents).toBe(8900); // $89/mo
 
     expect(family).toBeDefined();
-    expect(family?.monthlyAmountCents).toBe(14500); // $145/mo
-    expect(family?.features.some((f) => f.includes('Child Watch'))).toBe(true);
+    expect(family?.monthlyAmountCents).toBe(9900); // $99/mo
+    expect(family?.features.some((f) => f.includes('1 adult'))).toBe(true);
 
-    expect(assistance).toBeDefined();
-    expect(assistance?.monthlyAmountCents).toBe(1750); // $17.50/mo sliding scale
+    const api = new MockProtivityAdapter();
+    await api.buyMembership({
+      name: 'Taylor Smith',
+      email: 'guest@silverspring.ymca',
+      phone: '301-555-0199',
+      address: '9800 Hastings Dr',
+      planId: 'adult',
+      payment: { brand: 'Visa', last4: '4242' },
+      waiveEnrollmentFee: true,
+    });
+    const notifs = await api.listNotifications('guest-taylor');
+    const welcome = notifs.find((n) => n.title.includes('Welcome'));
+    expect(welcome?.body).toContain('enrollment fee was waived');
   });
 
   test('Case for Support explains the YMCA mission, community needs and why donations are needed', () => {
@@ -110,3 +120,5 @@ describe('Guest Screen & Guest Pass Experience', () => {
     expect(guestDonations[0].id).toBe(donation.id);
   });
 });
+
+

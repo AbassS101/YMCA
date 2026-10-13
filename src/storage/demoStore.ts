@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SEED } from '@/protivity/seed';
+import { normalizePricing } from '@/domain/lessonPricing';
 import type {
   Announcement,
   AppNotification,
@@ -10,7 +11,9 @@ import type {
   Donation,
   ForumReply,
   ForumTopic,
+  LessonPricing,
   LessonSlot,
+  SwimClassEnrollment,
   Member,
   Membership,
   Message,
@@ -67,10 +70,12 @@ export type DemoState = {
   clientGoals: Record<string, ClientFitnessGoal>;
   surveys: Survey[];
   surveyResponses: SurveyResponse[];
+  lessonPricing: LessonPricing;
+  swimEnrollments: SwimClassEnrollment[];
   schemaVersion?: number;
 };
 
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 
 function cloneSeed(): DemoState {
   const cloned = JSON.parse(JSON.stringify(SEED)) as DemoState;
@@ -129,6 +134,15 @@ function migrateState(raw: DemoState): DemoState {
     const upgrade = DIRECTOR_ROLE_UPGRADES[s.id];
     return upgrade && s.staffRole === upgrade.legacyStaffRole ? { ...s, staffRole: upgrade.role } : s;
   });
+
+  mergedStaff = mergedStaff.map((s) => ({
+    ...s,
+    lessonTypes: s.lessonTypes ?? seed.staff.find((x) => x.id === s.id)?.lessonTypes,
+  }));
+
+  const rawSlots = raw.lessonSlots ?? seed.lessonSlots;
+  const slotIds = new Set(rawSlots.map((s) => s.id));
+  const mergedSlots = [...rawSlots, ...seed.lessonSlots.filter((s) => !slotIds.has(s.id))];
 
   let mergedMembers = raw.members ?? seed.members;
   if (!mergedMembers.some((m) => m.id === 'guest-taylor')) {
@@ -220,7 +234,7 @@ function migrateState(raw: DemoState): DemoState {
 
   const scheduleById = new Map(schedules.map((s) => [s.id, s]));
   let cleanedRegistrations = raw.classRegistrations ?? [];
-  if (raw.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+  if ((raw.schemaVersion ?? 0) < 4) {
     cleanedRegistrations = cleanedRegistrations.filter((reg) => {
       const sched = scheduleById.get(reg.scheduleItemId);
       if (!sched) return false;
@@ -237,7 +251,7 @@ function migrateState(raw: DemoState): DemoState {
     staff: mergedStaff,
     schedules,
     classRegistrations: cleanedRegistrations,
-    lessonSlots: raw.lessonSlots ?? seed.lessonSlots,
+    lessonSlots: mergedSlots,
     privateLessons: raw.privateLessons ?? [],
     announcements: raw.announcements ?? seed.announcements,
     notifications: raw.notifications ?? seed.notifications,
@@ -254,6 +268,8 @@ function migrateState(raw: DemoState): DemoState {
     clientGoals: raw.clientGoals ?? seed.clientGoals ?? {},
     surveys: raw.surveys ?? seed.surveys ?? [],
     surveyResponses: raw.surveyResponses ?? seed.surveyResponses ?? [],
+    lessonPricing: normalizePricing(raw.lessonPricing),
+    swimEnrollments: raw.swimEnrollments ?? [],
   };
 }
 

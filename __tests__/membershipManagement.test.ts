@@ -17,18 +17,18 @@ describe('YMCA Membership Management: Buy, Schedule Next Month, Cancel & Rescind
       email: 'morgan.taylor@example.com',
       phone: '(301) 555-9876',
       address: '456 Colesville Rd, Silver Spring, MD',
-      planId: 'family',
+      planId: 'family-1',
       payment: { brand: 'Mastercard', last4: '5555' },
     });
 
     expect(result.member.name).toBe('Morgan Taylor');
     expect(result.member.email).toBe('morgan.taylor@example.com');
-    expect(result.member.type).toBe('Family / Household');
+    expect(result.member.type).toBe('Family I');
     expect(result.member.status).toBe('active');
     expect(result.member.membershipId).toBeTruthy();
 
-    expect(result.membership.rateName).toBe('Family / Household');
-    expect(result.membership.monthlyAmountCents).toBe(14500);
+    expect(result.membership.rateName).toBe('Family I');
+    expect(result.membership.monthlyAmountCents).toBe(9900);
     expect(result.membership.paymentBrand).toBe('Mastercard');
     expect(result.membership.paymentLast4).toBe('5555');
 
@@ -67,35 +67,35 @@ describe('YMCA Membership Management: Buy, Schedule Next Month, Cancel & Rescind
     const api = new MockProtivityAdapter();
     const initial = await api.getMembership('member-jordan');
     expect(initial.rateName).toBe('Adult');
-    expect(initial.monthlyAmountCents).toBe(8000);
+    expect(initial.monthlyAmountCents).toBe(8900);
 
     const updated = await api.scheduleMembershipChange(
       'member-jordan',
-      'Senior / Active Older Adult',
-      6800,
+      'Senior Adult',
+      6500,
       '2026-10-12'
     );
 
     // Current plan remains unchanged until next month
     expect(updated.rateName).toBe('Adult');
-    expect(updated.monthlyAmountCents).toBe(8000);
+    expect(updated.monthlyAmountCents).toBe(8900);
 
     // Pending change is recorded
     expect(updated.pendingChange).toBeDefined();
-    expect(updated.pendingChange?.planName).toBe('Senior / Active Older Adult');
-    expect(updated.pendingChange?.monthlyAmountCents).toBe(6800);
+    expect(updated.pendingChange?.planName).toBe('Senior Adult');
+    expect(updated.pendingChange?.monthlyAmountCents).toBe(6500);
     expect(updated.pendingChange?.effectiveDate).toBe('2026-10-12');
 
     // Notification is dispatched
     const notifs = await api.listNotifications('member-jordan');
     const scheduledNotif = notifs.find((n) => n.title.includes('Membership Change Scheduled'));
     expect(scheduledNotif).toBeDefined();
-    expect(scheduledNotif?.body).toContain('Senior / Active Older Adult');
+    expect(scheduledNotif?.body).toContain('Senior Adult');
   });
 
   test('cancelScheduledChange removes pendingChange and dispatches notice', async () => {
     const api = new MockProtivityAdapter();
-    await api.scheduleMembershipChange('member-jordan', 'Family / Household', 14500, '2026-10-12');
+    await api.scheduleMembershipChange('member-jordan', 'Family I', 9900, '2026-10-12');
 
     const cancelled = await api.cancelScheduledChange('member-jordan');
     expect(cancelled.pendingChange).toBeUndefined();
@@ -135,3 +135,4 @@ describe('YMCA Membership Management: Buy, Schedule Next Month, Cancel & Rescind
     expect(notifs.some((n) => n.title.includes('Cancellation Rescinded'))).toBe(true);
   });
 });
+
