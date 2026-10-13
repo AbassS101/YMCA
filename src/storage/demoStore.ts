@@ -33,9 +33,10 @@ import type {
 
 const STORAGE_KEY = '@ymca/demo-state';
 
-const DIRECTOR_STAFF_ROLES: Record<string, StaffRole> = {
-  'staff-celine': 'wellness_director',
-  'staff-desk': 'membership_director',
+/** Directors were seeded as a plain trainer / front desk account before they had their own roles. */
+const DIRECTOR_ROLE_UPGRADES: Record<string, { legacyStaffRole: StaffRole; legacyRole: UserRole; role: StaffRole & UserRole }> = {
+  'staff-celine': { legacyStaffRole: 'trainer', legacyRole: 'trainer', role: 'wellness_director' },
+  'staff-desk': { legacyStaffRole: 'desk', legacyRole: 'staff', role: 'membership_director' },
 };
 
 export type DemoState = {
@@ -125,8 +126,8 @@ function migrateState(raw: DemoState): DemoState {
     }
   }
   mergedStaff = mergedStaff.map((s) => {
-    const directorRole = DIRECTOR_STAFF_ROLES[s.id];
-    return directorRole && s.staffRole !== directorRole ? { ...s, staffRole: directorRole } : s;
+    const upgrade = DIRECTOR_ROLE_UPGRADES[s.id];
+    return upgrade && s.staffRole === upgrade.legacyStaffRole ? { ...s, staffRole: upgrade.role } : s;
   });
 
   let mergedMembers = raw.members ?? seed.members;
@@ -147,8 +148,9 @@ function migrateState(raw: DemoState): DemoState {
 
   let mergedCreds = (raw.credentials ?? seed.credentials).map((c) => {
     const seedCred = seed.credentials.find((sc) => sc.email === c.email);
-    if (DIRECTOR_STAFF_ROLES[c.userId]) {
-      return { ...c, role: DIRECTOR_STAFF_ROLES[c.userId] as UserRole };
+    const upgrade = DIRECTOR_ROLE_UPGRADES[c.userId];
+    if (upgrade && c.role === upgrade.legacyRole) {
+      return { ...c, role: upgrade.role };
     }
     return seedCred ? { ...c, role: c.role ?? seedCred.role } : c;
   });
