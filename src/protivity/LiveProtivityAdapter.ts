@@ -100,7 +100,8 @@ export class LiveProtivityAdapter implements ProtivityPort {
   async changeMembership(
     _memberId: string,
     _planName: string,
-    _monthlyAmountCents: number
+    _monthlyAmountCents: number,
+    _requesterUserId?: string
   ): Promise<Membership> {
     throw new ProtivityNotConnected();
   }
@@ -208,7 +209,11 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
-  async rescindCancelNotice(_memberId: string): Promise<Member> {
+  async rescindCancelNotice(_memberId: string, _requesterUserId?: string): Promise<Member> {
+    throw new ProtivityNotConnected();
+  }
+
+  async approveCancelRequest(_memberId: string, _requesterUserId: string): Promise<CancelRequest> {
     throw new ProtivityNotConnected();
   }
 
@@ -271,15 +276,23 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
-  async deleteMemberAccount(_memberId: string): Promise<void> {
+  async deleteMemberAccount(_memberId: string, _requesterUserId?: string): Promise<void> {
     throw new ProtivityNotConnected();
   }
 
-  async updateMemberAdmin(_memberId: string, _updates: Partial<Member>): Promise<Member> {
+  async updateMemberAdmin(
+    _memberId: string,
+    _updates: Partial<Member>,
+    _requesterUserId?: string
+  ): Promise<Member> {
     throw new ProtivityNotConnected();
   }
 
-  async updateMembershipAdmin(_memberId: string, _updates: Partial<Membership>): Promise<Membership> {
+  async updateMembershipAdmin(
+    _memberId: string,
+    _updates: Partial<Membership>,
+    _requesterUserId?: string
+  ): Promise<Membership> {
     throw new ProtivityNotConnected();
   }
 

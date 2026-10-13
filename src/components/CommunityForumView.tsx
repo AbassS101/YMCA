@@ -25,6 +25,7 @@ import {
   type ScheduleItem,
   type UserForumInterests,
 } from '@/domain/types';
+import { isStaffRole } from '@/domain/staffCapabilities';
 import { radii } from '@/theme/typography';
 import { forumRepo } from '@/repositories/forumRepo';
 import { classForumRepo } from '@/repositories/classForumRepo';
@@ -136,12 +137,7 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
     })();
   }, [api, currentUserId, currentUserRole]);
 
-  const canManage =
-    currentUserRole === 'admin' ||
-    currentUserRole === 'staff_admin' ||
-    currentUserRole === 'it_admin' ||
-    currentUserRole === 'staff' ||
-    currentUserRole === 'trainer';
+  const canManage = isStaffRole(currentUserRole);
 
   const loadData = useCallback(async () => {
     if (!api) return;

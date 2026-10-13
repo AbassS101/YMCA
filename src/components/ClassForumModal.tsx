@@ -159,7 +159,7 @@ export function ClassForumModal({
   const isOverallAdmin = isAdminRole(currentUserRole);
 
   const isClassTrainer = Boolean(
-    currentUserRole === 'trainer' &&
+    (currentUserRole === 'trainer' || currentUserRole === 'wellness_director') &&
       scheduleItem &&
       (scheduleItem.staffId === currentUserId ||
         (staffProfile?.name &&
@@ -313,6 +313,12 @@ export function ClassForumModal({
     }
     if (role === 'trainer') {
       return { label: 'Trainer / Instructor', bg: '#F0FDF4', text: '#15803D', icon: 'barbell' };
+    }
+    if (role === 'wellness_director') {
+      return { label: 'Wellness Director', bg: '#FCE7F3', text: '#9D174D', icon: 'fitness' };
+    }
+    if (role === 'membership_director') {
+      return { label: 'Membership Director', bg: '#E0E7FF', text: '#4338CA', icon: 'business' };
     }
     return { label: 'Class Member', bg: '#F1F5F9', text: '#64748B', icon: 'person' };
   }

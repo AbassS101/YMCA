@@ -181,9 +181,9 @@ export const PERSONA_THEMES: Record<StaffPersona, PersonaTheme> = {
     badge: 'MEMBERSHIP DIR',
     title: 'Membership Director',
     icon: 'business',
-    color: '#1D4ED8',
-    softBg: '#DBEAFE',
-    darkSoftBg: '#172554',
+    color: '#4338CA',
+    softBg: '#E0E7FF',
+    darkSoftBg: '#1E1B4B',
   },
   frontDesk: {
     badge: 'FRONT DESK',

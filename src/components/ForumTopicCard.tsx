@@ -31,6 +31,12 @@ function roleBadge(role?: UserRole | StaffRole | string) {
   if (role === 'admin' || role === 'it_admin' || role === 'staff_admin') {
     return { label: 'STAFF ADMIN', bg: '#EDE9FE', text: '#6D28D9', icon: 'shield-checkmark', isStaff: true };
   }
+  if (role === 'wellness_director') {
+    return { label: 'WELLNESS DIR', bg: '#FCE7F3', text: '#9D174D', icon: 'fitness', isStaff: true };
+  }
+  if (role === 'membership_director') {
+    return { label: 'MEMBERSHIP DIR', bg: '#E0E7FF', text: '#4338CA', icon: 'business', isStaff: true };
+  }
   if (role === 'trainer') {
     return { label: 'TRAINER', bg: '#DCFCE7', text: '#15803D', icon: 'barbell', isStaff: true };
   }

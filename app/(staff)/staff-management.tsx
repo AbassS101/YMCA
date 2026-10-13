@@ -18,7 +18,9 @@ import { TextField } from '@/components/TextField';
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
-import { isAdminRole, type Staff, type StaffRole } from '@/domain/types';
+import { useStaffCapabilities } from '@/context/useStaffCapabilities';
+import { personaTheme } from '@/domain/staffCapabilities';
+import { type Staff, type StaffRole } from '@/domain/types';
 import { UserAvatar } from '@/components/UserAvatar';
 import { cardStyle } from '@/theme/card';
 import { colors } from '@/theme/colors';
@@ -29,10 +31,11 @@ const BRANCH_ID = 'silver-spring';
 export default function StaffManagementScreen() {
   const router = useRouter();
   const { session, api } = useSession();
-  const isAdmin = isAdminRole(session?.role);
+  const { can } = useStaffCapabilities();
+  const isAdmin = can('manageStaff');
 
   const [staffList, setStaffList] = useState<Staff[]>([]);
-  const [roleFilter, setRoleFilter] = useState<'all' | 'it_admin' | 'staff_admin' | 'trainer' | 'desk' | 'admin'>('all');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'directors' | StaffRole>('all');
   const [query, setQuery] = useState('');
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -79,9 +82,11 @@ export default function StaffManagementScreen() {
   const filteredStaff = useMemo(() => {
     let result = staffList;
     if (roleFilter !== 'all') {
-      if (roleFilter === 'admin') {
+      if (roleFilter === 'staff_admin') {
+        result = result.filter((s) => s.staffRole === 'admin' || s.staffRole === 'staff_admin');
+      } else if (roleFilter === 'directors') {
         result = result.filter(
-          (s) => s.staffRole === 'admin' || s.staffRole === 'staff_admin' || s.staffRole === 'it_admin'
+          (s) => s.staffRole === 'wellness_director' || s.staffRole === 'membership_director'
         );
       } else {
         result = result.filter((s) => s.staffRole === roleFilter);
@@ -253,6 +258,7 @@ export default function StaffManagementScreen() {
             { key: 'all', label: 'All Staff' },
             { key: 'it_admin', label: 'IT Admin' },
             { key: 'staff_admin', label: 'Staff Admin' },
+            { key: 'directors', label: 'Directors' },
             { key: 'trainer', label: 'Trainers' },
             { key: 'desk', label: 'Front Desk' },
           ].map((f) => (
@@ -287,12 +293,10 @@ export default function StaffManagementScreen() {
           </View>
         ) : (
           filteredStaff.map((s) => {
-            const isIT = s.staffRole === 'it_admin';
-            const isStaffAdminRole = s.staffRole === 'staff_admin' || s.staffRole === 'admin';
-            const isTrainerRole = s.staffRole === 'trainer';
-            const roleBadgeBg = isIT ? '#F5F3FF' : isStaffAdminRole ? '#EFF6FF' : isTrainerRole ? '#F0FDF4' : '#FEF3C7';
-            const roleBadgeColor = isIT ? '#7C3AED' : isStaffAdminRole ? colors.primary : isTrainerRole ? '#15803D' : '#B45309';
-            const roleBadgeText = isIT ? 'IT ADMIN' : isStaffAdminRole ? 'STAFF ADMIN' : isTrainerRole ? 'TRAINER' : 'FRONT DESK';
+            const badge = personaTheme(s.staffRole ?? 'desk');
+            const roleBadgeBg = badge.softBg;
+            const roleBadgeColor = badge.color;
+            const roleBadgeText = badge.badge;
 
             return (
               <View key={s.id} style={styles.staffCard}>
@@ -435,6 +439,8 @@ export default function StaffManagementScreen() {
                 {[
                   { key: 'it_admin', label: 'IT Admin', desc: 'Full IT & system admin access' },
                   { key: 'staff_admin', label: 'Staff Admin', desc: 'Full branch administrative power' },
+                  { key: 'wellness_director', label: 'Wellness Director', desc: 'Leads trainers & client assignments' },
+                  { key: 'membership_director', label: 'Membership Director', desc: 'Cancellations, plans & front desk' },
                   { key: 'trainer', label: 'Trainer / Coach', desc: 'Teaches classes & private lessons' },
                   { key: 'desk', label: 'Front Desk', desc: 'Check-in & member services' },
                 ].map((r) => {

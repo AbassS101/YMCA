@@ -1,5 +1,6 @@
 import { computeCancelDates } from '@/domain/cancelDates';
 import { getDemoToday } from '@/domain/demoClock';
+import { hasCapability, isStaffRole, type StaffCapability } from '@/domain/staffCapabilities';
 import {
   filterProfanity,
   isAdminRole,
@@ -28,6 +29,7 @@ import {
   type ScheduleCategory,
   type ScheduleItem,
   type Staff,
+  type StaffRole,
   type SupportTicket,
   type Survey,
   type SurveyResponse,
@@ -185,6 +187,40 @@ function extractMentionsFromText(
   }
 
   return { allIds, allNames, staffIds, staffNames };
+}
+
+function credentialRoleForStaffRole(staffRole?: StaffRole): UserRole {
+  switch (staffRole) {
+    case 'it_admin':
+    case 'staff_admin':
+    case 'admin':
+    case 'trainer':
+    case 'wellness_director':
+    case 'membership_director':
+      return staffRole;
+    default:
+      return 'staff';
+  }
+}
+
+function requesterRole(state: DemoState, requesterUserId: string): UserRole | StaffRole | undefined {
+  return (
+    state.credentials.find((c) => c.userId === requesterUserId)?.role ??
+    state.staff.find((s) => s.id === requesterUserId)?.staffRole
+  );
+}
+
+/** Member self-service calls omit the requester; staff calls must pass it so the role can be checked. */
+function assertStaffCapability(
+  state: DemoState,
+  requesterUserId: string | undefined,
+  capability: StaffCapability,
+  action: string
+): void {
+  if (requesterUserId === undefined) return;
+  if (!hasCapability(requesterRole(state, requesterUserId), capability)) {
+    throw new Error(`Your staff role is not permitted to ${action}.`);
+  }
 }
 
 export class MockProtivityAdapter implements ProtivityPort {
@@ -345,9 +381,11 @@ export class MockProtivityAdapter implements ProtivityPort {
   async changeMembership(
     memberId: string,
     planName: string,
-    monthlyAmountCents: number
+    monthlyAmountCents: number,
+    requesterUserId?: string
   ): Promise<Membership> {
     const state = await loadStore();
+    assertStaffCapability(state, requesterUserId, 'changePlans', 'change membership plans');
     const membershipIdx = state.memberships.findIndex((m) => m.memberId === memberId);
     if (membershipIdx === -1) {
       throw new Error(`Membership not found: ${memberId}`);
@@ -417,6 +455,42 @@ export class MockProtivityAdapter implements ProtivityPort {
     };
     await saveStore(state);
     return cancelRequest;
+  }
+
+  async approveCancelRequest(memberId: string, requesterUserId: string): Promise<CancelRequest> {
+    const state = await loadStore();
+    if (!hasCapability(requesterRole(state, requesterUserId), 'approveCancellations')) {
+      throw new Error('Your staff role is not permitted to approve cancellations.');
+    }
+    const idx = state.cancelRequests.findIndex(
+      (r) => r.memberId === memberId && r.status === 'submitted'
+    );
+    if (idx === -1) {
+      throw new Error(`No pending cancel request for member: ${memberId}`);
+    }
+    const reviewer = state.staff.find((s) => s.id === requesterUserId);
+    const approved: CancelRequest = {
+      ...state.cancelRequests[idx],
+      status: 'approved',
+      reviewedById: requesterUserId,
+      reviewedByName: reviewer?.name,
+      reviewedAt: new Date().toISOString(),
+    };
+    state.cancelRequests[idx] = approved;
+
+    state.notifications.unshift({
+      id: `notif-cancel-approved-${Date.now()}`,
+      userId: memberId,
+      title: 'Cancellation Confirmed',
+      body: `Your cancellation has been processed. You keep full access through ${approved.accessThrough}.`,
+      type: 'membership',
+      createdAt: new Date().toISOString(),
+      read: false,
+      link: '/(member)/manage-membership',
+    });
+
+    await saveStore(state);
+    return approved;
   }
 
   async listPendingCancels(branchId: string): Promise<CancelRequest[]> {
@@ -855,8 +929,9 @@ export class MockProtivityAdapter implements ProtivityPort {
     return { member, membership };
   }
 
-  async rescindCancelNotice(memberId: string): Promise<Member> {
+  async rescindCancelNotice(memberId: string, requesterUserId?: string): Promise<Member> {
     const state = await loadStore();
+    assertStaffCapability(state, requesterUserId, 'approveCancellations', 'rescind cancellations');
     const memberIdx = state.members.findIndex((m) => m.id === memberId);
     if (memberIdx === -1) {
       throw new Error(`Member not found: ${memberId}`);
@@ -1086,8 +1161,9 @@ export class MockProtivityAdapter implements ProtivityPort {
     return [...state.members].sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  async deleteMemberAccount(memberId: string): Promise<void> {
+  async deleteMemberAccount(memberId: string, requesterUserId?: string): Promise<void> {
     const state = await loadStore();
+    assertStaffCapability(state, requesterUserId, 'deleteMembers', 'delete member accounts');
     const memberIdx = state.members.findIndex((m) => m.id === memberId);
     if (memberIdx === -1) {
       throw new Error(`Member not found: ${memberId}`);
@@ -1109,8 +1185,13 @@ export class MockProtivityAdapter implements ProtivityPort {
     await saveStore(state);
   }
 
-  async updateMemberAdmin(memberId: string, updates: Partial<Member>): Promise<Member> {
+  async updateMemberAdmin(
+    memberId: string,
+    updates: Partial<Member>,
+    requesterUserId?: string
+  ): Promise<Member> {
     const state = await loadStore();
+    assertStaffCapability(state, requesterUserId, 'editMemberProfiles', 'edit member profiles');
     const idx = state.members.findIndex((m) => m.id === memberId);
     if (idx === -1) {
       throw new Error(`Member not found: ${memberId}`);
@@ -1135,9 +1216,11 @@ export class MockProtivityAdapter implements ProtivityPort {
 
   async updateMembershipAdmin(
     memberId: string,
-    updates: Partial<Membership>
+    updates: Partial<Membership>,
+    requesterUserId?: string
   ): Promise<Membership> {
     const state = await loadStore();
+    assertStaffCapability(state, requesterUserId, 'changePlans', 'update memberships');
     const idx = state.memberships.findIndex((m) => m.memberId === memberId);
     if (idx === -1) {
       throw new Error(`Membership not found: ${memberId}`);
@@ -1616,16 +1699,7 @@ export class MockProtivityAdapter implements ProtivityPort {
       email: input.email.trim(),
       password: input.password || 'ymca-demo',
       userId: newId,
-      role:
-        input.staffRole === 'it_admin'
-          ? 'it_admin'
-          : input.staffRole === 'staff_admin'
-            ? 'staff_admin'
-            : input.staffRole === 'admin'
-              ? 'admin'
-              : input.staffRole === 'trainer'
-                ? 'trainer'
-                : 'staff',
+      role: credentialRoleForStaffRole(input.staffRole),
     });
 
     await saveStore(state);
@@ -1654,16 +1728,7 @@ export class MockProtivityAdapter implements ProtivityPort {
         state.credentials[credIdx].email = updates.email.trim();
       }
       if (updates.staffRole) {
-        state.credentials[credIdx].role =
-          updates.staffRole === 'it_admin'
-            ? 'it_admin'
-            : updates.staffRole === 'staff_admin'
-              ? 'staff_admin'
-              : updates.staffRole === 'admin'
-                ? 'admin'
-                : updates.staffRole === 'trainer'
-                  ? 'trainer'
-                  : 'staff';
+        state.credentials[credIdx].role = credentialRoleForStaffRole(updates.staffRole);
       }
     }
 
@@ -2189,10 +2254,7 @@ export class MockProtivityAdapter implements ProtivityPort {
 
     const isAuthor = topic.authorId === requesterUserId;
     const isStaffOrAdmin =
-      isAdminRole(requesterStaff?.staffRole) ||
-      isAdminRole(requesterCred?.role) ||
-      requesterCred?.role === 'staff' ||
-      requesterCred?.role === 'trainer';
+      isStaffRole(requesterStaff?.staffRole) || isStaffRole(requesterCred?.role);
 
     if (!isAuthor && !isStaffOrAdmin) {
       throw new Error('Only the topic author or staff/admin can delete this topic.');
@@ -2223,10 +2285,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     const requesterCred = state.credentials.find((c) => c.userId === requesterUserId);
 
     const isStaffOrAdmin =
-      isAdminRole(requesterStaff?.staffRole) ||
-      isAdminRole(requesterCred?.role) ||
-      requesterCred?.role === 'staff' ||
-      requesterCred?.role === 'trainer';
+      isStaffRole(requesterStaff?.staffRole) || isStaffRole(requesterCred?.role);
 
     if (!isStaffOrAdmin) {
       throw new Error('Only staff or administrators can pin forum topics.');
@@ -2589,12 +2648,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     const isAuthor = reply.authorId === requesterUserId;
     const isTopicOwner = Boolean(topic && topic.authorId === requesterUserId);
     const isStaffOrAdmin =
-      isAdminRole(requesterStaff?.staffRole) ||
-      isAdminRole(requesterCred?.role) ||
-      requesterStaff?.staffRole === 'trainer' ||
-      requesterStaff?.staffRole === 'desk' ||
-      requesterCred?.role === 'staff' ||
-      requesterCred?.role === 'trainer';
+      isStaffRole(requesterStaff?.staffRole) || isStaffRole(requesterCred?.role);
 
     if (!isAuthor && !isTopicOwner && !isStaffOrAdmin) {
       throw new Error(

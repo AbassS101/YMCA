@@ -18,9 +18,10 @@ export const membershipRepo = {
     api: ProtivityPort,
     memberId: string,
     planName: string,
-    monthlyAmountCents: number
+    monthlyAmountCents: number,
+    requesterUserId?: string
   ): Promise<Membership> {
-    return api.changeMembership(memberId, planName, monthlyAmountCents);
+    return api.changeMembership(memberId, planName, monthlyAmountCents, requesterUserId);
   },
 
   scheduleMembershipChange(
@@ -61,8 +62,12 @@ export const membershipRepo = {
     return api.submitCancelNotice(memberId, input);
   },
 
-  rescindCancel(api: ProtivityPort, memberId: string): Promise<Member> {
-    return api.rescindCancelNotice(memberId);
+  rescindCancel(api: ProtivityPort, memberId: string, requesterUserId?: string): Promise<Member> {
+    return api.rescindCancelNotice(memberId, requesterUserId);
+  },
+
+  approveCancel(api: ProtivityPort, memberId: string, requesterUserId: string): Promise<CancelRequest> {
+    return api.approveCancelRequest(memberId, requesterUserId);
   },
 
   listAll(api: ProtivityPort, branchId?: string): Promise<Member[]> {
@@ -72,21 +77,23 @@ export const membershipRepo = {
   updateAdmin(
     api: ProtivityPort,
     memberId: string,
-    updates: Partial<Member>
+    updates: Partial<Member>,
+    requesterUserId?: string
   ): Promise<Member> {
-    return api.updateMemberAdmin(memberId, updates);
+    return api.updateMemberAdmin(memberId, updates, requesterUserId);
   },
 
   updateMembershipAdmin(
     api: ProtivityPort,
     memberId: string,
-    updates: Partial<Membership>
+    updates: Partial<Membership>,
+    requesterUserId?: string
   ): Promise<Membership> {
-    return api.updateMembershipAdmin(memberId, updates);
+    return api.updateMembershipAdmin(memberId, updates, requesterUserId);
   },
 
-  deleteAccount(api: ProtivityPort, memberId: string): Promise<void> {
-    return api.deleteMemberAccount(memberId);
+  deleteAccount(api: ProtivityPort, memberId: string, requesterUserId?: string): Promise<void> {
+    return api.deleteMemberAccount(memberId, requesterUserId);
   },
 
   listRegistrations(api: ProtivityPort, memberId: string) {

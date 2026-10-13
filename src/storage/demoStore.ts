@@ -27,10 +27,16 @@ import type {
   ClientFitnessGoal,
   ClientWorkoutLog,
   UserForumInterests,
+  StaffRole,
   UserRole,
 } from '@/domain/types';
 
 const STORAGE_KEY = '@ymca/demo-state';
+
+const DIRECTOR_STAFF_ROLES: Record<string, StaffRole> = {
+  'staff-celine': 'wellness_director',
+  'staff-desk': 'membership_director',
+};
 
 export type DemoState = {
   members: Member[];
@@ -118,6 +124,10 @@ function migrateState(raw: DemoState): DemoState {
       mergedStaff = [...mergedStaff, celineStaff];
     }
   }
+  mergedStaff = mergedStaff.map((s) => {
+    const directorRole = DIRECTOR_STAFF_ROLES[s.id];
+    return directorRole && s.staffRole !== directorRole ? { ...s, staffRole: directorRole } : s;
+  });
 
   let mergedMembers = raw.members ?? seed.members;
   if (!mergedMembers.some((m) => m.id === 'guest-taylor')) {
@@ -137,6 +147,9 @@ function migrateState(raw: DemoState): DemoState {
 
   let mergedCreds = (raw.credentials ?? seed.credentials).map((c) => {
     const seedCred = seed.credentials.find((sc) => sc.email === c.email);
+    if (DIRECTOR_STAFF_ROLES[c.userId]) {
+      return { ...c, role: DIRECTOR_STAFF_ROLES[c.userId] as UserRole };
+    }
     return seedCred ? { ...c, role: c.role ?? seedCred.role } : c;
   });
   if (!mergedCreds.some((c) => c.email === 'admin@silverspring.ymca')) {

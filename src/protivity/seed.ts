@@ -1621,7 +1621,7 @@ export const SEED: {
       email: 'celine@silverspring.ymca',
       roleLabel: 'Wellness Director (Incharge of Personal training)',
       homeBranchId: BRANCH,
-      staffRole: 'trainer',
+      staffRole: 'wellness_director',
     },
     {
       id: 'staff-desk',
@@ -1629,7 +1629,7 @@ export const SEED: {
       email: 'wellness@silverspring.ymca',
       roleLabel: 'Membership Director',
       homeBranchId: BRANCH,
-      staffRole: 'desk',
+      staffRole: 'membership_director',
     },
   ],
   memberships: [
@@ -1844,13 +1844,13 @@ export const SEED: {
       email: 'celine@silverspring.ymca',
       password: 'ymca-demo',
       userId: 'staff-celine',
-      role: 'trainer',
+      role: 'wellness_director',
     },
     {
       email: 'wellness@silverspring.ymca',
       password: 'ymca-demo',
       userId: 'staff-desk',
-      role: 'staff',
+      role: 'membership_director',
     },
   ],
   classForumPosts: [

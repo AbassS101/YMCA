@@ -27,6 +27,7 @@ import {
   type StaffRole,
   type UserRole,
 } from '@/domain/types';
+import { isStaffRole } from '@/domain/staffCapabilities';
 import { forumRepo } from '@/repositories/forumRepo';
 import { UserAvatar } from '@/components/UserAvatar';
 import { colors } from '@/theme/colors';
@@ -72,6 +73,12 @@ type ActionSheetTarget = {
 function roleBadge(role?: UserRole | StaffRole | string) {
   if (role === 'admin' || role === 'it_admin' || role === 'staff_admin') {
     return { label: 'STAFF ADMIN', bg: '#EDE9FE', text: '#6D28D9', icon: 'shield-checkmark', isStaff: true };
+  }
+  if (role === 'wellness_director') {
+    return { label: 'WELLNESS DIR', bg: '#FCE7F3', text: '#9D174D', icon: 'fitness', isStaff: true };
+  }
+  if (role === 'membership_director') {
+    return { label: 'MEMBERSHIP DIR', bg: '#E0E7FF', text: '#4338CA', icon: 'business', isStaff: true };
   }
   if (role === 'trainer') {
     return { label: 'TRAINER', bg: '#DCFCE7', text: '#15803D', icon: 'barbell', isStaff: true };
@@ -186,12 +193,7 @@ export function ForumTopicDetailModal({
 
   if (!currentTopic) return null;
 
-  const isStaffUser =
-    currentUserRole === 'staff' ||
-    currentUserRole === 'trainer' ||
-    currentUserRole === 'admin' ||
-    currentUserRole === 'staff_admin' ||
-    currentUserRole === 'it_admin';
+  const isStaffUser = isStaffRole(currentUserRole);
 
   const isTopicAuthor = currentTopic.authorId === currentUserId;
   const isTopicLiked = (currentTopic.likedBy ?? []).includes(currentUserId);

@@ -62,7 +62,8 @@ export interface ProtivityPort {
   changeMembership(
     memberId: string,
     planName: string,
-    monthlyAmountCents: number
+    monthlyAmountCents: number,
+    requesterUserId?: string
   ): Promise<Membership>;
   scheduleMembershipChange(
     memberId: string,
@@ -85,7 +86,8 @@ export interface ProtivityPort {
     memberId: string,
     input: { reason: string; requestedAt: string }
   ): Promise<CancelRequest>;
-  rescindCancelNotice(memberId: string): Promise<Member>;
+  rescindCancelNotice(memberId: string, requesterUserId?: string): Promise<Member>;
+  approveCancelRequest(memberId: string, requesterUserId: string): Promise<CancelRequest>;
   listPendingCancels(branchId: string): Promise<CancelRequest[]>;
   listMessages(threadId: string): Promise<Message[]>;
   listThreads(userId: string): Promise<Thread[]>;
@@ -134,9 +136,13 @@ export interface ProtivityPort {
 
   // Admin: Member Management
   listAllMembers(branchId?: string): Promise<Member[]>;
-  deleteMemberAccount(memberId: string): Promise<void>;
-  updateMemberAdmin(memberId: string, updates: Partial<Member>): Promise<Member>;
-  updateMembershipAdmin(memberId: string, updates: Partial<Membership>): Promise<Membership>;
+  deleteMemberAccount(memberId: string, requesterUserId?: string): Promise<void>;
+  updateMemberAdmin(memberId: string, updates: Partial<Member>, requesterUserId?: string): Promise<Member>;
+  updateMembershipAdmin(
+    memberId: string,
+    updates: Partial<Membership>,
+    requesterUserId?: string
+  ): Promise<Membership>;
   listMemberRegistrations(memberId: string): Promise<(ClassRegistration & { scheduleItem?: ScheduleItem })[]>;
   listMemberLessons(memberId: string): Promise<PrivateLesson[]>;
 
