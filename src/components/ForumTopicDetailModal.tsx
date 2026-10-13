@@ -326,6 +326,14 @@ export function ForumTopicDetailModal({
     }
   };
 
+  const handleQuickReactionPress = (tmpl: string) => {
+    if (keyboardVisible || isFocused) {
+      setReplyText((prev) => (prev ? `${prev} ${tmpl}` : tmpl));
+      return;
+    }
+    void handleSendReply(tmpl);
+  };
+
   const handleSendReply = async (customText?: string) => {
     const rawText = (customText ?? replyText).trim();
     if (!rawText || !api || !currentUserId) return;
@@ -980,13 +988,14 @@ export function ForumTopicDetailModal({
             {/* Quick 1-Tap Response Chips */}
             <ScrollView
               horizontal
+              keyboardShouldPersistTaps="always"
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.quickReactionsScroll}
             >
               {QUICK_REACTION_TEMPLATES.map((tmpl) => (
                 <Pressable
                   key={tmpl}
-                  onPress={() => void handleSendReply(tmpl)}
+                  onPress={() => handleQuickReactionPress(tmpl)}
                   style={[
                     styles.quickReactionChip,
                     {
