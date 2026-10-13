@@ -223,6 +223,19 @@ function assertStaffCapability(
   }
 }
 
+function toggleReactionMap(
+  current: Record<string, string[]> | undefined,
+  emoji: string,
+  userId: string
+): Record<string, string[]> {
+  const next: Record<string, string[]> = { ...(current ?? {}) };
+  const users = next[emoji] ?? [];
+  const updated = users.includes(userId) ? users.filter((u) => u !== userId) : [...users, userId];
+  if (updated.length === 0) delete next[emoji];
+  else next[emoji] = updated;
+  return next;
+}
+
 export class MockProtivityAdapter implements ProtivityPort {
   async login(email: string, password: string): Promise<{ userId: string; role: UserRole }> {
     const state = await loadStore();
@@ -1879,6 +1892,9 @@ export class MockProtivityAdapter implements ProtivityPort {
     pinned?: boolean;
     mentionedUserIds?: string[];
     mentionedUserNames?: string[];
+    replyToId?: string;
+    replyToAuthorName?: string;
+    replyToExcerpt?: string;
   }): Promise<ClassForumPost> {
     const state = await loadStore();
     if (!state.classForumPosts) {
@@ -1906,6 +1922,9 @@ export class MockProtivityAdapter implements ProtivityPort {
       pinned: input.pinned ?? false,
       mentionedUserIds,
       mentionedUserNames,
+      replyToId: input.replyToId,
+      replyToAuthorName: input.replyToAuthorName,
+      replyToExcerpt: input.replyToExcerpt,
     };
 
     const existingClassPosts = state.classForumPosts.filter((p) => p.classId === input.classId);
@@ -2463,6 +2482,9 @@ export class MockProtivityAdapter implements ProtivityPort {
     mentionedStaffIds?: string[];
     mentionedUserIds?: string[];
     mentionedUserNames?: string[];
+    replyToId?: string;
+    replyToAuthorName?: string;
+    replyToExcerpt?: string;
   }): Promise<ForumReply> {
     const state = await loadStore();
     if (!state.forumReplies) {
@@ -2496,6 +2518,9 @@ export class MockProtivityAdapter implements ProtivityPort {
       likes: 0,
       likedBy: [],
       createdAt: now,
+      replyToId: input.replyToId,
+      replyToAuthorName: input.replyToAuthorName,
+      replyToExcerpt: input.replyToExcerpt,
     };
 
     const previousReplies = state.forumReplies.filter((r) => r.topicId === input.topicId);
@@ -2629,6 +2654,56 @@ export class MockProtivityAdapter implements ProtivityPort {
 
     await saveStore(state);
     return reply;
+  }
+
+  async toggleForumReplyReaction(replyId: string, userId: string, emoji: string): Promise<ForumReply> {
+    const state = await loadStore();
+    const reply = (state.forumReplies ?? []).find((r) => r.id === replyId);
+    if (!reply) throw new Error(`Forum reply not found: ${replyId}`);
+    const seeded =
+      reply.reactions ?? (reply.likedBy?.length ? { '❤️': [...reply.likedBy] } : undefined);
+    reply.reactions = toggleReactionMap(seeded, emoji, userId);
+    await saveStore(state);
+    return reply;
+  }
+
+  async editForumReply(replyId: string, userId: string, content: string): Promise<ForumReply> {
+    const state = await loadStore();
+    const reply = (state.forumReplies ?? []).find((r) => r.id === replyId);
+    if (!reply) throw new Error(`Forum reply not found: ${replyId}`);
+    if (reply.authorId !== userId) throw new Error('Only the author can edit this message.');
+    const text = filterProfanity(content.trim());
+    if (!text) throw new Error('Message cannot be empty.');
+    reply.content = text;
+    reply.editedAt = new Date().toISOString();
+    await saveStore(state);
+    return reply;
+  }
+
+  async toggleClassForumPostReaction(
+    postId: string,
+    userId: string,
+    emoji: string
+  ): Promise<ClassForumPost> {
+    const state = await loadStore();
+    const post = (state.classForumPosts ?? []).find((p) => p.id === postId);
+    if (!post) throw new Error(`Forum post not found: ${postId}`);
+    post.reactions = toggleReactionMap(post.reactions, emoji, userId);
+    await saveStore(state);
+    return post;
+  }
+
+  async editClassForumPost(postId: string, userId: string, content: string): Promise<ClassForumPost> {
+    const state = await loadStore();
+    const post = (state.classForumPosts ?? []).find((p) => p.id === postId);
+    if (!post) throw new Error(`Forum post not found: ${postId}`);
+    if (post.authorId !== userId) throw new Error('Only the author can edit this message.');
+    const text = filterProfanity(content.trim());
+    if (!text) throw new Error('Message cannot be empty.');
+    post.content = text;
+    post.editedAt = new Date().toISOString();
+    await saveStore(state);
+    return post;
   }
 
   async deleteForumReply(replyId: string, requesterUserId: string): Promise<void> {

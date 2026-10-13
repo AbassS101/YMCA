@@ -117,9 +117,30 @@ export const forumRepo = {
       mentionedStaffIds?: string[];
       mentionedUserIds?: string[];
       mentionedUserNames?: string[];
+      replyToId?: string;
+      replyToAuthorName?: string;
+      replyToExcerpt?: string;
     }
   ): Promise<ForumReply> {
     return api.createForumReply(input);
+  },
+
+  toggleReplyReaction(
+    api: ProtivityPort,
+    replyId: string,
+    userId: string,
+    emoji: string
+  ): Promise<ForumReply> {
+    return api.toggleForumReplyReaction(replyId, userId, emoji);
+  },
+
+  editReply(
+    api: ProtivityPort,
+    replyId: string,
+    userId: string,
+    content: string
+  ): Promise<ForumReply> {
+    return api.editForumReply(replyId, userId, content);
   },
 
   deleteReply(api: ProtivityPort, replyId: string, requesterUserId: string): Promise<void> {

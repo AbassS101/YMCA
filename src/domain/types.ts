@@ -552,6 +552,11 @@ export type ClassForumPost = {
   pinned?: boolean;
   mentionedUserIds?: string[];
   mentionedUserNames?: string[];
+  reactions?: Record<string, string[]>;
+  replyToId?: string;
+  replyToAuthorName?: string;
+  replyToExcerpt?: string;
+  editedAt?: string;
 };
 
 export type ForumTopicCategory =
@@ -609,6 +614,11 @@ export type ForumReply = {
   likes: number;
   likedBy: string[];
   createdAt: string; // ISO
+  reactions?: Record<string, string[]>;
+  replyToId?: string;
+  replyToAuthorName?: string;
+  replyToExcerpt?: string;
+  editedAt?: string;
 };
 
 export const FORUM_CATEGORIES: {

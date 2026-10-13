@@ -29,9 +29,30 @@ export const classForumRepo = {
       pinned?: boolean;
       mentionedUserIds?: string[];
       mentionedUserNames?: string[];
+      replyToId?: string;
+      replyToAuthorName?: string;
+      replyToExcerpt?: string;
     }
   ): Promise<ClassForumPost> {
     return api.createClassForumPost(input);
+  },
+
+  toggleReaction(
+    api: ProtivityPort,
+    postId: string,
+    userId: string,
+    emoji: string
+  ): Promise<ClassForumPost> {
+    return api.toggleClassForumPostReaction(postId, userId, emoji);
+  },
+
+  edit(
+    api: ProtivityPort,
+    postId: string,
+    userId: string,
+    content: string
+  ): Promise<ClassForumPost> {
+    return api.editClassForumPost(postId, userId, content);
   },
 
   delete(api: ProtivityPort, postId: string, requesterUserId: string): Promise<void> {

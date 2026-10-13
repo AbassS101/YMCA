@@ -1,56 +1,23 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Keyboard,
-  LayoutAnimation,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { MentionAutocomplete } from '@/components/MentionAutocomplete';
-import { useAccessibility } from '@/context/AccessibilityContext';
+import { ChatView } from '@/components/chat/ChatView';
+import { classSource } from '@/components/chat/chatSources';
+import { useChatTheme } from '@/components/chat/chatTheme';
+import { isStaffRole, type ChatIdentity } from '@/components/chat/chatTypes';
 import { useSession } from '@/context/SessionContext';
-import { useTheme } from '@/context/ThemeContext';
-import {
-  containsProfanity,
-  filterProfanity,
-  isAdminRole,
-  type ClassForumPost,
-  type ScheduleItem,
-  type Staff,
-} from '@/domain/types';
-import { classForumRepo } from '@/repositories/classForumRepo';
-import { UserAvatar } from '@/components/UserAvatar';
-import { colors } from '@/theme/colors';
-import { radii } from '@/theme/typography';
-
-const REPORT_REASONS = [
-  'Profanity / Inappropriate Language',
-  'Harassment or Disrespectful Behavior',
-  'Spam or Promotional Content',
-  'Safety / Community Guidelines Violation',
-];
+import { isAdminRole, type ScheduleItem, type Staff } from '@/domain/types';
 
 function formatClassDate(isoStr?: string): string {
   if (!isoStr) return '';
-  const d = new Date(isoStr);
-  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  return new Date(isoStr).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 function formatClassTime(isoStr?: string): string {
   if (!isoStr) return '';
-  const d = new Date(isoStr);
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return new Date(isoStr).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
 export type ClassForumModalProps = {
@@ -72,92 +39,34 @@ export function ClassForumModal({
 }: ClassForumModalProps) {
   const router = useRouter();
   const { session, api } = useSession();
-  const { colors: tc, isDark } = useTheme();
-  const { multiplier } = useAccessibility();
+  const theme = useChatTheme();
   const insets = useSafeAreaInsets();
 
-  const [posts, setPosts] = useState<ClassForumPost[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [inputText, setInputText] = useState('');
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [isFocused, setIsFocused] = useState(false);
-  const [pinNewPost, setPinNewPost] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [staffProfile, setStaffProfile] = useState<Staff | null>(null);
-  const [memberProfileName, setMemberProfileName] = useState<string>('');
-
-  // Long-press report / moderation sheet state
-  const [selectedPostForAction, setSelectedPostForAction] = useState<ClassForumPost | null>(null);
-  const [selectedReason, setSelectedReason] = useState<string>(REPORT_REASONS[0]);
-  const [reportDetails, setReportDetails] = useState('');
-  const [submittingReport, setSubmittingReport] = useState(false);
-  const [reportSuccessTicket, setReportSuccessTicket] = useState<string | null>(null);
-
-  const inputRef = useRef<TextInput>(null);
-
-  useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-    const showSub = Keyboard.addListener(showEvent, (e) => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setKeyboardVisible(true);
-      setKeyboardHeight(e.endCoordinates.height);
-    });
-    const hideSub = Keyboard.addListener(hideEvent, () => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setKeyboardVisible(false);
-      setKeyboardHeight(0);
-      setIsFocused(false);
-    });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
-
-  const handleDismissKeyboard = () => {
-    inputRef.current?.blur();
-    Keyboard.dismiss();
-    setIsFocused(false);
-    setKeyboardVisible(false);
-    setKeyboardHeight(0);
-  };
+  const [memberName, setMemberName] = useState('');
+  const [memberAvatar, setMemberAvatar] = useState<string | undefined>();
 
   const currentUserId = session?.userId ?? '';
   const currentUserRole = session?.role ?? 'member';
 
-  // Load current user details to get accurate display name and avatar
   useEffect(() => {
     if (!visible || !api || !currentUserId) return;
     void (async () => {
       try {
         if (currentUserRole === 'member') {
           const m = await api.getMember(currentUserId);
-          setMemberProfileName(m.name);
+          setMemberName(m.name);
+          setMemberAvatar(m.avatarUrl);
         } else {
-          const s = await api.getStaff(currentUserId);
-          setStaffProfile(s);
+          setStaffProfile(await api.getStaff(currentUserId));
         }
       } catch {
-        // use fallback names
+        // fallback names
       }
     })();
   }, [api, currentUserId, currentUserRole, visible]);
 
-  useEffect(() => {
-    if (!visible) {
-      setSelectedPostForAction(null);
-      setReportSuccessTicket(null);
-    }
-  }, [visible]);
-
-  // Determine manager privileges
-  const isITAdmin = currentUserRole === 'it_admin';
-  const isStaffAdmin = currentUserRole === 'staff_admin' || currentUserRole === 'admin';
   const isOverallAdmin = isAdminRole(currentUserRole);
-
   const isClassTrainer = Boolean(
     (currentUserRole === 'trainer' || currentUserRole === 'wellness_director') &&
       scheduleItem &&
@@ -166,162 +75,30 @@ export function ClassForumModal({
           (scheduleItem.instructorName.toLowerCase().includes(staffProfile.name.toLowerCase()) ||
             staffProfile.name.toLowerCase().includes(scheduleItem.instructorName.toLowerCase()))))
   );
-
   const isClassManager = isOverallAdmin || isClassTrainer;
 
-  const loadPosts = useCallback(async () => {
-    if (!scheduleItem || !api) return;
-    setLoading(true);
-    try {
-      const list = await classForumRepo.list(api, scheduleItem.id);
-      setPosts(list);
-    } catch {
-      // keep existing
-    } finally {
-      setLoading(false);
-    }
-  }, [api, scheduleItem]);
+  const me = useMemo<ChatIdentity>(
+    () => ({
+      userId: currentUserId,
+      name:
+        currentUserRole !== 'member' && staffProfile ? staffProfile.name : memberName || 'YMCA Member',
+      role: currentUserRole,
+      avatarUrl: currentUserRole !== 'member' ? staffProfile?.avatarUrl : memberAvatar,
+      isStaff: isStaffRole(String(currentUserRole)),
+    }),
+    [currentUserId, currentUserRole, staffProfile, memberName, memberAvatar]
+  );
 
-  useEffect(() => {
-    if (visible && scheduleItem) {
-      void loadPosts();
-    }
-  }, [visible, scheduleItem, loadPosts]);
-
-  const currentDisplayName =
-    currentUserRole !== 'member' && staffProfile ? staffProfile.name : memberProfileName || 'YMCA Member';
-
-  const handleSendPost = async () => {
-    const trimmed = inputText.trim();
-    if (!trimmed || !scheduleItem || !api) return;
-
-    setSubmitting(true);
-    try {
-      let authorName = memberProfileName || 'YMCA Member';
-      let avatarUrl: string | undefined = undefined;
-
-      if (currentUserRole !== 'member' && staffProfile) {
-        authorName = staffProfile.name;
-        avatarUrl = staffProfile.avatarUrl;
-      }
-
-      await classForumRepo.create(api, {
-        classId: scheduleItem.id,
-        authorId: currentUserId,
-        authorName,
-        authorRole: currentUserRole,
-        authorAvatarUrl: avatarUrl,
-        content: filterProfanity(trimmed),
-        pinned: isClassManager && pinNewPost,
-      });
-
-      setInputText('');
-      setPinNewPost(false);
-      onPostCreated?.(scheduleItem.id);
-      await loadPosts();
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Could not post message.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDeletePostImmediate = async (post: ClassForumPost) => {
-    if (!api) return;
-    try {
-      await classForumRepo.delete(api, post.id, currentUserId);
-      setSelectedPostForAction(null);
-      await loadPosts();
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to delete post.');
-    }
-  };
-
-  const handleDeletePost = async (post: ClassForumPost) => {
-    if (!api) return;
-    if (Platform.OS === 'web') {
-      await handleDeletePostImmediate(post);
-      return;
-    }
-    Alert.alert(
-      'Delete Post',
-      'Are you sure you want to remove this message from the class forum?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => void handleDeletePostImmediate(post),
-        },
-      ]
-    );
-  };
-
-  const handleTogglePin = async (post: ClassForumPost) => {
-    if (!api) return;
-    try {
-      await classForumRepo.togglePin(api, post.id, currentUserId);
-      await loadPosts();
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to update pin status.');
-    }
-  };
-
-  const openPostActionSheet = (post: ClassForumPost) => {
-    setSelectedReason(REPORT_REASONS[0]);
-    setReportDetails('');
-    setReportSuccessTicket(null);
-    setSelectedPostForAction(post);
-  };
-
-  const handleSubmitPostReport = async () => {
-    if (!selectedPostForAction || !scheduleItem || !api || !currentUserId) return;
-    setSubmittingReport(true);
-    try {
-      const { ticket } = await classForumRepo.reportPost(api, {
-        reporterId: currentUserId,
-        reporterName: currentDisplayName,
-        reporterRole: currentUserRole,
-        targetId: selectedPostForAction.id,
-        targetAuthorId: selectedPostForAction.authorId,
-        targetAuthorName: selectedPostForAction.authorName,
-        targetContent: selectedPostForAction.content,
-        contextTitle: `${scheduleItem.title} (${scheduleItem.instructorName})`,
-        reason: selectedReason,
-        details: reportDetails,
-      });
-      setReportSuccessTicket(ticket.ticketNumber);
-    } catch {
-      // noop
-    } finally {
-      setSubmittingReport(false);
-    }
-  };
+  const source = useMemo(
+    () => (api && scheduleItem ? classSource(api, scheduleItem, me) : null),
+    [api, scheduleItem, me]
+  );
 
   if (!scheduleItem) return null;
 
-  const pinnedPosts = posts.filter((p) => p.pinned);
-  const regularPosts = posts.filter((p) => !p.pinned);
-  const hasProfanityInDraft = containsProfanity(inputText);
-
-  function roleBadge(role: string) {
-    if (role === 'it_admin') {
-      return { label: 'IT Admin', bg: '#F5F3FF', text: '#7C3AED', icon: 'shield-checkmark' };
-    }
-    if (role === 'staff_admin' || role === 'admin') {
-      return { label: 'Staff Admin', bg: '#EFF6FF', text: colors.primary, icon: 'shield' };
-    }
-    if (role === 'trainer') {
-      return { label: 'Trainer / Instructor', bg: '#F0FDF4', text: '#15803D', icon: 'barbell' };
-    }
-    if (role === 'wellness_director') {
-      return { label: 'Wellness Director', bg: '#FCE7F3', text: '#9D174D', icon: 'fitness' };
-    }
-    if (role === 'membership_director') {
-      return { label: 'Membership Director', bg: '#E0E7FF', text: '#4338CA', icon: 'business' };
-    }
-    return { label: 'Class Member', bg: '#F1F5F9', text: '#64748B', icon: 'person' };
-  }
+  const subtitle = isClassManager
+    ? 'You moderate this chat: pin announcements, remove messages.'
+    : `Moderated by ${scheduleItem.instructorName} & YMCA IT`;
 
   return (
     <Modal
@@ -330,939 +107,107 @@ export function ClassForumModal({
       presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
       onRequestClose={onClose}
     >
-      <View style={[styles.modalScreen, { backgroundColor: tc.background }]}>
-        {/* COMPACT HEADER (No Excess Top Whitespace) */}
+      <View style={[styles.screen, { backgroundColor: theme.bg }]}>
         <View
           style={[
             styles.header,
             {
-              backgroundColor: tc.cardBg,
-              borderColor: tc.border,
-              paddingTop: 10,
-              paddingBottom: 10,
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
               paddingLeft: Math.max(14, insets.left),
-              paddingRight: Math.max(14, insets.right),
+              paddingRight: Math.max(10, insets.right),
             },
           ]}
         >
+          <View style={styles.hash}>
+            <Ionicons name="chatbubbles" size={18} color={theme.accent} />
+          </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Ionicons name="chatbubbles" size={19} color={colors.primary} />
-              <Text style={[styles.headerTitle, { color: tc.text }]} numberOfLines={1}>
-                {scheduleItem.title}
-              </Text>
-            </View>
-            <Text style={[styles.headerMeta, { color: tc.textMuted }]} numberOfLines={1}>
-              {scheduleItem.instructorName} · {formatClassDate(scheduleItem.start)} · {formatClassTime(scheduleItem.start)} - {formatClassTime(scheduleItem.end)}
+            <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
+              {scheduleItem.title}
+            </Text>
+            <Text style={[styles.meta, { color: theme.muted }]} numberOfLines={1}>
+              {scheduleItem.instructorName} · {formatClassDate(scheduleItem.start)} ·{' '}
+              {formatClassTime(scheduleItem.start)} - {formatClassTime(scheduleItem.end)}
             </Text>
           </View>
           {onToggleInterested ? (
             <Pressable
               onPress={() => onToggleInterested(scheduleItem.id)}
-              style={styles.closeBtn}
+              style={styles.iconBtn}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel={
-                isInterested ? 'Remove class chat from Interested' : 'Mark class chat as Interested'
-              }
+              accessibilityLabel={isInterested ? 'Unstar class chat' : 'Star class chat'}
             >
               <Ionicons
                 name={isInterested ? 'star' : 'star-outline'}
-                size={21}
-                color={isInterested ? '#D97706' : tc.textMuted}
+                size={20}
+                color={isInterested ? '#D97706' : theme.muted}
               />
             </Pressable>
           ) : null}
-          <Pressable
-            onPress={onClose}
-            style={styles.closeBtn}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Close class forum"
-          >
-            <Ionicons name="close-circle" size={26} color={tc.textMuted} />
+          <Pressable onPress={onClose} style={styles.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close class chat">
+            <Ionicons name="close" size={24} color={theme.muted} />
           </Pressable>
         </View>
 
-        {/* Link to General Community Forum */}
         <Pressable
           onPress={() => {
             onClose();
             router.push('/(member)/community-forum');
           }}
-          style={[
-            styles.generalForumNotice,
-            {
-              backgroundColor: isDark ? '#0C2A4A' : '#EFF6FF',
-              borderColor: isDark ? '#1E3A8A' : '#BFDBFE',
-            },
-          ]}
+          style={[styles.subline, { backgroundColor: theme.input }]}
           accessibilityRole="button"
-          accessibilityLabel="Looking for general community discussions? Open General Community Forum"
+          accessibilityLabel="Open general community forum"
         >
-          <Ionicons name="chatbubbles" size={15} color={colors.primary} />
-          <Text style={[styles.generalForumNoticeText, { color: isDark ? '#93C5FD' : '#00609C' }]}>
-            This chat is for {scheduleItem.title}. Looking for general YMCA topics?{' '}
-            <Text style={{ fontWeight: '800', textDecorationLine: 'underline' }}>Open General Forum ›</Text>
+          <Ionicons name={isClassManager ? 'shield-checkmark' : 'people'} size={13} color={theme.muted} />
+          <Text style={[styles.sublineText, { color: theme.muted }]} numberOfLines={1}>
+            {subtitle} ·{' '}
+            <Text style={{ color: theme.accent, fontWeight: '800' }}>General forum ›</Text>
           </Text>
         </Pressable>
 
-        {/* FORUM MANAGEMENT STATUS BANNER */}
-        <View
-          style={[
-            styles.managerBanner,
-            {
-              backgroundColor: isClassManager
-                ? isITAdmin
-                  ? '#FAF5FF'
-                  : '#EFF6FF'
-                : isDark
-                  ? '#1E293B'
-                  : '#F8FAFC',
-              borderColor: isClassManager
-                ? isITAdmin
-                  ? '#C084FC'
-                  : '#93C5FD'
-                : tc.border,
-            },
-          ]}
-        >
-          <Ionicons
-            name={isClassManager ? 'shield-checkmark' : 'people'}
-            size={17}
-            color={
-              isClassManager
-                ? isITAdmin
-                  ? '#7C3AED'
-                  : colors.primary
-                : tc.textMuted
-            }
-          />
-          <View style={{ flex: 1 }}>
-            <Text
-              style={[
-                styles.managerBannerTitle,
-                {
-                  color: isClassManager
-                    ? isITAdmin
-                      ? '#7C3AED'
-                      : colors.primary
-                    : tc.text,
-                },
-              ]}
-            >
-              {isITAdmin
-                ? 'IT Administrator · Full Community Moderation'
-                : isStaffAdmin
-                  ? 'Staff Administrator · Full Community Moderation'
-                  : isClassTrainer
-                    ? `Class Instructor (${scheduleItem.instructorName}) · Moderator`
-                    : 'Class Community Forum · Hold any message to report to IT'}
-            </Text>
-            <Text style={[styles.managerBannerDesc, { color: tc.textMuted }]}>
-              {isClassManager
-                ? 'You can pin announcements and delete inappropriate messages in this class.'
-                : `Moderated by ${scheduleItem.instructorName} & YMCA IT Administration.`}
-            </Text>
-          </View>
-        </View>
-
-        {/* POSTS LIST */}
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={styles.postsScroll}
-          keyboardShouldPersistTaps="handled"
-        >
-          {loading && posts.length === 0 ? (
-            <View style={styles.centerBox}>
-              <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={[styles.loadingText, { color: tc.textMuted }]}>
-                Loading class forum...
-              </Text>
-            </View>
-          ) : null}
-
-          {/* PINNED ANNOUNCEMENTS */}
-          {pinnedPosts.length > 0 ? (
-            <View style={{ gap: 10, marginBottom: 6 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Ionicons name="pin" size={15} color={colors.primary} />
-                <Text style={[styles.pinnedHeader, { color: colors.primary }]}>
-                  Pinned Announcements ({pinnedPosts.length})
-                </Text>
-              </View>
-              {pinnedPosts.map((post) => renderPostCard(post, true))}
-            </View>
-          ) : null}
-
-          {/* REGULAR COMMUNITY POSTS */}
-          {regularPosts.length > 0 ? (
-            <View style={{ gap: 10 }}>
-              {pinnedPosts.length > 0 ? (
-                <Text style={[styles.sectionHeader, { color: tc.textMuted }]}>
-                  Community Discussion
-                </Text>
-              ) : null}
-              {regularPosts.map((post) => renderPostCard(post, false))}
-            </View>
-          ) : null}
-
-          {posts.length === 0 && !loading ? (
-            <View style={styles.emptyCard}>
-              <Ionicons name="chatbubble-ellipses-outline" size={36} color={tc.textMuted} />
-              <Text style={[styles.emptyTitle, { color: tc.text }]}>No Messages Yet</Text>
-              <Text style={[styles.emptySubtitle, { color: tc.textMuted }]}>
-                Be the first to say hello, ask the instructor a question, or coordinate with classmates!
-              </Text>
-            </View>
-          ) : null}
-        </ScrollView>
-
-        {/* MESSAGE COMPOSER */}
-        <View
-          style={[
-            styles.composerWrap,
-            {
-              backgroundColor: tc.cardBg,
-              borderColor: tc.border,
-              paddingBottom:
-                keyboardVisible && keyboardHeight > 0
-                  ? keyboardHeight
-                  : keyboardVisible && Platform.OS === 'android'
-                    ? 280
-                    : Math.max(insets.bottom, 10),
-            },
-          ]}
-        >
-          {hasProfanityInDraft ? (
-            <View
-              style={[
-                styles.profanityNoticeBar,
-                {
-                  backgroundColor: isDark ? '#422006' : '#FEF3C7',
-                  borderColor: isDark ? '#B45309' : '#FDE68A',
-                },
-              ]}
-            >
-              <Ionicons name="shield-checkmark" size={14} color="#D97706" />
-              <Text style={[styles.profanityNoticeText, { color: isDark ? '#FDE68A' : '#92400E' }]}>
-                YMCA Family-Friendly Filter: Profanity will be automatically censored (****).
-              </Text>
-            </View>
-          ) : null}
-
-          {isClassManager ? (
-            <View style={styles.pinToggleRow}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Ionicons name="pin-outline" size={16} color={colors.primary} />
-                <Text style={[styles.pinToggleText, { color: tc.text }]}>
-                  Pin as Instructor Announcement
-                </Text>
-              </View>
-              <Switch
-                value={pinNewPost}
-                onValueChange={setPinNewPost}
-                trackColor={{ false: '#E2E8F0', true: colors.primaryLight }}
-                thumbColor={pinNewPost ? colors.primary : '#FFFFFF'}
-              />
-            </View>
-          ) : null}
-
-          {/* Mention Autocomplete Popup */}
-          <MentionAutocomplete
-            text={inputText}
-            onSelect={(cand, newText) => setInputText(newText)}
-          />
-
-          <View style={styles.inputRow}>
-            {keyboardVisible || isFocused ? (
-              <Pressable
-                onPress={handleDismissKeyboard}
-                style={({ pressed }) => [
-                  styles.dismissKeyboardBtn,
-                  {
-                    backgroundColor: pressed
-                      ? colors.primaryLight
-                      : isDark
-                        ? '#1E293B'
-                        : '#F1F5F9',
-                  },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Put keyboard down"
-                hitSlop={8}
-              >
-                <Ionicons name="chevron-down" size={20} color={colors.primary} />
-              </Pressable>
-            ) : null}
-            <TextInput
-              ref={inputRef}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              style={[
-                styles.composerInput,
-                {
-                  backgroundColor: tc.cardBg,
-                  color: tc.text,
-                  borderColor: tc.border,
-                  fontSize: Math.round(15 * multiplier),
-                  lineHeight: Math.round(20 * multiplier),
-                },
-              ]}
-              value={inputText}
-              onChangeText={setInputText}
-              placeholder={
-                isClassManager
-                  ? 'Post an update, tip, or announcement (type @ to tag)...'
-                  : 'Ask instructor, share tips, or chat (type @ to tag)...'
-              }
-              placeholderTextColor={tc.textMuted}
-              multiline
-              maxLength={500}
-            />
-            <Pressable
-              onPress={() => void handleSendPost()}
-              disabled={submitting || inputText.trim() === ''}
-              style={[
-                styles.sendBtn,
-                {
-                  backgroundColor: inputText.trim() ? colors.primary : tc.border,
-                },
-              ]}
-              accessibilityLabel="Send message"
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Ionicons name="send" size={18} color="#FFFFFF" />
-              )}
-            </Pressable>
-          </View>
-        </View>
-
-        {/* HOLD-DOWN REPORT TO IT & MODERATION SHEET MODAL */}
-        <Modal
-          visible={Boolean(selectedPostForAction)}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setSelectedPostForAction(null)}
-        >
-          <Pressable
-            style={styles.sheetBackdrop}
-            onPress={() => setSelectedPostForAction(null)}
-          >
-            <Pressable
-              style={[styles.sheetCard, { backgroundColor: tc.cardBg, borderColor: tc.border }]}
-              onPress={(e) => e.stopPropagation()}
-            >
-              {selectedPostForAction ? (
-                <>
-                  <View style={styles.sheetHeader}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                      <Ionicons name="shield-half" size={20} color={colors.primary} />
-                      <Text style={[styles.sheetTitle, { color: tc.text }]}>
-                        Class Message Options & IT Report
-                      </Text>
-                    </View>
-                    <Pressable onPress={() => setSelectedPostForAction(null)} hitSlop={8}>
-                      <Ionicons name="close" size={22} color={tc.textMuted} />
-                    </Pressable>
-                  </View>
-
-                  <View
-                    style={[
-                      styles.sheetPreviewBox,
-                      {
-                        backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
-                        borderColor: tc.border,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.sheetPreviewAuthor, { color: tc.text }]}>
-                      Posted by {selectedPostForAction.authorName}
-                    </Text>
-                    <Text
-                      style={[styles.sheetPreviewContent, { color: tc.textMuted }]}
-                      numberOfLines={2}
-                    >
-                      "{filterProfanity(selectedPostForAction.content)}"
-                    </Text>
-                  </View>
-
-                  {selectedPostForAction.authorId === currentUserId || isClassManager ? (
-                    <Pressable
-                      onPress={() => void handleDeletePostImmediate(selectedPostForAction)}
-                      style={({ pressed }) => [
-                        styles.sheetDeleteBtn,
-                        pressed && { opacity: 0.85 },
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel="Delete class forum message"
-                    >
-                      <Ionicons name="trash-outline" size={18} color="#DC2626" />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.sheetDeleteBtnTitle}>Delete Message</Text>
-                        <Text style={styles.sheetDeleteBtnSub}>
-                          {selectedPostForAction.authorId === currentUserId
-                            ? 'Authorized as Message Author'
-                            : isClassTrainer
-                              ? `Authorized as Class Instructor (${scheduleItem.instructorName})`
-                              : 'Authorized as IT / Staff Administrator'}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  ) : null}
-
-                  {reportSuccessTicket ? (
-                    <View
-                      style={[
-                        styles.reportSuccessBox,
-                        {
-                          backgroundColor: isDark ? '#064E3B' : '#ECFDF5',
-                          borderColor: isDark ? '#047857' : '#A7F3D0',
-                        },
-                      ]}
-                    >
-                      <Ionicons name="checkmark-circle" size={24} color="#15803D" />
-                      <View style={{ flex: 1, gap: 2 }}>
-                        <Text style={[styles.reportSuccessTitle, { color: isDark ? '#34D399' : '#065F46' }]}>
-                          IT Ticket #{reportSuccessTicket} Sent!
-                        </Text>
-                        <Text style={[styles.reportSuccessSub, { color: isDark ? '#A7F3D0' : '#047857' }]}>
-                          YMCA IT Systems has logged your report for moderation review.
-                        </Text>
-                      </View>
-                      <Pressable
-                        onPress={() => setSelectedPostForAction(null)}
-                        style={[styles.doneReportBtn, { backgroundColor: '#15803D' }]}
-                      >
-                        <Text style={styles.doneReportBtnText}>Done</Text>
-                      </Pressable>
-                    </View>
-                  ) : (
-                    <View style={styles.reportFormWrap}>
-                      <Text style={[styles.reportSectionLabel, { color: tc.text }]}>
-                        Report to YMCA IT Support (Sends Ticket):
-                      </Text>
-                      <View style={styles.reasonsList}>
-                        {REPORT_REASONS.map((reason) => {
-                          const selected = selectedReason === reason;
-                          return (
-                            <Pressable
-                              key={reason}
-                              onPress={() => setSelectedReason(reason)}
-                              style={[
-                                styles.reasonOption,
-                                {
-                                  backgroundColor: selected
-                                    ? isDark
-                                      ? '#0C2A4A'
-                                      : '#EFF6FF'
-                                    : isDark
-                                      ? '#1E293B'
-                                      : '#F8FAFC',
-                                  borderColor: selected ? colors.primary : tc.border,
-                                },
-                              ]}
-                            >
-                              <Ionicons
-                                name={selected ? 'radio-button-on' : 'radio-button-off'}
-                                size={16}
-                                color={selected ? colors.primary : tc.textMuted}
-                              />
-                              <Text
-                                style={[
-                                  styles.reasonOptionText,
-                                  {
-                                    color: selected ? colors.primary : tc.text,
-                                    fontWeight: selected ? '700' : '500',
-                                  },
-                                ]}
-                              >
-                                {reason}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-
-                      <TextInput
-                        style={[
-                          styles.reportNotesInput,
-                          {
-                            backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
-                            color: tc.text,
-                            borderColor: tc.border,
-                          },
-                        ]}
-                        placeholder="Optional details for IT Support..."
-                        placeholderTextColor={tc.textMuted}
-                        value={reportDetails}
-                        onChangeText={setReportDetails}
-                        maxLength={250}
-                      />
-
-                      <Pressable
-                        onPress={() => void handleSubmitPostReport()}
-                        disabled={submittingReport}
-                        style={({ pressed }) => [
-                          styles.submitReportBtn,
-                          { backgroundColor: colors.primary },
-                          pressed && { opacity: 0.9 },
-                        ]}
-                        accessibilityRole="button"
-                        accessibilityLabel="Submit report and send ticket to IT"
-                      >
-                        {submittingReport ? (
-                          <ActivityIndicator size="small" color="#FFFFFF" />
-                        ) : (
-                          <>
-                            <Ionicons name="flag" size={16} color="#FFFFFF" />
-                            <Text style={styles.submitReportBtnText}>
-                              Report & Send Ticket to IT
-                            </Text>
-                          </>
-                        )}
-                      </Pressable>
-                    </View>
-                  )}
-                </>
-              ) : null}
-            </Pressable>
-          </Pressable>
-        </Modal>
+        <ChatView
+          source={source}
+          me={me}
+          enabled={visible}
+          placeholder={
+            isClassManager
+              ? `Message #${scheduleItem.title} as instructor`
+              : `Message #${scheduleItem.title} (@ to tag)`
+          }
+          maxLength={500}
+          emptyTitle="No messages yet"
+          emptySubtitle="Say hello, ask the instructor a question, or coordinate with classmates."
+          canDelete={(m) => m.authorId === currentUserId || isClassManager}
+          deleteLabel={(m) =>
+            m.authorId === currentUserId
+              ? 'Delete your message'
+              : isClassTrainer
+                ? 'Delete (class instructor)'
+                : 'Delete (administrator)'
+          }
+          canPin={isClassManager}
+          onSent={() => onPostCreated?.(scheduleItem.id)}
+        />
       </View>
     </Modal>
   );
-
-  function renderPostCard(post: ClassForumPost, isPinnedNotice: boolean) {
-    const isAuthor = post.authorId === currentUserId;
-    const canDelete = isAuthor || isClassManager;
-    const badge = roleBadge(post.authorRole);
-
-    return (
-      <Pressable
-        key={post.id}
-        onLongPress={() => openPostActionSheet(post)}
-        delayLongPress={300}
-        style={({ pressed }) => [
-          styles.postCard,
-          {
-            backgroundColor: isPinnedNotice
-              ? isDark
-                ? '#1E1B4B'
-                : '#F5F3FF'
-              : tc.cardBg,
-            borderColor: isPinnedNotice ? '#A78BFA' : tc.cardBorder,
-            borderWidth: isPinnedNotice ? 1.5 : 1,
-          },
-          pressed && { opacity: 0.94 },
-        ]}
-        accessibilityHint="Hold down to report message to IT or delete"
-      >
-        <View style={styles.postTopRow}>
-          <UserAvatar
-            uri={post.authorAvatarUrl}
-            name={post.authorName}
-            size={36}
-          />
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <Text style={[styles.authorName, { color: tc.text }]}>
-                {post.authorName}
-              </Text>
-              <View style={[styles.roleBadge, { backgroundColor: badge.bg }]}>
-                <Ionicons name={badge.icon as any} size={11} color={badge.text} />
-                <Text style={[styles.roleBadgeText, { color: badge.text }]}>
-                  {badge.label}
-                </Text>
-              </View>
-              {post.pinned ? (
-                <View style={[styles.roleBadge, { backgroundColor: '#FEF3C7' }]}>
-                  <Ionicons name="pin" size={10} color="#D97706" />
-                  <Text style={[styles.roleBadgeText, { color: '#B45309' }]}>PINNED</Text>
-                </View>
-              ) : null}
-            </View>
-            <Text style={[styles.postDate, { color: tc.textMuted }]}>
-              {new Date(post.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at{' '}
-              {new Date(post.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </Text>
-          </View>
-
-          {/* Action buttons (Report, Pin/Unpin & Delete) */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Pressable
-              onPress={() => openPostActionSheet(post)}
-              style={styles.actionIconButton}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={`Report message by ${post.authorName} to IT`}
-            >
-              <Ionicons name="flag-outline" size={16} color={tc.textMuted} />
-            </Pressable>
-
-            {isClassManager ? (
-              <Pressable
-                onPress={() => void handleTogglePin(post)}
-                style={styles.actionIconButton}
-                hitSlop={8}
-                accessibilityLabel={post.pinned ? 'Unpin announcement' : 'Pin announcement'}
-              >
-                <Ionicons
-                  name={post.pinned ? 'pin' : 'pin-outline'}
-                  size={17}
-                  color={post.pinned ? '#D97706' : tc.textMuted}
-                />
-              </Pressable>
-            ) : null}
-
-            {canDelete ? (
-              <Pressable
-                onPress={() => void handleDeletePost(post)}
-                style={styles.actionIconButton}
-                hitSlop={8}
-                accessibilityLabel="Delete message"
-              >
-                <Ionicons name="trash-outline" size={17} color={colors.scarlet} />
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-
-        <Text style={[styles.postContent, { color: tc.text }]}>
-          {filterProfanity(post.content)}
-        </Text>
-      </Pressable>
-    );
-  }
 }
 
 const styles = StyleSheet.create({
-  modalScreen: {
-    flex: 1,
-    maxWidth: 720,
-    width: '100%',
-    alignSelf: 'center',
-  },
+  screen: { flex: 1, maxWidth: 720, width: '100%', alignSelf: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
+    gap: 10,
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    gap: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  headerMeta: {
-    fontSize: 12,
-    marginTop: 1,
-  },
-  closeBtn: {
-    minWidth: 36,
-    minHeight: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  managerBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderBottomWidth: 1,
-  },
-  managerBannerTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  managerBannerDesc: {
-    fontSize: 11,
-    marginTop: 1,
-  },
-  postsScroll: {
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 20,
-    gap: 10,
-  },
-  centerBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 20,
-    gap: 8,
-  },
-  loadingText: {
-    fontSize: 13,
-  },
-  pinnedHeader: {
-    fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  sectionHeader: {
-    fontSize: 13,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-  postCard: {
-    borderRadius: 12,
-    padding: 13,
-    gap: 8,
-  },
-  postTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  authorName: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  roleBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  postDate: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  actionIconButton: {
-    padding: 4,
-  },
-  postContent: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  emptyCard: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 36,
-    gap: 8,
-  },
-  emptyTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    textAlign: 'center',
-    paddingHorizontal: 24,
-    lineHeight: 18,
-  },
-  composerWrap: {
-    borderTopWidth: 1,
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    gap: 8,
-  },
-  profanityNoticeBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  profanityNoticeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    flex: 1,
-  },
-  pinToggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-  },
-  pinToggleText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 10,
-  },
-  composerInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: radii.button,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 15,
-    maxHeight: 90,
-  },
-  sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dismissKeyboardBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 2,
-  },
-  generalForumNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 14,
-    marginTop: 6,
-    marginBottom: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  generalForumNoticeText: {
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  sheetBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
-    justifyContent: 'flex-end',
-    padding: 12,
-  },
-  sheetCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: 16,
-    gap: 12,
-    maxWidth: 680,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sheetTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  sheetPreviewBox: {
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    gap: 2,
-  },
-  sheetPreviewAuthor: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  sheetPreviewContent: {
-    fontSize: 12,
-    fontStyle: 'italic',
-  },
-  sheetDeleteBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-  },
-  sheetDeleteBtnTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#B91C1C',
-  },
-  sheetDeleteBtnSub: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#DC2626',
-  },
-  reportFormWrap: {
-    gap: 8,
-  },
-  reportSectionLabel: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  reasonsList: {
-    gap: 6,
-  },
-  reasonOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  reasonOptionText: {
-    fontSize: 13,
-  },
-  reportNotesInput: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 13,
-  },
-  submitReportBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginTop: 2,
-  },
-  submitReportBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  reportSuccessBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  reportSuccessTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  reportSuccessSub: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  doneReportBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  doneReportBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
-  },
+  hash: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 16, fontWeight: '800' },
+  meta: { fontSize: 12, marginTop: 1 },
+  iconBtn: { minWidth: 36, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
+  subline: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 6 },
+  sublineText: { flex: 1, fontSize: 11 },
 });
