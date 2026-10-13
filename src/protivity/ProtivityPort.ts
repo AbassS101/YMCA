@@ -227,7 +227,12 @@ export interface ProtivityPort {
     pinned?: boolean;
     mentionedUserIds?: string[];
     mentionedUserNames?: string[];
+    replyToId?: string;
+    replyToAuthorName?: string;
+    replyToExcerpt?: string;
   }): Promise<ClassForumPost>;
+  toggleClassForumPostReaction(postId: string, userId: string, emoji: string): Promise<ClassForumPost>;
+  editClassForumPost(postId: string, userId: string, content: string): Promise<ClassForumPost>;
   deleteClassForumPost(postId: string, requesterUserId: string): Promise<void>;
   togglePinClassForumPost(postId: string, requesterUserId: string): Promise<ClassForumPost>;
   listRecentlyChattedClassIds(userId: string): Promise<string[]>;
@@ -289,7 +294,12 @@ export interface ProtivityPort {
     mentionedStaffIds?: string[];
     mentionedUserIds?: string[];
     mentionedUserNames?: string[];
+    replyToId?: string;
+    replyToAuthorName?: string;
+    replyToExcerpt?: string;
   }): Promise<ForumReply>;
+  toggleForumReplyReaction(replyId: string, userId: string, emoji: string): Promise<ForumReply>;
+  editForumReply(replyId: string, userId: string, content: string): Promise<ForumReply>;
   deleteForumReply(replyId: string, requesterUserId: string): Promise<void>;
   toggleLikeForumReply(replyId: string, userId: string): Promise<ForumReply>;
   reportForumContent(

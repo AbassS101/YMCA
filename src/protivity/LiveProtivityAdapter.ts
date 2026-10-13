@@ -467,6 +467,34 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
+  async toggleForumReplyReaction(
+    _replyId: string,
+    _userId: string,
+    _emoji: string
+  ): Promise<ForumReply> {
+    throw new ProtivityNotConnected();
+  }
+
+  async editForumReply(_replyId: string, _userId: string, _content: string): Promise<ForumReply> {
+    throw new ProtivityNotConnected();
+  }
+
+  async toggleClassForumPostReaction(
+    _postId: string,
+    _userId: string,
+    _emoji: string
+  ): Promise<ClassForumPost> {
+    throw new ProtivityNotConnected();
+  }
+
+  async editClassForumPost(
+    _postId: string,
+    _userId: string,
+    _content: string
+  ): Promise<ClassForumPost> {
+    throw new ProtivityNotConnected();
+  }
+
   async listForumReplies(_topicId: string): Promise<ForumReply[]> {
     throw new ProtivityNotConnected();
   }

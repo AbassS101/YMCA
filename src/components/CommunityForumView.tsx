@@ -34,6 +34,7 @@ import { ForumTopicCard } from '@/components/ForumTopicCard';
 import { NewTopicModal } from '@/components/NewTopicModal';
 import { ForumTopicDetailModal } from '@/components/ForumTopicDetailModal';
 import { ClassForumModal } from '@/components/ClassForumModal';
+import { ReportContentSheet } from '@/components/chat/ReportContentSheet';
 import { YHeader } from '@/components/YHeader';
 import { colors } from '@/theme/colors';
 
@@ -109,9 +110,7 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
   const [selectedClassItem, setSelectedClassItem] = useState<ScheduleItem | null>(null);
   const [classModalVisible, setClassModalVisible] = useState(false);
   const [reportingTopic, setReportingTopic] = useState<ForumTopic | null>(null);
-  const [reportReason, setReportReason] = useState('Inappropriate language or behavior');
-  const [reportSubmitting, setReportSubmitting] = useState(false);
-  const [reportSuccessTicket, setReportSuccessTicket] = useState<string | null>(null);
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
 
   // User profiles
   const [userName, setUserName] = useState('YMCA Member');
@@ -492,6 +491,16 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
     return topics.filter((t) => t.authorId === currentUserId).length;
   }, [topics, currentUserId]);
 
+  const moreFilterLabel = useMemo(() => {
+    if (activeFilterTab === 'staff_answered') return 'Staff answered';
+    if (activeFilterTab === 'recently_chatted') return 'Recent';
+    if (activeFilterTab === 'my_topics') return 'My posts';
+    if (selectedCategory !== 'all') {
+      return FORUM_CATEGORIES.find((c) => c.id === selectedCategory)?.label ?? null;
+    }
+    return null;
+  }, [activeFilterTab, selectedCategory]);
+
   const openNewTopicWithTemplate = (templateId?: string) => {
     setInitialTemplateId(templateId);
     setNewTopicModalVisible(true);
@@ -526,17 +535,6 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
               Silver Spring Branch • Members & Staff Desk
             </Text>
           </View>
-          {spaceMode === 'general' ? (
-            <Pressable
-              onPress={() => openNewTopicWithTemplate()}
-              style={[styles.headerNewBtn, { backgroundColor: colors.primary }]}
-              accessibilityRole="button"
-              accessibilityLabel="Create new topic"
-            >
-              <Ionicons name="add" size={17} color="#FFFFFF" />
-              <Text style={styles.headerNewBtnText}>Post</Text>
-            </Pressable>
-          ) : null}
         </View>
       ) : (
         <YHeader subtitle="YMCA Community Space" />
@@ -716,238 +714,51 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
             </Pressable>
           </View>
 
-          {/* Unified Horizontal Quick Filters Ribbon */}
+          {/* Compact filter row: All / Following / More */}
           <View style={[styles.filterBarContainer, { backgroundColor: tc.cardBg, borderBottomColor: tc.border }]}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterBarContent}
-            >
-              {/* All Topics */}
-              <Pressable
-                onPress={() => {
-                  setActiveFilterTab('all');
-                  setSelectedCategory('all');
-                }}
-                style={[
-                  styles.filterPill,
-                  activeFilterTab === 'all' && selectedCategory === 'all'
-                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
-                ]}
-              >
-                <Ionicons
-                  name="apps-outline"
-                  size={13}
-                  color={activeFilterTab === 'all' && selectedCategory === 'all' ? '#FFFFFF' : colors.primary}
-                />
-                <Text
-                  style={[
-                    styles.filterPillText,
-                    {
-                      color: activeFilterTab === 'all' && selectedCategory === 'all' ? '#FFFFFF' : tc.text,
-                    },
-                  ]}
-                >
-                  All ({topics.length})
-                </Text>
-              </Pressable>
-
-              {/* Followed / Interested */}
-              <Pressable
-                onPress={() => {
-                  setActiveFilterTab('interested');
-                  setSelectedCategory('all');
-                }}
-                style={[
-                  styles.filterPill,
-                  activeFilterTab === 'interested'
-                    ? { backgroundColor: '#D97706', borderColor: '#D97706' }
-                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
-                ]}
-              >
-                <Ionicons
-                  name="star"
-                  size={13}
-                  color={activeFilterTab === 'interested' ? '#FFFFFF' : '#D97706'}
-                />
-                <Text
-                  style={[
-                    styles.filterPillText,
-                    { color: activeFilterTab === 'interested' ? '#FFFFFF' : tc.text },
-                  ]}
-                >
-                  Followed ({interestedCount})
-                </Text>
-              </Pressable>
-
-              {/* Staff Answered */}
-              <Pressable
-                onPress={() => {
-                  setActiveFilterTab('staff_answered');
-                  setSelectedCategory('all');
-                }}
-                style={[
-                  styles.filterPill,
-                  activeFilterTab === 'staff_answered'
-                    ? { backgroundColor: '#15803D', borderColor: '#15803D' }
-                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
-                ]}
-              >
-                <Ionicons
-                  name="shield-checkmark"
-                  size={13}
-                  color={activeFilterTab === 'staff_answered' ? '#FFFFFF' : '#15803D'}
-                />
-                <Text
-                  style={[
-                    styles.filterPillText,
-                    { color: activeFilterTab === 'staff_answered' ? '#FFFFFF' : tc.text },
-                  ]}
-                >
-                  Staff Answered
-                </Text>
-              </Pressable>
-
-              {/* Recent Activity */}
-              <Pressable
-                onPress={() => {
-                  setActiveFilterTab('recently_chatted');
-                  setSelectedCategory('all');
-                }}
-                style={[
-                  styles.filterPill,
-                  activeFilterTab === 'recently_chatted'
-                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
-                ]}
-              >
-                <Ionicons
-                  name="time-outline"
-                  size={13}
-                  color={activeFilterTab === 'recently_chatted' ? '#FFFFFF' : colors.primary}
-                />
-                <Text
-                  style={[
-                    styles.filterPillText,
-                    { color: activeFilterTab === 'recently_chatted' ? '#FFFFFF' : tc.text },
-                  ]}
-                >
-                  Recent Activity ({recentlyChattedTopics.length})
-                </Text>
-              </Pressable>
-
-              {/* My Posts */}
-              <Pressable
-                onPress={() => {
-                  setActiveFilterTab('my_topics');
-                  setSelectedCategory('all');
-                }}
-                style={[
-                  styles.filterPill,
-                  activeFilterTab === 'my_topics'
-                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
-                ]}
-              >
-                <Ionicons
-                  name="create-outline"
-                  size={13}
-                  color={activeFilterTab === 'my_topics' ? '#FFFFFF' : colors.primary}
-                />
-                <Text
-                  style={[
-                    styles.filterPillText,
-                    { color: activeFilterTab === 'my_topics' ? '#FFFFFF' : tc.text },
-                  ]}
-                >
-                  My Posts ({myTopicsCount})
-                </Text>
-              </Pressable>
-
-              {/* Specific Categories */}
-              {FORUM_CATEGORIES.map((cat) => {
-                const isSelected = selectedCategory === cat.id && activeFilterTab === 'all';
+            <View style={styles.filterBarContent}>
+              {[
+                { key: 'all', label: `All ${topics.length}`, icon: 'apps-outline' as const, color: colors.primary },
+                { key: 'interested', label: `Following ${interestedCount}`, icon: 'star' as const, color: '#D97706' },
+              ].map((f) => {
+                const active = activeFilterTab === f.key && selectedCategory === 'all';
                 return (
                   <Pressable
-                    key={cat.id}
+                    key={f.key}
                     onPress={() => {
-                      setSelectedCategory(cat.id);
-                      setActiveFilterTab('all');
+                      setActiveFilterTab(f.key as FilterTab);
+                      setSelectedCategory('all');
                     }}
                     style={[
                       styles.filterPill,
-                      isSelected
-                        ? { backgroundColor: cat.color, borderColor: cat.color }
+                      active
+                        ? { backgroundColor: f.color, borderColor: f.color }
                         : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
                     ]}
                   >
-                    <Ionicons
-                      name={cat.icon as any}
-                      size={12}
-                      color={isSelected ? '#FFFFFF' : cat.color}
-                    />
-                    <Text
-                      style={[
-                        styles.filterPillText,
-                        { color: isSelected ? '#FFFFFF' : tc.text },
-                      ]}
-                    >
-                      {cat.label}
-                    </Text>
+                    <Ionicons name={f.icon} size={13} color={active ? '#FFFFFF' : f.color} />
+                    <Text style={[styles.filterPillText, { color: active ? '#FFFFFF' : tc.text }]}>{f.label}</Text>
                   </Pressable>
                 );
               })}
-            </ScrollView>
-          </View>
-
-          {/* Quick Action Prompt Bar (Speed & Productivity) */}
-          <View style={[styles.quickPromptContainer, { backgroundColor: isDark ? '#0C2A4A' : '#F0F7FF', borderColor: isDark ? '#1E3A8A' : '#D0E3F0' }]}>
-            <View style={styles.promptHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Ionicons name="chatbubble-ellipses" size={15} color={colors.primary} />
-                <Text style={[styles.promptTitle, { color: isDark ? '#E0F2FE' : '#002855' }]}>
-                  Start a Community Discussion:
+              <Pressable
+                onPress={() => setMoreFiltersOpen(true)}
+                style={[
+                  styles.filterPill,
+                  moreFilterLabel
+                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="More filters"
+              >
+                <Ionicons name="options-outline" size={13} color={moreFilterLabel ? '#FFFFFF' : colors.primary} />
+                <Text style={[styles.filterPillText, { color: moreFilterLabel ? '#FFFFFF' : tc.text }]}>
+                  {moreFilterLabel ?? 'More'}
                 </Text>
-              </View>
-              <Pressable onPress={() => openNewTopicWithTemplate()}>
-                <Text style={[styles.promptNewText, { color: colors.primary }]}>+ Custom Post</Text>
+                <Ionicons name="chevron-down" size={12} color={moreFilterLabel ? '#FFFFFF' : tc.textMuted} />
               </Pressable>
             </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.promptChipsRow}>
-              <Pressable
-                onPress={() => openNewTopicWithTemplate('ask_staff')}
-                style={[styles.promptChip, { backgroundColor: isDark ? tc.cardBg : '#FFFFFF', borderColor: isDark ? '#1E3A8A' : '#BFDBFE' }]}
-              >
-                <Ionicons name="help-circle" size={13} color="#DB2777" />
-                <Text style={[styles.promptChipText, { color: tc.text }]}>Ask Staff Desk</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => openNewTopicWithTemplate('workout_tip')}
-                style={[styles.promptChip, { backgroundColor: isDark ? tc.cardBg : '#FFFFFF', borderColor: isDark ? '#1E3A8A' : '#BFDBFE' }]}
-              >
-                <Ionicons name="barbell" size={13} color="#15803D" />
-                <Text style={[styles.promptChipText, { color: tc.text }]}>Workout Advice</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => openNewTopicWithTemplate('pool_question')}
-                style={[styles.promptChip, { backgroundColor: isDark ? tc.cardBg : '#FFFFFF', borderColor: isDark ? '#1E3A8A' : '#BFDBFE' }]}
-              >
-                <Ionicons name="water" size={13} color="#00609C" />
-                <Text style={[styles.promptChipText, { color: tc.text }]}>Lap Pool Hours</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => openNewTopicWithTemplate('find_partner')}
-                style={[styles.promptChip, { backgroundColor: isDark ? tc.cardBg : '#FFFFFF', borderColor: isDark ? '#1E3A8A' : '#BFDBFE' }]}
-              >
-                <Ionicons name="people" size={13} color="#7C3AED" />
-                <Text style={[styles.promptChipText, { color: tc.text }]}>Find Partner</Text>
-              </Pressable>
-            </ScrollView>
           </View>
 
           {/* Active Filter Clear Tag (if any) */}
@@ -1025,16 +836,8 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
                 isInterested={isTopicDirectInterested(item) || isTopicInterested(item)}
                 hasRecentlyChatted={hasUserChattedInTopic(item)}
                 onPress={() => openTopicDetail(item)}
-                onLongPress={() => {
-                  setReportSuccessTicket(null);
-                  setReportReason('Inappropriate language or behavior');
-                  setReportingTopic(item);
-                }}
-                onReport={() => {
-                  setReportSuccessTicket(null);
-                  setReportReason('Inappropriate language or behavior');
-                  setReportingTopic(item);
-                }}
+                onLongPress={() => setReportingTopic(item)}
+                onReport={() => setReportingTopic(item)}
                 onToggleLike={() => void handleToggleLike(item)}
                 onToggleInterested={() => void handleToggleInterestedTopic(item)}
                 onTogglePin={() => void handleTogglePin(item)}
@@ -1432,220 +1235,89 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
         }}
       />
 
-      {/* HOLD-DOWN TOPIC OPTIONS & IT REPORT MODAL */}
+      {/* MORE FILTERS MENU */}
       <Modal
-        visible={Boolean(reportingTopic)}
+        visible={moreFiltersOpen}
         transparent
         animationType="fade"
-        onRequestClose={() => setReportingTopic(null)}
+        onRequestClose={() => setMoreFiltersOpen(false)}
       >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setReportingTopic(null)}
-        >
+        <Pressable style={styles.modalOverlay} onPress={() => setMoreFiltersOpen(false)}>
           <Pressable
             onPress={(e) => e.stopPropagation()}
-            style={[
-              styles.interestsModalCard,
-              {
-                backgroundColor: tc.cardBg,
-                borderColor: tc.border,
-              },
-            ]}
+            style={[styles.interestsModalCard, { backgroundColor: tc.cardBg, borderColor: tc.border }]}
           >
-            {reportingTopic ? (
-              <>
-                <View style={styles.interestsModalHeader}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="shield-half" size={20} color={colors.primary} />
-                    <Text style={[styles.interestsModalTitle, { color: tc.text }]}>
-                      Topic Options & IT Report
-                    </Text>
-                  </View>
-                  <Pressable onPress={() => setReportingTopic(null)} hitSlop={8}>
-                    <Ionicons name="close" size={22} color={tc.textMuted} />
-                  </Pressable>
-                </View>
-
-                <View
-                  style={{
-                    padding: 10,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
-                    borderColor: tc.border,
-                    gap: 4,
+            <Text style={[styles.interestsModalTitle, { color: tc.text }]}>Filter discussions</Text>
+            <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: 6 }}>
+              {[
+                { tab: 'staff_answered' as FilterTab, label: 'Staff answered', icon: 'shield-checkmark', color: '#15803D' },
+                { tab: 'recently_chatted' as FilterTab, label: `Recent activity (${recentlyChattedTopics.length})`, icon: 'time-outline', color: colors.primary },
+                { tab: 'my_topics' as FilterTab, label: `My posts (${myTopicsCount})`, icon: 'create-outline', color: colors.primary },
+              ].map((o) => (
+                <Pressable
+                  key={o.tab}
+                  onPress={() => {
+                    setActiveFilterTab(o.tab);
+                    setSelectedCategory('all');
+                    setMoreFiltersOpen(false);
                   }}
+                  style={[styles.interestSettingRow, { borderColor: activeFilterTab === o.tab ? colors.primary : tc.border }]}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: tc.textMuted }}>
-                    {reportingTopic.authorName}: {reportingTopic.title}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: tc.text }} numberOfLines={2}>
-                    "{reportingTopic.content}"
-                  </Text>
-                </View>
-
-                {reportSuccessTicket ? (
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: 12,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      backgroundColor: isDark ? '#143321' : '#DCFCE7',
-                      borderColor: isDark ? '#166534' : '#86EFAC',
-                    }}
-                  >
-                    <Ionicons name="checkmark-circle" size={22} color="#16A34A" />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: isDark ? '#BBF7D0' : '#166534' }}>
-                        IT Support Ticket Sent ({reportSuccessTicket})
-                      </Text>
-                      <Text style={{ fontSize: 11, color: isDark ? '#86EFAC' : '#15803D', marginTop: 2 }}>
-                        David Miller (IT Systems Admin) has been notified to review this topic.
-                      </Text>
-                    </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Ionicons name={o.icon as any} size={18} color={o.color} />
+                    <Text style={[styles.interestSettingLabel, { color: tc.text }]}>{o.label}</Text>
                   </View>
-                ) : (
-                  <View style={{ gap: 8 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: tc.text }}>
-                      Report to IT Support Desk
-                    </Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                      {[
-                        'Inappropriate language or behavior',
-                        'Harassment or disrespectful conduct',
-                        'Spam or off-topic solicitation',
-                        'Safety or privacy concern',
-                      ].map((reasonOption) => {
-                        const selected = reportReason === reasonOption;
-                        return (
-                          <Pressable
-                            key={reasonOption}
-                            onPress={() => setReportReason(reasonOption)}
-                            style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              gap: 5,
-                              paddingHorizontal: 10,
-                              paddingVertical: 7,
-                              borderRadius: 10,
-                              borderWidth: 1,
-                              backgroundColor: selected
-                                ? isDark
-                                  ? '#0C2A4A'
-                                  : '#EFF6FF'
-                                : isDark
-                                  ? '#1E293B'
-                                  : '#F8FAFC',
-                              borderColor: selected ? colors.primary : tc.border,
-                            }}
-                          >
-                            <Ionicons
-                              name={selected ? 'radio-button-on' : 'radio-button-off'}
-                              size={14}
-                              color={selected ? colors.primary : tc.textMuted}
-                            />
-                            <Text
-                              style={{
-                                fontSize: 12,
-                                color: selected ? colors.primary : tc.text,
-                                fontWeight: selected ? '700' : '500',
-                              }}
-                            >
-                              {reasonOption}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-
-                    <Pressable
-                      disabled={reportSubmitting}
-                      onPress={async () => {
-                        if (!api || !currentUserId || !reportingTopic) return;
-                        setReportSubmitting(true);
-                        try {
-                          const res = await forumRepo.reportContent(api, {
-                            reporterId: currentUserId,
-                            reporterName: userName,
-                            reporterRole: currentUserRole,
-                            targetType: 'topic',
-                            targetId: reportingTopic.id,
-                            targetAuthorId: reportingTopic.authorId,
-                            targetAuthorName: reportingTopic.authorName,
-                            targetContent: `${reportingTopic.title} — ${reportingTopic.content}`,
-                            contextTitle: reportingTopic.title,
-                            reason: reportReason,
-                          });
-                          setReportSuccessTicket(res.ticket.ticketNumber);
-                        } catch {
-                          // fallback
-                        } finally {
-                          setReportSubmitting(false);
-                        }
-                      }}
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 8,
-                        paddingVertical: 12,
-                        borderRadius: 12,
-                        backgroundColor: '#D97706',
-                        marginTop: 4,
-                      }}
-                      accessibilityRole="button"
-                      accessibilityLabel="Send Report Ticket to IT"
-                    >
-                      {reportSubmitting ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <>
-                          <Ionicons name="flag" size={16} color="#FFFFFF" />
-                          <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }}>
-                            Send Report Ticket to IT
-                          </Text>
-                        </>
-                      )}
-                    </Pressable>
+                </Pressable>
+              ))}
+              <Text style={[styles.interestsModalSub, { color: tc.textMuted, marginTop: 6 }]}>CATEGORIES</Text>
+              {FORUM_CATEGORIES.map((cat) => (
+                <Pressable
+                  key={cat.id}
+                  onPress={() => {
+                    setSelectedCategory(cat.id);
+                    setActiveFilterTab('all');
+                    setMoreFiltersOpen(false);
+                  }}
+                  style={[
+                    styles.interestSettingRow,
+                    { borderColor: selectedCategory === cat.id ? cat.color : tc.border },
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Ionicons name={cat.icon as any} size={18} color={cat.color} />
+                    <Text style={[styles.interestSettingLabel, { color: tc.text }]}>{cat.label}</Text>
                   </View>
-                )}
-
-                {reportingTopic.authorId === currentUserId || canManage ? (
-                  <Pressable
-                    onPress={async () => {
-                      const targetId = reportingTopic.id;
-                      setReportingTopic(null);
-                      await handleDeleteTopic(targetId);
-                    }}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                      paddingVertical: 11,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      backgroundColor: isDark ? '#3F1D1D' : '#FEE2E2',
-                      borderColor: isDark ? '#7F1D1D' : '#FCA5A5',
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Delete Topic"
-                  >
-                    <Ionicons name="trash-outline" size={16} color="#DC2626" />
-                    <Text style={{ color: '#DC2626', fontSize: 13, fontWeight: '800' }}>
-                      Delete Discussion Topic
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </>
-            ) : null}
+                </Pressable>
+              ))}
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* TOPIC REPORT (shared sheet) */}
+      <ReportContentSheet
+        visible={Boolean(reportingTopic)}
+        authorName={reportingTopic?.authorName ?? ''}
+        content={reportingTopic ? `${reportingTopic.title} - ${reportingTopic.content}` : ''}
+        onClose={() => setReportingTopic(null)}
+        onSubmit={async (reason, details) => {
+          if (!api || !currentUserId || !reportingTopic) throw new Error('not ready');
+          const res = await forumRepo.reportContent(api, {
+            reporterId: currentUserId,
+            reporterName: userName,
+            reporterRole: currentUserRole,
+            targetType: 'topic',
+            targetId: reportingTopic.id,
+            targetAuthorId: reportingTopic.authorId,
+            targetAuthorName: reportingTopic.authorName,
+            targetContent: `${reportingTopic.title} — ${reportingTopic.content}`,
+            contextTitle: reportingTopic.title,
+            reason,
+            details,
+          });
+          return res.ticket.ticketNumber;
+        }}
+      />
     </View>
   );
 }
@@ -1923,9 +1595,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 14,
-    borderRadius: 14,
-    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    gap: 10,
   },
   classCardLeft: {
     flex: 1,
