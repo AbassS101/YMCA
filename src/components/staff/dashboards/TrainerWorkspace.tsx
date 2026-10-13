@@ -154,7 +154,7 @@ export function TrainerWorkspace({ day, staffId, accent, showQuickActions = true
                   />
                 </View>
                 {lesson.notes ? (
-                  <Text style={[styles.note, { color: tc.textMuted }]}>"{lesson.notes}"</Text>
+                  <Text style={[styles.note, { color: tc.textMuted }]}>&ldquo;{lesson.notes}&rdquo;</Text>
                 ) : null}
                 <View style={styles.actions}>
                   {!done ? (

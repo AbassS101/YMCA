@@ -22,6 +22,7 @@ import { TextField } from '@/components/TextField';
 import { TrainerClientWorkoutModal } from '@/components/TrainerClientWorkoutModal';
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
+import { useTheme } from '@/context/ThemeContext';
 import { useSession } from '@/context/SessionContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import { PersonaBanner } from '@/components/staff/PersonaBanner';
@@ -31,7 +32,7 @@ import { registrationRepo } from '@/repositories/registrationRepo';
 import { scheduleRepo } from '@/repositories/scheduleRepo';
 import { trainerRepo } from '@/repositories/trainerRepo';
 import { cardStyle } from '@/theme/card';
-import { colors } from '@/theme/colors';
+import { type ThemeColors } from '@/theme/colors';
 import { radii, typography } from '@/theme/typography';
 
 const BRANCH_ID = 'silver-spring';
@@ -70,6 +71,8 @@ function formatDate(iso: string): string {
 
 export default function StaffSchedulesScreen() {
   const { session, api } = useSession();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const staffId = session?.userId ?? '';
   const { can, isAdmin, isWellnessDirector, isMembershipDirector, theme } = useStaffCapabilities();
   const canManageSchedules = can('manageSchedules');
@@ -1170,7 +1173,8 @@ export default function StaffSchedulesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.offWhite,
@@ -1303,7 +1307,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.background,
     padding: 10,
     borderRadius: radii.sm,
     borderWidth: 1,
@@ -1464,7 +1468,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 6,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: '#CBD5E1',
   },
@@ -1505,3 +1509,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEE2E2',
   },
 });
+}

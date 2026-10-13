@@ -294,7 +294,7 @@ export function MembershipDirectorDashboard({ staffId }: { staffId: string }) {
                     </Text>
                   </View>
                 </View>
-                <Text style={[styles.reason, { color: tc.text }]}>"{c.reason}"</Text>
+                <Text style={[styles.reason, { color: tc.text }]}>&ldquo;{c.reason}&rdquo;</Text>
                 {canDecide ? (
                   <View style={styles.actions}>
                     <ActionButton

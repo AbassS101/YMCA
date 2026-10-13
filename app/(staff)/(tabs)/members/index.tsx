@@ -33,7 +33,7 @@ import { PersonaBanner } from '@/components/staff/PersonaBanner';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { trainerRepo } from '@/repositories/trainerRepo';
 import { cardStyle } from '@/theme/card';
-import { colors } from '@/theme/colors';
+import { type ThemeColors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 
 const BRANCH_ID = 'silver-spring';
@@ -60,6 +60,8 @@ export default function StaffMembersScreen() {
   const { session, api } = useSession();
   const staffId = session?.userId ?? '';
   const { colors: tc } = useTheme();
+  const colors = tc;
+  const styles = useMemo(() => makeStyles(tc), [tc]);
   const { can, coachesClients, isAdmin, isITAdmin, isMembershipDirector, isWellnessDirector, theme } =
     useStaffCapabilities();
   const canCreateMembers = can('createMembers');
@@ -564,7 +566,8 @@ export default function StaffMembersScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.offWhite,
@@ -790,3 +793,4 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
 });
+}

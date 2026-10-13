@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -42,7 +42,7 @@ import { membershipRepo } from '@/repositories/membershipRepo';
 import { messageRepo } from '@/repositories/messageRepo';
 import { trainerRepo } from '@/repositories/trainerRepo';
 import { cardStyle } from '@/theme/card';
-import { colors } from '@/theme/colors';
+import { type ThemeColors } from '@/theme/colors';
 import { radii, typography } from '@/theme/typography';
 
 function formatCents(cents: number): string {
@@ -55,7 +55,8 @@ export default function StaffMemberDetailScreen() {
   const memberId = id ?? '';
   const { session, api } = useSession();
   const staffId = session?.userId ?? '';
-  const { colors: tc } = useTheme();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { can, isAdmin, isITAdmin, isMembershipDirector, isWellnessDirector, theme } = useStaffCapabilities();
   const canEditProfiles = can('editMemberProfiles');
   const canChangePlans = can('changePlans');
@@ -424,7 +425,7 @@ export default function StaffMemberDetailScreen() {
   );
 
   return (
-    <View style={[styles.screen, { backgroundColor: tc.background }]}>
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <YHeader
         subtitle={
           isAdmin
@@ -442,7 +443,7 @@ export default function StaffMemberDetailScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <Pressable onPress={() => router.back()} accessibilityRole="button">
-          <Text style={[styles.back, { color: tc.primary }]}>← Back to Members</Text>
+          <Text style={[styles.back, { color: colors.primary }]}>← Back to Members</Text>
         </Pressable>
 
         <PersonaBanner
@@ -657,7 +658,7 @@ export default function StaffMemberDetailScreen() {
 
               {/* Member Motivation / Routine Notes */}
               {fitnessGoal.memberNotes ? (
-                <View style={{ backgroundColor: '#F1F5F9', padding: 10, borderRadius: radii.sm, borderWidth: 1, borderColor: '#E2E8F0' }}>
+                <View style={{ backgroundColor: colors.background, padding: 10, borderRadius: radii.sm, borderWidth: 1, borderColor: '#E2E8F0' }}>
                   <Text style={{ fontSize: 11, fontWeight: '700', color: colors.muted }}>MEMBER MOTIVATION & PREFERENCES:</Text>
                   <Text style={{ fontSize: 13, color: colors.nearBlack, marginTop: 2, fontStyle: 'italic' }}>
                     "{fitnessGoal.memberNotes}"
@@ -667,7 +668,7 @@ export default function StaffMemberDetailScreen() {
 
               {/* Coach Program Notes */}
               {fitnessGoal.notes ? (
-                <View style={{ backgroundColor: '#F8FAFC', padding: 10, borderRadius: radii.sm, borderWidth: 1, borderColor: '#E2E8F0' }}>
+                <View style={{ backgroundColor: colors.background, padding: 10, borderRadius: radii.sm, borderWidth: 1, borderColor: '#E2E8F0' }}>
                   <Text style={{ fontSize: 11, fontWeight: '700', color: colors.muted }}>COACH PROGRAM NOTES:</Text>
                   <Text style={{ fontSize: 13, color: colors.nearBlack, marginTop: 2 }}>
                     {fitnessGoal.notes}
@@ -1313,7 +1314,8 @@ export default function StaffMemberDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.offWhite,
@@ -1396,7 +1398,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.background,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
@@ -1648,7 +1650,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.background,
     padding: 12,
     borderRadius: radii.sm,
     borderWidth: 1,
@@ -1702,7 +1704,7 @@ const styles = StyleSheet.create({
   workoutLogItem: {
     padding: 12,
     borderRadius: radii.sm,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     gap: 6,
@@ -1752,7 +1754,8 @@ const styles = StyleSheet.create({
   },
   exMeta: {
     fontSize: 12,
-    color: colors.primaryDark,
+    color: colors.primary,
     fontWeight: '600',
   },
 });
+}
