@@ -1,5 +1,8 @@
 import type { AppConfig, AppConfigPatch, AppConfigSection, ConfigAuditEntry } from '@/domain/appConfig';
 import type {
+  AvailabilityConflict,
+  TrainerAvailability,
+  TrainerAvailabilityInput,
   ArrivalRecord,
   ArrivalResult,
   ArrivalSource,
@@ -51,9 +54,18 @@ import type {
   TicketStatus,
   TicketType,
   UserForumInterests,
+  ChildWatchAuditAction,
+  ChildWatchAuditEntry,
+  ChildWatchAuthorizedPickup,
+  ChildWatchDropOffResult,
+  ChildWatchHeadcount,
+  ChildWatchIncident,
+  ChildWatchIncidentType,
+  ChildWatchShift,
+  ChildWatchVisit,
   UserRole,
 } from '@/domain/types';
-import type { ProtivityPort } from '@/protivity/ProtivityPort';
+import type { ChildWatchAuditFilter, ProtivityPort } from '@/protivity/ProtivityPort';
 import { ProtivityNotConnected } from '@/protivity/ProtivityNotConnected';
 
 export class LiveProtivityAdapter implements ProtivityPort {
@@ -261,7 +273,7 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
-  async updateLessonPricing(_updates: Partial<LessonPricing>, _requesterUserId?: string): Promise<LessonPricing> {
+  async updateLessonPricing(_updates: Partial<LessonPricing>, _requesterUserId: string): Promise<LessonPricing> {
     throw new ProtivityNotConnected();
   }
 
@@ -482,11 +494,27 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
-  async addLessonSlot(_slot: Omit<LessonSlot, 'id'>): Promise<LessonSlot> {
+  async addLessonSlot(_slot: Omit<LessonSlot, 'id'>, _requesterUserId?: string): Promise<LessonSlot> {
     throw new ProtivityNotConnected();
   }
 
-  async deleteLessonSlot(_slotId: string): Promise<void> {
+  async deleteLessonSlot(_slotId: string, _requesterUserId?: string): Promise<void> {
+    throw new ProtivityNotConnected();
+  }
+
+  async getTrainerAvailability(_staffId: string, _requesterUserId: string): Promise<TrainerAvailability> {
+    throw new ProtivityNotConnected();
+  }
+
+  async saveTrainerAvailability(
+    _staffId: string,
+    _input: TrainerAvailabilityInput,
+    _requesterUserId: string
+  ): Promise<{ availability: TrainerAvailability; conflicts: AvailabilityConflict[] }> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listAvailabilityWindows(_staffId: string, _from: string, _to: string): Promise<LessonSlot[]> {
     throw new ProtivityNotConnected();
   }
 
@@ -930,4 +958,116 @@ export class LiveProtivityAdapter implements ProtivityPort {
   async listConfigAudit(_requesterUserId: string): Promise<ConfigAuditEntry[]> {
     throw new ProtivityNotConnected();
   }
+
+  // --- Child Watch (not connected yet) ---
+  async listChildWatchVisits(
+    _filter: { date?: string; activeOnly?: boolean; householdId?: string },
+    _requesterUserId: string
+  ): Promise<ChildWatchVisit[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async childWatchDropOff(_input: {
+    childId: string;
+    requesterUserId: string;
+    deskCheckInConfirmed: boolean;
+    notes?: string;
+    emergencyPhone?: string;
+    now?: Date;
+  }): Promise<ChildWatchDropOffResult> {
+    throw new ProtivityNotConnected();
+  }
+
+  async childWatchPickUp(_input: {
+    visitId: string;
+    requesterUserId: string;
+    pickupCode?: string;
+    guardianId?: string;
+    idVerified?: boolean;
+    overrideReason?: string;
+    now?: Date;
+  }): Promise<ChildWatchVisit> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listAuthorizedPickups(_householdId: string, _requesterUserId: string): Promise<ChildWatchAuthorizedPickup[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async addAuthorizedPickup(
+    _input: Pick<ChildWatchAuthorizedPickup, 'householdId' | 'name' | 'relationship' | 'phone'> &
+      Partial<Pick<ChildWatchAuthorizedPickup, 'photoUrl' | 'idType' | 'idLast4' | 'expiresOn'>>,
+    _requesterUserId: string
+  ): Promise<ChildWatchAuthorizedPickup> {
+    throw new ProtivityNotConnected();
+  }
+
+  async reviewAuthorizedPickup(
+    _id: string,
+    _decision: 'approved' | 'revoked',
+    _requesterUserId: string
+  ): Promise<ChildWatchAuthorizedPickup> {
+    throw new ProtivityNotConnected();
+  }
+
+  async logChildWatchIncident(
+    _input: {
+      visitId?: string;
+      childId: string;
+      type: ChildWatchIncidentType;
+      severity: ChildWatchIncident['severity'];
+      description: string;
+      actionTaken: string;
+      now?: Date;
+    },
+    _requesterUserId: string
+  ): Promise<ChildWatchIncident> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listChildWatchIncidents(
+    _filter: { childId?: string; householdId?: string; status?: ChildWatchIncident['status'] },
+    _requesterUserId: string
+  ): Promise<ChildWatchIncident[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async acknowledgeChildWatchIncident(_id: string, _memberId: string): Promise<ChildWatchIncident> {
+    throw new ProtivityNotConnected();
+  }
+
+  async reviewChildWatchIncident(_id: string, _note: string, _requesterUserId: string): Promise<ChildWatchIncident> {
+    throw new ProtivityNotConnected();
+  }
+
+  async recordChildWatchHeadcount(
+    _input: { counted: number; expected?: number; note?: string; now?: Date },
+    _requesterUserId: string
+  ): Promise<ChildWatchHeadcount> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listChildWatchHeadcounts(_date: string, _requesterUserId: string): Promise<ChildWatchHeadcount[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listChildWatchShifts(_date: string, _requesterUserId: string): Promise<ChildWatchShift[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async saveChildWatchShift(
+    _input: Omit<ChildWatchShift, 'id'> & { id?: string },
+    _requesterUserId: string
+  ): Promise<ChildWatchShift> {
+    throw new ProtivityNotConnected();
+  }
+
+  async deleteChildWatchShift(_id: string, _requesterUserId: string): Promise<void> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listChildWatchAudit(_filter: ChildWatchAuditFilter, _requesterUserId: string): Promise<ChildWatchAuditEntry[]> {
+    throw new ProtivityNotConnected();
+  }
 }
+

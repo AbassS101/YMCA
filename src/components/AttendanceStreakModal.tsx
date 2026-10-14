@@ -309,7 +309,7 @@ export function AttendanceStreakModal({
                     },
                   ]}
                 >
-                  Hold Streak
+                  Hold
                 </Text>
               </Pressable>
 
@@ -337,7 +337,7 @@ export function AttendanceStreakModal({
                     },
                   ]}
                 >
-                  Flames (10-100)
+                  Flames
                 </Text>
               </Pressable>
             </View>
@@ -1006,11 +1006,14 @@ const styles = StyleSheet.create({
   },
   tabBtn: {
     flex: 1,
-    flexDirection: 'row',
+    flexBasis: 0,
+    minWidth: 0,
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: 3,
     paddingVertical: 8,
+    paddingHorizontal: 2,
     borderRadius: 10,
   },
   tabBtnActive: {
@@ -1021,7 +1024,9 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   tabBtnText: {
-    fontSize: 12,
+    fontSize: 11,
+    textAlign: 'center',
+    maxWidth: '100%',
   },
   feedbackBanner: {
     marginHorizontal: spacing.lg,

@@ -1,5 +1,8 @@
 import type { AppConfig, AppConfigPatch, AppConfigSection, ConfigAuditEntry } from '@/domain/appConfig';
 import type {
+  AvailabilityConflict,
+  TrainerAvailability,
+  TrainerAvailabilityInput,
   ArrivalRecord,
   ArrivalResult,
   ArrivalSource,
@@ -51,8 +54,25 @@ import type {
   TicketStatus,
   TicketType,
   UserForumInterests,
+  ChildWatchAuditAction,
+  ChildWatchAuditEntry,
+  ChildWatchAuthorizedPickup,
+  ChildWatchDropOffResult,
+  ChildWatchHeadcount,
+  ChildWatchIncident,
+  ChildWatchIncidentType,
+  ChildWatchShift,
+  ChildWatchVisit,
   UserRole,
 } from '@/domain/types';
+
+export type ChildWatchAuditFilter = {
+  action?: ChildWatchAuditAction;
+  visitId?: string;
+  childId?: string;
+  /** YYYY-MM-DD */
+  date?: string;
+};
 
 export interface ProtivityPort {
   login(email: string, password: string): Promise<{ userId: string; role: UserRole }>;
@@ -173,7 +193,7 @@ export interface ProtivityPort {
     requesterUserId?: string
   ): Promise<Staff>;
   getLessonPricing(): Promise<LessonPricing>;
-  updateLessonPricing(updates: Partial<LessonPricing>, requesterUserId?: string): Promise<LessonPricing>;
+  updateLessonPricing(updates: Partial<LessonPricing>, requesterUserId: string): Promise<LessonPricing>;
   enrollInSwimClass(
     memberId: string,
     classId: string,
@@ -239,8 +259,18 @@ export interface ProtivityPort {
     newEnd: string,
     newLocation?: string
   ): Promise<PrivateLesson>;
-  addLessonSlot(slot: Omit<LessonSlot, 'id'>): Promise<LessonSlot>;
-  deleteLessonSlot(slotId: string): Promise<void>;
+  addLessonSlot(slot: Omit<LessonSlot, 'id'>, requesterUserId?: string): Promise<LessonSlot>;
+  deleteLessonSlot(slotId: string, requesterUserId?: string): Promise<void>;
+
+  // Trainer availability (weekly windows + date exceptions)
+  getTrainerAvailability(staffId: string, requesterUserId: string): Promise<TrainerAvailability>;
+  saveTrainerAvailability(
+    staffId: string,
+    input: TrainerAvailabilityInput,
+    requesterUserId: string
+  ): Promise<{ availability: TrainerAvailability; conflicts: AvailabilityConflict[] }>;
+  /** Expanded weekly windows plus one-off lesson slots for a date range (inclusive, YYYY-MM-DD). */
+  listAvailabilityWindows(staffId: string, from: string, to: string): Promise<LessonSlot[]>;
 
   // Trainer: Attendance & Session Operations
   getClassRegistrations(scheduleItemId: string): Promise<ClassRegistration[]>;
@@ -471,4 +501,71 @@ export interface ProtivityPort {
   ): Promise<AppConfig>;
   resetAppConfigSection(section: AppConfigSection, requesterUserId: string): Promise<AppConfig>;
   listConfigAudit(requesterUserId: string): Promise<ConfigAuditEntry[]>;
+
+  // --- Child Watch -------------------------------------------------------------------------------
+  // Every call carries the requester. Members are checked as guardians of the child's household;
+  // staff are checked against runChildWatchRoom (room) or manageChildWatchProgram (program).
+  /** Pickup codes are stripped from the result unless the requester is a guardian of that child. */
+  listChildWatchVisits(
+    filter: { date?: string; activeOnly?: boolean; householdId?: string },
+    requesterUserId: string
+  ): Promise<ChildWatchVisit[]>;
+  childWatchDropOff(input: {
+    childId: string;
+    requesterUserId: string;
+    deskCheckInConfirmed: boolean;
+    notes?: string;
+    emergencyPhone?: string;
+    now?: Date;
+  }): Promise<ChildWatchDropOffResult>;
+  childWatchPickUp(input: {
+    visitId: string;
+    requesterUserId: string;
+    pickupCode?: string;
+    guardianId?: string;
+    idVerified?: boolean;
+    overrideReason?: string;
+    now?: Date;
+  }): Promise<ChildWatchVisit>;
+  listAuthorizedPickups(householdId: string, requesterUserId: string): Promise<ChildWatchAuthorizedPickup[]>;
+  addAuthorizedPickup(
+    input: Pick<ChildWatchAuthorizedPickup, 'householdId' | 'name' | 'relationship' | 'phone'> &
+      Partial<Pick<ChildWatchAuthorizedPickup, 'photoUrl' | 'idType' | 'idLast4' | 'expiresOn'>>,
+    requesterUserId: string
+  ): Promise<ChildWatchAuthorizedPickup>;
+  reviewAuthorizedPickup(
+    id: string,
+    decision: 'approved' | 'revoked',
+    requesterUserId: string
+  ): Promise<ChildWatchAuthorizedPickup>;
+  logChildWatchIncident(
+    input: {
+      visitId?: string;
+      childId: string;
+      type: ChildWatchIncidentType;
+      severity: ChildWatchIncident['severity'];
+      description: string;
+      actionTaken: string;
+      now?: Date;
+    },
+    requesterUserId: string
+  ): Promise<ChildWatchIncident>;
+  listChildWatchIncidents(
+    filter: { childId?: string; householdId?: string; status?: ChildWatchIncident['status'] },
+    requesterUserId: string
+  ): Promise<ChildWatchIncident[]>;
+  acknowledgeChildWatchIncident(id: string, memberId: string): Promise<ChildWatchIncident>;
+  reviewChildWatchIncident(id: string, note: string, requesterUserId: string): Promise<ChildWatchIncident>;
+  recordChildWatchHeadcount(
+    input: { counted: number; expected?: number; note?: string; now?: Date },
+    requesterUserId: string
+  ): Promise<ChildWatchHeadcount>;
+  listChildWatchHeadcounts(date: string, requesterUserId: string): Promise<ChildWatchHeadcount[]>;
+  listChildWatchShifts(date: string, requesterUserId: string): Promise<ChildWatchShift[]>;
+  saveChildWatchShift(
+    input: Omit<ChildWatchShift, 'id'> & { id?: string },
+    requesterUserId: string
+  ): Promise<ChildWatchShift>;
+  deleteChildWatchShift(id: string, requesterUserId: string): Promise<void>;
+  listChildWatchAudit(filter: ChildWatchAuditFilter, requesterUserId: string): Promise<ChildWatchAuditEntry[]>;
 }

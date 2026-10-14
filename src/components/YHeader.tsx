@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -36,13 +36,17 @@ export function YHeader({ subtitle, showActions = true }: YHeaderProps) {
     }
   }, [api, session?.userId]);
 
-  useEffect(() => {
-    void fetchUnread();
-    const interval = setInterval(() => {
+  // Poll only while this screen is focused: every screen renders a YHeader, and tabs / stack
+  // screens stay mounted, so unconditional polling multiplied background work and caused jank.
+  useFocusEffect(
+    useCallback(() => {
       void fetchUnread();
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [fetchUnread]);
+      const interval = setInterval(() => {
+        void fetchUnread();
+      }, 4000);
+      return () => clearInterval(interval);
+    }, [fetchUnread])
+  );
 
   const canShowActions = showActions && session != null;
 

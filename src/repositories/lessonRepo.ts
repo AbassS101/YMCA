@@ -1,4 +1,7 @@
 import type {
+  AvailabilityConflict,
+  TrainerAvailability,
+  TrainerAvailabilityInput,
   BookLessonOptions,
   BookableTime,
   CreateSessionRequestInput,
@@ -117,7 +120,7 @@ export const pricingRepo = {
   get(api: ProtivityPort): Promise<LessonPricing> {
     return api.getLessonPricing();
   },
-  update(api: ProtivityPort, updates: Partial<LessonPricing>, requesterUserId?: string): Promise<LessonPricing> {
+  update(api: ProtivityPort, updates: Partial<LessonPricing>, requesterUserId: string): Promise<LessonPricing> {
     return api.updateLessonPricing(updates, requesterUserId);
   },
 };
@@ -139,5 +142,22 @@ export const swimClassRepo = {
   },
   listForClass(api: ProtivityPort, classId: string): Promise<SwimClassEnrollment[]> {
     return api.listSwimClassEnrollments(classId);
+  },
+};
+
+export const availabilityRepo = {
+  get(api: ProtivityPort, staffId: string, requesterUserId: string): Promise<TrainerAvailability> {
+    return api.getTrainerAvailability(staffId, requesterUserId);
+  },
+  save(
+    api: ProtivityPort,
+    staffId: string,
+    input: TrainerAvailabilityInput,
+    requesterUserId: string
+  ): Promise<{ availability: TrainerAvailability; conflicts: AvailabilityConflict[] }> {
+    return api.saveTrainerAvailability(staffId, input, requesterUserId);
+  },
+  listWindows(api: ProtivityPort, staffId: string, from: string, to: string): Promise<LessonSlot[]> {
+    return api.listAvailabilityWindows(staffId, from, to);
   },
 };

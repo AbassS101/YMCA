@@ -57,7 +57,7 @@ export default function ChildWatchScreen() {
     setNow(demoNow());
     const [kids, v, desk] = await Promise.all([
       childWatchRepo.listChildren(memberId),
-      childWatchRepo.allVisits(),
+      childWatchRepo.visitsForViewer(memberId),
       childWatchRepo.hasDeskCheckInToday(memberId),
     ]);
     setChildren(kids);
@@ -85,7 +85,7 @@ export default function ChildWatchScreen() {
   const onSignIn = async (child: ChildProfile) => {
     setBusyId(child.id);
     try {
-      const visit = await childWatchRepo.signIn(child.id, 'member');
+      const visit = await childWatchRepo.signIn(child.id, memberId);
       dialog.show({
         title: `${child.firstName} is signed in`,
         message: `Pickup code: ${visit.pickupCode}\n\nMaximum of ${formatLimit(rules.maxMinutesPerDay)} per day. Parents must remain in the building.`,
@@ -103,7 +103,7 @@ export default function ChildWatchScreen() {
   const onSignOut = async (visit: ChildWatchVisit) => {
     setBusyId(visit.childId);
     try {
-      await childWatchRepo.signOut(visit.id, 'member');
+      await childWatchRepo.signOut(visit.id, memberId);
     } catch (e) {
       fail(e);
     } finally {

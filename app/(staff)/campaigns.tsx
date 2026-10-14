@@ -55,9 +55,9 @@ export default function CampaignsScreen() {
   const { api, session } = useSession();
   const { colors: tc } = useTheme();
   const plans = useAppConfig().config.membershipPlans;
-  const { can, canManageBusinessConfig, theme } = useStaffCapabilities();
+  const { canEditSection, theme } = useStaffCapabilities();
   const staffId = session?.userId ?? '';
-  const allowed = can('manageCampaigns') || canManageBusinessConfig;
+  const allowed = canEditSection('campaigns');
   const today = getDemoToday();
 
   const [campaigns, setCampaigns] = useState<EnrollmentCampaign[]>([]);

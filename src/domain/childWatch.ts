@@ -1,3 +1,4 @@
+import { requiredStaff } from '@/domain/childWatchStaffing';
 import { getDemoToday } from '@/domain/demoClock';
 import type { ChildProfile, ChildWatchVisit } from '@/domain/types';
 
@@ -32,7 +33,19 @@ export type ChildWatchRules = {
   /** Contact line shown before the email address; blank hides the contact. */
   contactText: string;
   contactEmail: string;
+  /** Staffing ratios, smallest age band first. A child belongs to the first band whose maxAgeMonths covers them. */
+  ratios: ChildWatchRatio[];
+  /** When true, sign-in is blocked while the room lacks staff for the ratio. */
+  enforceRatios: boolean;
+  pickupCodeLength: number;
+  maxCodeAttempts: number;
+  /** When true, a household adult can pick the child up in the app without the code. */
+  allowMemberSelfSignOut: boolean;
+  requireIdForNonHouseholdPickup: boolean;
+  headcountIntervalMin: number;
 };
+
+export type ChildWatchRatio = { maxAgeMonths: number; childrenPerStaff: number };
 
 export const DEFAULT_CHILD_WATCH_RULES: ChildWatchRules = {
   hours: CHILD_WATCH_HOURS,
@@ -47,6 +60,17 @@ export const DEFAULT_CHILD_WATCH_RULES: ChildWatchRules = {
   contactText:
     'If you have any questions or concerns regarding our Child Watch program, please contact Meena Suri, Senior Program Director, at ',
   contactEmail: 'Meena.Suri@ymcadc.org',
+  ratios: [
+    { maxAgeMonths: 24, childrenPerStaff: 4 },
+    { maxAgeMonths: 60, childrenPerStaff: 6 },
+    { maxAgeMonths: 156, childrenPerStaff: 10 },
+  ],
+  enforceRatios: false,
+  pickupCodeLength: 6,
+  maxCodeAttempts: 3,
+  allowMemberSelfSignOut: true,
+  requireIdForNonHouseholdPickup: true,
+  headcountIntervalMin: 30,
 };
 
 export const CHILD_WATCH_INFO = { title: 'Child Watch', noteTitle: 'Please Note:' } as const;
@@ -199,6 +223,10 @@ export function validateSignIn(
     child: ChildProfile;
     visits: ChildWatchVisit[];
     parentCheckedInAtDesk: boolean;
+    /** Staff currently on shift; only checked when rules.enforceRatios is on. */
+    staffOnDuty?: number;
+    /** Ages in months of the children already in the room (for the ratio check). */
+    occupantAgesMonths?: number[];
   },
   rules: ChildWatchRules = DEFAULT_CHILD_WATCH_RULES
 ): SignInCheck {
@@ -224,6 +252,12 @@ export function validateSignIn(
   }
   if (visits.filter((v) => !v.signedOutAt).length >= rules.roomCapacity) {
     return { ok: false, reason: 'Child Watch is at capacity right now.' };
+  }
+  if (rules.enforceRatios && input.staffOnDuty !== undefined) {
+    const months = [...(input.occupantAgesMonths ?? []), Math.floor(ageInWeeks(child.birthDate, now) / 4.345)];
+    if (requiredStaff(months, rules.ratios) > input.staffOnDuty) {
+      return { ok: false, reason: 'Child Watch does not have enough staff on duty for another child right now.' };
+    }
   }
   return { ok: true };
 }

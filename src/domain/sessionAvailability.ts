@@ -48,7 +48,10 @@ export function openStartTimes<W extends Interval>(
   return out.sort((a, b) => a.start.localeCompare(b.start));
 }
 
-/** Intervals blocked by confirmed lessons and open (pending/countered) requests. */
+/**
+ * Intervals blocked by booked lessons and accepted requests. Pending/countered requests do not block:
+ * several members may ask for the same spot, and accepting one declines the rest.
+ */
 export function busyIntervals(
   lessons: Pick<PrivateLesson, 'start' | 'end' | 'status'>[],
   requests: Pick<SessionRequest, 'start' | 'end' | 'status'>[]
@@ -56,7 +59,7 @@ export function busyIntervals(
   return [
     ...lessons.filter((l) => l.status === 'booked').map((l) => ({ start: l.start, end: l.end })),
     ...requests
-      .filter((r) => r.status === 'pending' || r.status === 'countered')
+      .filter((r) => r.status === 'accepted')
       .map((r) => ({ start: r.start, end: r.end })),
   ];
 }

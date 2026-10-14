@@ -39,13 +39,13 @@ describe('openStartTimes', () => {
 });
 
 describe('busyIntervals', () => {
-  it('counts booked lessons and open requests only', () => {
+  it('counts booked lessons and accepted requests only (pending/countered do not block)', () => {
     const iv = { start: 's', end: 'e' };
     const out = busyIntervals(
       [{ ...iv, status: 'booked' }, { ...iv, status: 'cancelled' }],
-      [{ ...iv, status: 'pending' }, { ...iv, status: 'declined' }, { ...iv, status: 'countered' }]
+      [{ ...iv, status: 'pending' }, { ...iv, status: 'declined' }, { ...iv, status: 'countered' }, { ...iv, status: 'accepted' }]
     );
-    expect(out).toHaveLength(3);
+    expect(out).toHaveLength(2);
   });
 });
 

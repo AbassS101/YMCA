@@ -1,15 +1,11 @@
-import { FEATURE_TOGGLE_LABELS, normalizeAppConfig } from '@/domain/appConfig';
-import { demoNow, formatLimit, validateSignIn } from '@/domain/childWatch';
+import { demoNow } from '@/domain/childWatch';
 import { getDemoToday } from '@/domain/demoClock';
 import { ageOn, TEEN_MIN_AGE } from '@/domain/householdAccess';
 import { createProtivityClient } from '@/protivity/createProtivityClient';
-import type { ChildProfile, ChildWatchVisit, Member } from '@/domain/types';
+import type { ChildProfile, ChildWatchAuthorizedPickup, ChildWatchDropOffResult, ChildWatchVisit, Member } from '@/domain/types';
+import type { ProtivityPort } from '@/protivity/ProtivityPort';
 import { streakRepo } from '@/repositories/streakRepo';
-import { loadStore, saveStore } from '@/storage/demoStore';
-
-function newPickupCode(): string {
-  return String(Math.floor(1000 + Math.random() * 9000));
-}
+import { loadStore } from '@/storage/demoStore';
 
 const api = createProtivityClient();
 
@@ -82,9 +78,9 @@ export const childWatchRepo = {
     return state.childWatchVisits.filter((v) => !v.signedOutAt);
   },
 
-  async allVisits(): Promise<ChildWatchVisit[]> {
-    const state = await loadStore();
-    return state.childWatchVisits;
+  /** Every visit as the viewer may see it: pickup codes are stripped unless the viewer is a guardian of the child. */
+  async visitsForViewer(requesterId: string): Promise<ChildWatchVisit[]> {
+    return api.listChildWatchVisits({}, requesterId);
   },
 
   async visitsForMember(memberId: string): Promise<ChildWatchVisit[]> {
@@ -97,70 +93,139 @@ export const childWatchRepo = {
     return profile.checkInDates.includes(getDemoToday());
   },
 
-  async signIn(childId: string, by: string, now: Date = demoNow()): Promise<ChildWatchVisit> {
+  /**
+   * Drops a child off and returns the visit plus the plain pickup code. The code is shown once:
+   * the stored visit only keeps a hash. Any adult on the household who checked in at the desk today
+   * counts as the parent being checked in.
+   */
+  async dropOff(
+    childId: string,
+    by: string,
+    options?: { now?: Date; notes?: string; emergencyPhone?: string }
+  ): Promise<ChildWatchDropOffResult> {
     const state = await loadStore();
-    const config = normalizeAppConfig(state.appConfig);
-    if (!config.featureToggles.childWatch) throw new Error(`${FEATURE_TOGGLE_LABELS.childWatch}: this feature is turned off right now.`);
     const childMember = state.members.find((m) => m.id === childId);
-    if (!childMember || !childMember.householdId || !childMember.birthDate) throw new Error('Child not found.');
-    const child = toProfile(childMember, childMember.householdId);
-    // Any adult on the household who has checked in at the desk today can drop a child off.
-    const adults = state.members.filter(
-      (m) => m.householdId === childMember.householdId && (!m.birthDate || ageOn(m.birthDate, getDemoToday()) >= 18)
-    );
     let parentCheckedInAtDesk = false;
-    for (const a of adults) {
-      if (await this.hasDeskCheckInToday(a.id)) {
-        parentCheckedInAtDesk = true;
-        break;
+    if (childMember?.householdId) {
+      const adults = state.members.filter(
+        (m) => m.householdId === childMember.householdId && (!m.birthDate || ageOn(m.birthDate, getDemoToday()) >= 18)
+      );
+      for (const a of adults) {
+        if (await this.hasDeskCheckInToday(a.id)) {
+          parentCheckedInAtDesk = true;
+          break;
+        }
       }
     }
-    const check = validateSignIn(
-      { now, child, visits: state.childWatchVisits, parentCheckedInAtDesk },
-      config.childWatch
-    );
-    if (!check.ok) throw new Error(check.reason);
-
-    const visit: ChildWatchVisit = {
-      id: `cwv-${Date.now()}-${childId}`,
+    return api.childWatchDropOff({
       childId,
-      memberId: child.memberId,
-      signedInAt: now.toISOString(),
-      signedInBy: by,
-      pickupCode: newPickupCode(),
-    };
-    state.childWatchVisits.push(visit);
-    state.notifications.unshift({
-      id: `notif-cw-${visit.id}`,
-      userId: child.memberId,
-      title: `${child.firstName} signed in to Child Watch`,
-      body: `Pickup code: ${visit.pickupCode}. Remember: maximum of ${formatLimit(config.childWatch.maxMinutesPerDay)} per day, and parents must remain in the building.`,
-      type: 'event',
-      createdAt: new Date().toISOString(),
-      read: false,
-      relatedId: visit.id,
-      link: '/(member)/child-watch',
+      requesterUserId: by,
+      deskCheckInConfirmed: parentCheckedInAtDesk,
+      notes: options?.notes,
+      emergencyPhone: options?.emergencyPhone,
+      now: options?.now ?? demoNow(),
     });
-    await saveStore(state);
-    return visit;
   },
 
-  /** Staff must supply the pickup code; the member signing out their own child does not. */
+  /** Drops a child off and returns the visit; the returned copy carries the plain pickup code (it is not stored). */
+  async signIn(childId: string, by: string, now: Date = demoNow()): Promise<ChildWatchVisit> {
+    const { visit, pickupCode } = await this.dropOff(childId, by, { now });
+    return { ...visit, pickupCode };
+  },
+
+  /**
+   * Household adults can sign out their own child without a code (when the config allows it);
+   * staff must supply the pickup code. `requireCode` is kept for older callers: staff always need the code now.
+   */
   async signOut(
     visitId: string,
     by: string,
-    options?: { pickupCode?: string; requireCode?: boolean; now?: Date }
-  ): Promise<ChildWatchVisit> {
-    const state = await loadStore();
-    const visit = state.childWatchVisits.find((v) => v.id === visitId);
-    if (!visit) throw new Error('Visit not found.');
-    if (visit.signedOutAt) throw new Error('Already signed out.');
-    if (options?.requireCode && options.pickupCode?.trim() !== visit.pickupCode) {
-      throw new Error('Pickup code does not match.');
+    options?: {
+      pickupCode?: string;
+      requireCode?: boolean;
+      now?: Date;
+      guardianId?: string;
+      idVerified?: boolean;
+      overrideReason?: string;
     }
-    visit.signedOutAt = (options?.now ?? demoNow()).toISOString();
-    visit.signedOutBy = by;
-    await saveStore(state);
-    return visit;
+  ): Promise<ChildWatchVisit> {
+    return api.childWatchPickUp({
+      visitId,
+      requesterUserId: by,
+      pickupCode: options?.pickupCode,
+      guardianId: options?.guardianId,
+      idVerified: options?.idVerified,
+      overrideReason: options?.overrideReason,
+      now: options?.now ?? demoNow(),
+    });
+  },
+
+  // --- Authorized pickup people -------------------------------------------------------------------
+  listAuthorizedPickups(householdId: string, requesterId: string): Promise<ChildWatchAuthorizedPickup[]> {
+    return api.listAuthorizedPickups(householdId, requesterId);
+  },
+
+  /** Approved, unexpired pickup people: the ones staff may release a child to. */
+  async approvedPickups(householdId: string, requesterId: string): Promise<ChildWatchAuthorizedPickup[]> {
+    const today = getDemoToday();
+    const all = await api.listAuthorizedPickups(householdId, requesterId);
+    return all.filter((p) => p.status === 'approved' && (!p.expiresOn || p.expiresOn >= today));
+  },
+
+  addAuthorizedPickup(
+    input: Parameters<ProtivityPort['addAuthorizedPickup']>[0],
+    requesterId: string
+  ): Promise<ChildWatchAuthorizedPickup> {
+    return api.addAuthorizedPickup(input, requesterId);
+  },
+
+  reviewAuthorizedPickup(
+    id: string,
+    decision: 'approved' | 'revoked',
+    requesterId: string
+  ): Promise<ChildWatchAuthorizedPickup> {
+    return api.reviewAuthorizedPickup(id, decision, requesterId);
+  },
+
+  // --- Incidents ----------------------------------------------------------------------------------
+  logIncident(input: Parameters<ProtivityPort['logChildWatchIncident']>[0], requesterId: string) {
+    return api.logChildWatchIncident(input, requesterId);
+  },
+
+  incidents(filter: Parameters<ProtivityPort['listChildWatchIncidents']>[0], requesterId: string) {
+    return api.listChildWatchIncidents(filter, requesterId);
+  },
+
+  acknowledgeIncident(id: string, memberId: string) {
+    return api.acknowledgeChildWatchIncident(id, memberId);
+  },
+
+  reviewIncident(id: string, note: string, requesterId: string) {
+    return api.reviewChildWatchIncident(id, note, requesterId);
+  },
+
+  // --- Headcounts, shifts, audit ------------------------------------------------------------------
+  recordHeadcount(input: Parameters<ProtivityPort['recordChildWatchHeadcount']>[0], requesterId: string) {
+    return api.recordChildWatchHeadcount(input, requesterId);
+  },
+
+  headcounts(date: string, requesterId: string) {
+    return api.listChildWatchHeadcounts(date, requesterId);
+  },
+
+  shifts(date: string, requesterId: string) {
+    return api.listChildWatchShifts(date, requesterId);
+  },
+
+  saveShift(input: Parameters<ProtivityPort['saveChildWatchShift']>[0], requesterId: string) {
+    return api.saveChildWatchShift(input, requesterId);
+  },
+
+  deleteShift(id: string, requesterId: string) {
+    return api.deleteChildWatchShift(id, requesterId);
+  },
+
+  audit(filter: Parameters<ProtivityPort['listChildWatchAudit']>[0], requesterId: string) {
+    return api.listChildWatchAudit(filter, requesterId);
   },
 };

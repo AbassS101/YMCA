@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { defaultAppConfig, type AppConfig, type AppConfigPatch, type AppConfigSection } from '@/domain/appConfig';
 import { useSession } from '@/context/SessionContext';
 import { configRepo } from '@/repositories/configRepo';
@@ -18,9 +18,14 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<AppConfig>(() => defaultAppConfig());
   const userId = session?.userId;
 
+  const latestRequest = useRef(0);
+
   const refresh = useCallback(async () => {
+    const request = ++latestRequest.current;
     try {
-      setConfig(await configRepo.get(api));
+      const next = await configRepo.get(api);
+      // Ignore a slow earlier load that finished after a newer one (or after a save).
+      if (request === latestRequest.current) setConfig(next);
     } catch {
       // keep the current (default) config
     }
@@ -44,6 +49,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     async <S extends AppConfigSection>(section: S, patch: AppConfigPatch<S>) => {
       if (!userId) throw new Error('Sign in to change settings.');
       const next = await configRepo.update(api, section, patch, userId);
+      latestRequest.current += 1;
       setConfig(next);
       return next;
     },

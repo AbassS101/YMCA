@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -34,9 +34,11 @@ import { dialog } from '@/context/DialogContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useSession } from '@/context/SessionContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
-import { addDaysToDate, getDemoToday, mondayOf } from '@/domain/demoClock';
+import { manageableTrainers } from '@/domain/availabilityAccess';
+import { addDaysToDate, easternOffset, getDemoToday, mondayOf } from '@/domain/demoClock';
 import { formatShortDate } from '@/domain/displayDates';
 import { type LessonSlot, type Member, type PrivateLesson, type ScheduleCategory, type ScheduleItem, type Staff } from '@/domain/types';
+import { availabilityRepo } from '@/repositories/lessonRepo';
 import { registrationRepo } from '@/repositories/registrationRepo';
 import { scheduleRepo } from '@/repositories/scheduleRepo';
 import { trainerRepo } from '@/repositories/trainerRepo';
@@ -79,6 +81,7 @@ function formatDate(iso: string): string {
 
 export default function StaffSchedulesScreen() {
   const { session, api } = useSession();
+  const router = useRouter();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const staffId = session?.userId ?? '';
@@ -207,7 +210,7 @@ export default function StaffSchedulesScreen() {
       setRosterCounts(counts);
 
       // Load private lessons & slots if trainer or admin
-      const slots = await api.listLessonSlots(lessonStaffId, addDaysToDate(mondayOf(getDemoToday()), -7), addDaysToDate(mondayOf(getDemoToday()), 28)).catch(() => []);
+      const slots = await availabilityRepo.listWindows(api, lessonStaffId, addDaysToDate(mondayOf(getDemoToday()), -7), addDaysToDate(mondayOf(getDemoToday()), 28)).catch(() => []);
       setLessonSlots(slots);
 
       const dayLessons = await api.listStaffLessons(lessonStaffId, addDaysToDate(getDemoToday(), 1)).catch(() => []);
@@ -528,8 +531,8 @@ export default function StaffSchedulesScreen() {
         await api.addLessonSlot({
           staffId: lessonStaffId,
           branchId: BRANCH_ID,
-          start: `${date}T${slotStart}:00-04:00`,
-          end: `${date}T${slotEnd}:00-04:00`,
+          start: `${date}T${slotStart}:00${easternOffset(date, Number(slotStart.slice(0, 2)))}`,
+          end: `${date}T${slotEnd}:00${easternOffset(date, Number(slotEnd.slice(0, 2)))}`,
           location: slotLocation.trim(),
         });
       }
@@ -804,24 +807,22 @@ export default function StaffSchedulesScreen() {
               <View style={{ gap: 6 }}>
                 <Text style={styles.sectionHeader}>Trainer</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
-                  {allStaff
-                    .filter((st) => st.staffRole === 'trainer' || st.staffRole === 'swim_instructor' || st.staffRole === 'wellness_director')
-                    .map((st) => {
-                      const active = lessonStaffId === st.id;
-                      return (
-                        <Pressable
-                          key={st.id}
-                          onPress={() => setSlotTrainerId(st.id)}
-                          style={[styles.categoryChip, active && styles.categoryChipActive]}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: active }}
-                        >
-                          <Text style={[styles.categoryText, active && styles.categoryTextActive]}>
-                            {st.id === staffId ? 'Me' : st.name}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
+                  {manageableTrainers(session?.role, staffId, allStaff).map((st) => {
+                    const active = lessonStaffId === st.id;
+                    return (
+                      <Pressable
+                        key={st.id}
+                        onPress={() => setSlotTrainerId(st.id)}
+                        style={[styles.categoryChip, active && styles.categoryChipActive]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                      >
+                        <Text style={[styles.categoryText, active && styles.categoryTextActive]}>
+                          {st.id === staffId ? 'Me' : st.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </ScrollView>
               </View>
             ) : null}
@@ -929,6 +930,13 @@ export default function StaffSchedulesScreen() {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
               <Text style={styles.sectionHeader}>Availability Windows</Text>
               <Pressable
+                onPress={() => router.push({ pathname: '/(staff)/trainer-availability', params: { staffId: lessonStaffId } })}
+                style={{ paddingVertical: 4, paddingHorizontal: 8 }}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>Weekly hours</Text>
+              </Pressable>
+              <Pressable
                 onPress={() => setSlotModalVisible(true)}
                 style={{ paddingVertical: 4, paddingHorizontal: 8 }}
                 accessibilityRole="button"
@@ -951,14 +959,18 @@ export default function StaffSchedulesScreen() {
                     </Text>
                     <Text style={styles.slotLocation}>{slot.location}</Text>
                   </View>
-                  <Pressable
-                    onPress={() => void handleDeleteSlot(slot.id)}
-                    style={styles.slotDeleteBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel="Remove slot"
-                  >
-                    <Ionicons name="trash-outline" size={18} color={colors.scarlet} />
-                  </Pressable>
+                  {slot.id.startsWith('avail-') ? (
+                    <Text style={styles.slotLocation}>Weekly</Text>
+                  ) : (
+                    <Pressable
+                      onPress={() => void handleDeleteSlot(slot.id)}
+                      style={styles.slotDeleteBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel="Remove slot"
+                    >
+                      <Ionicons name="trash-outline" size={18} color={colors.scarlet} />
+                    </Pressable>
+                  )}
                 </View>
               ))
             )}

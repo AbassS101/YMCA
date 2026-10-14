@@ -8,7 +8,9 @@ export type StaffPersona =
   | 'wellnessDirector'
   | 'aquaticsDirector'
   | 'membershipDirector'
-  | 'frontDesk';
+  | 'frontDesk'
+  | 'childWatchSupervisor'
+  | 'childWatchDirector';
 
 export type StaffCapability =
   | 'viewAllMembers'
@@ -39,7 +41,9 @@ export type StaffCapability =
   | 'viewSessionRequests'
   | 'manageBusinessConfig'
   | 'manageSystemConfig'
-  | 'viewConfigAudit';
+  | 'viewConfigAudit'
+  | 'runChildWatchRoom'
+  | 'manageChildWatchProgram';
 
 const ALL_CAPABILITIES: readonly StaffCapability[] = [
   'viewAllMembers',
@@ -71,6 +75,8 @@ const ALL_CAPABILITIES: readonly StaffCapability[] = [
   'manageBusinessConfig',
   'manageSystemConfig',
   'viewConfigAudit',
+  'runChildWatchRoom',
+  'manageChildWatchProgram',
 ];
 
 // Staff Admin runs the business settings but not the system-level ones (toggles, branding, thresholds).
@@ -92,7 +98,9 @@ const WELLNESS_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = ALL_CAPABILIT
     c !== 'manageComplaints' &&
     c !== 'manageBusinessConfig' &&
     c !== 'manageSystemConfig' &&
-    c !== 'viewConfigAudit'
+    c !== 'viewConfigAudit' &&
+    c !== 'runChildWatchRoom' &&
+    c !== 'manageChildWatchProgram'
 );
 
 const AQUATICS_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = [
@@ -121,6 +129,7 @@ const MEMBERSHIP_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = [
   'sellMemberships',
   'manageCampaigns',
   'viewRepKpis',
+  'runChildWatchRoom',
 ];
 
 const FRONT_DESK_CAPABILITIES: readonly StaffCapability[] = [
@@ -132,6 +141,20 @@ const FRONT_DESK_CAPABILITIES: readonly StaffCapability[] = [
   'logMemberContacts',
   'manageLeads',
   'sellMemberships',
+  'runChildWatchRoom',
+];
+
+const CHILD_WATCH_SUPERVISOR_CAPABILITIES: readonly StaffCapability[] = [
+  'viewAllMembers',
+  'checkIn',
+  'runChildWatchRoom',
+  'broadcast',
+];
+
+const CHILD_WATCH_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = [
+  ...CHILD_WATCH_SUPERVISOR_CAPABILITIES,
+  'manageChildWatchProgram',
+  'takeAttendance',
 ];
 
 export function personaForRole(role?: UserRole | StaffRole | string | null): StaffPersona | null {
@@ -151,6 +174,10 @@ export function personaForRole(role?: UserRole | StaffRole | string | null): Sta
       return 'aquaticsDirector';
     case 'membership_director':
       return 'membershipDirector';
+    case 'child_watch_supervisor':
+      return 'childWatchSupervisor';
+    case 'child_watch_director':
+      return 'childWatchDirector';
     case 'staff':
     case 'desk':
       return 'frontDesk';
@@ -176,6 +203,10 @@ export function capabilitiesForRole(role?: UserRole | StaffRole | string | null)
       return new Set(MEMBERSHIP_DIRECTOR_CAPABILITIES);
     case 'frontDesk':
       return new Set(FRONT_DESK_CAPABILITIES);
+    case 'childWatchSupervisor':
+      return new Set(CHILD_WATCH_SUPERVISOR_CAPABILITIES);
+    case 'childWatchDirector':
+      return new Set(CHILD_WATCH_DIRECTOR_CAPABILITIES);
     default:
       return new Set();
   }
@@ -212,6 +243,7 @@ const CONFIG_SECTION_OWNERS: Partial<Record<ConfigSection, readonly StaffPersona
   // Lesson pricing holds both swim and personal training prices.
   lessonPricing: ['aquaticsDirector', 'wellnessDirector'],
   wellnessPackages: ['wellnessDirector'],
+  childWatch: ['childWatchDirector'],
 };
 
 export function canEditConfigSection(
@@ -229,13 +261,18 @@ export function isStaffRole(role?: UserRole | StaffRole | string | null): boolea
 }
 
 export function isDirectorRole(role?: UserRole | StaffRole | string | null): boolean {
-  return role === 'wellness_director' || role === 'aquatics_director' || role === 'membership_director';
+  return (
+    role === 'wellness_director' ||
+    role === 'aquatics_director' ||
+    role === 'membership_director' ||
+    role === 'child_watch_director'
+  );
 }
 
 export type PersonaTheme = {
   badge: string;
   title: string;
-  icon: 'star' | 'shield-checkmark' | 'barbell' | 'water' | 'fitness' | 'business' | 'person';
+  icon: 'star' | 'shield-checkmark' | 'barbell' | 'water' | 'fitness' | 'business' | 'person' | 'happy';
   color: string;
   softBg: string;
   darkSoftBg: string;
@@ -305,6 +342,22 @@ export const PERSONA_THEMES: Record<StaffPersona, PersonaTheme> = {
     color: '#0369A1',
     softBg: '#E0F2FE',
     darkSoftBg: '#082F49',
+  },
+  childWatchSupervisor: {
+    badge: 'CW SUPERVISOR',
+    title: 'Child Watch Supervisor',
+    icon: 'happy',
+    color: '#C2410C',
+    softBg: '#FFEDD5',
+    darkSoftBg: '#431407',
+  },
+  childWatchDirector: {
+    badge: 'CW DIRECTOR',
+    title: 'Child Watch Director',
+    icon: 'happy',
+    color: '#BE123C',
+    softBg: '#FFE4E6',
+    darkSoftBg: '#4C0519',
   },
 };
 

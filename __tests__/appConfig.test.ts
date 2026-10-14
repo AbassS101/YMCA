@@ -120,6 +120,17 @@ describe('domain functions take optional config', () => {
     );
     expect(check).toEqual({ ok: false, reason: 'Child Watch is at capacity right now.' });
   });
+
+  it('childWatch ratios only block sign-in when enforced', () => {
+    const monday10 = new Date('2026-10-12T10:00:00');
+    const child = { id: 'c', firstName: 'Kid', birthDate: '2025-06-01' } as never;
+    const base = { now: monday10, child, visits: [], parentCheckedInAtDesk: true, staffOnDuty: 0 };
+    expect(validateSignIn(base).ok).toBe(true);
+    const enforced = { ...DEFAULT_CHILD_WATCH_RULES, enforceRatios: true };
+    expect(validateSignIn(base, enforced).ok).toBe(false);
+    expect(validateSignIn({ ...base, staffOnDuty: 1 }, enforced).ok).toBe(true);
+    expect(validateSignIn({ ...base, occupantAgesMonths: [10, 11, 12, 13], staffOnDuty: 1 }, enforced).ok).toBe(false);
+  });
 });
 
 describe('role gating per section', () => {
@@ -217,6 +228,15 @@ describe('updateAppConfig', () => {
     await expect(
       api.updateAppConfig('childWatch', { hours: [[], [{ open: '12:00', close: '09:00' }], [], [], [], [], []] }, IT)
     ).rejects.toThrow(/opening before closing/);
+    await expect(api.updateAppConfig('childWatch', { pickupCodeLength: 3 }, IT)).rejects.toThrow(/between 4 and 8/);
+    await expect(api.updateAppConfig('childWatch', { pickupCodeLength: 9 }, IT)).rejects.toThrow(/between 4 and 8/);
+    await expect(api.updateAppConfig('childWatch', { maxCodeAttempts: 0 }, IT)).rejects.toThrow(/attempts/);
+    await expect(
+      api.updateAppConfig('childWatch', { ratios: [{ maxAgeMonths: 60, childrenPerStaff: 6 }, { maxAgeMonths: 24, childrenPerStaff: 4 }] }, IT)
+    ).rejects.toThrow(/sorted/);
+    await expect(
+      api.updateAppConfig('childWatch', { ratios: [{ maxAgeMonths: 24, childrenPerStaff: 0 }] }, IT)
+    ).rejects.toThrow(/Staffing ratios/);
     await expect(api.updateAppConfig('lessonPricing' as AppConfigSection, {} as never, IT)).rejects.toThrow(/Unknown/);
   });
 
@@ -309,14 +329,94 @@ describe('audit log', () => {
 });
 
 describe('lesson pricing requester', () => {
-  it('stays optional but is checked when given', async () => {
+  it('is required and checked', async () => {
     const prices = (thirty: number) => ({ training: { 30: thirty, 60: 6000 } as const });
-    await expect(api.updateLessonPricing(prices(4000))).resolves.toBeDefined();
+    await expect(api.updateLessonPricing(prices(4000), '')).rejects.toThrow(/Sign in as staff/);
+    await expect(api.updateLessonPricing(prices(4000), undefined as unknown as string)).rejects.toThrow(/Sign in as staff/);
     await expect(api.updateLessonPricing(prices(4100), IT)).resolves.toBeDefined();
     await expect(api.updateLessonPricing(prices(4200), MEMBERSHIP)).rejects.toThrow(/not permitted/);
     await expect(api.updateLessonPricing(prices(4200), 'member-jordan')).rejects.toThrow(/not permitted/);
     const log = await api.listConfigAudit(IT);
-    expect(log.map((e) => e.byId)).toEqual([IT, 'system']);
+    expect(log.map((e) => e.byId)).toEqual([IT]);
+  });
+});
+
+describe('campaign access', () => {
+  const campaign = { name: 'Spring', description: '', startDate: '2026-03-01', endDate: '2026-03-31', waiveEnrollmentFee: true, active: true };
+
+  it('follows the campaigns section owners', async () => {
+    await expect(api.saveCampaign(campaign, WELLNESS)).rejects.toThrow(/not permitted/);
+    for (const who of [IT, ADMIN, MEMBERSHIP]) {
+      const saved = await api.saveCampaign(campaign, who);
+      await expect(api.deleteCampaign(saved.id, WELLNESS)).rejects.toThrow(/not permitted/);
+      await expect(api.deleteCampaign(saved.id, who)).resolves.toBeUndefined();
+    }
+  });
+});
+
+describe('reset keeps referenced entries', () => {
+  it('keeps custom plans and carries a renamed default name into legacyNames', async () => {
+    const plans = (await api.getAppConfig()).membershipPlans;
+    const custom = { ...plans[0], id: 'summer-special', name: 'Summer Special' };
+    await api.updateAppConfig(
+      'membershipPlans',
+      [...plans.map((p) => (p.id === 'adult' ? { ...p, name: 'Adult Plus' } : p)), custom],
+      IT
+    );
+    const next = await api.resetAppConfigSection('membershipPlans', IT);
+    expect(findPlan('summer-special', next.membershipPlans)?.name).toBe('Summer Special');
+    const adult = findPlan('adult', next.membershipPlans);
+    expect(adult?.name).toBe('Adult');
+    expect(findPlan('Adult Plus', next.membershipPlans)?.id).toBe('adult');
+  });
+
+  it('keeps custom donation funds', async () => {
+    const d = (await api.getAppConfig()).donations;
+    await api.updateAppConfig('donations', { funds: [...d.funds, { id: 'new-fund', name: 'New Fund' }] }, IT);
+    const next = await api.resetAppConfigSection('donations', IT);
+    expect(next.donations.funds.map((f) => f.id)).toContain('new-fund');
+    expect(next.donations.minimumGiftCents).toBe(defaultAppConfig().donations.minimumGiftCents);
+  });
+});
+
+describe('plan name resolution', () => {
+  const [base] = defaultAppConfig().membershipPlans;
+  const a = { ...base, id: 'a', name: 'Alpha', legacyNames: [] as string[] };
+  const b = { ...base, id: 'b', name: 'Beta', legacyNames: ['Alpha'] };
+
+  it('prefers id, then exact name, then former names', () => {
+    expect(findPlan('Alpha', [b, a])?.id).toBe('a');
+    expect(findPlan('b', [a, { ...b, name: 'a' }])?.id).toBe('b');
+    expect(findPlan('alpha', [b, a])?.id).toBe('a');
+    expect(findPlan('Alpha', [b])?.id).toBe('b');
+  });
+
+  it("rejects a plan name that is another plan's former name", async () => {
+    const plans = (await api.getAppConfig()).membershipPlans;
+    const next = plans.map((p, i) => (i === 0 ? { ...p, legacyNames: [plans[1].name] } : p));
+    await expect(api.updateAppConfig('membershipPlans', next, IT)).rejects.toThrow(/former name/);
+  });
+});
+
+describe('validation and limits', () => {
+  it('rejects a wellness program with no packages', async () => {
+    const programs = (await api.getAppConfig()).wellnessPackages;
+    await expect(
+      api.updateAppConfig('wellnessPackages', programs.map((p, i) => (i === 0 ? { ...p, tiers: [] } : p)), WELLNESS)
+    ).rejects.toThrow(/at least one package/);
+  });
+
+  it('rejects non-integer donation amounts', async () => {
+    await expect(
+      api.createDonation({ memberId: 'member-jordan', amountCents: 1000.5, fundId: 'x' } as never)
+    ).rejects.toThrow(/whole number of cents/);
+  });
+
+  it('keeps the newest 200 change log entries', async () => {
+    for (let i = 0; i < 205; i++) await api.updateAppConfig('guestPasses', { dayPassAdultCents: 1000 + i }, ADMIN);
+    const log = await api.listConfigAudit(IT);
+    expect(log).toHaveLength(200);
+    expect(log[0].after).toMatchObject({ dayPassAdultCents: 1204 });
   });
 });
 

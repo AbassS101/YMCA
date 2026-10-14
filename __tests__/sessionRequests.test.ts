@@ -37,9 +37,9 @@ test('bookable times come from windows, respect length and lesson type', async (
     staffId: 'staff-alek',
   });
   const starts = times.map((t) => t.start);
-  // 9:00 fits a full hour; 10:00 is blocked by the seeded 10:30 counter-offer; 18:00 is the last 60 min start.
+  // 9:00 fits a full hour; 10:00 stays open (the seeded 10:30 counter-offer is only pending); 18:00 is the last 60 min start.
   expect(starts).toContain(new Date('2026-09-17T09:00:00-04:00').toISOString());
-  expect(starts).not.toContain(new Date(T10).toISOString());
+  expect(starts).toContain(new Date(T10).toISOString());
   expect(starts).toContain(new Date('2026-09-17T18:00:00-04:00').toISOString());
   expect(starts).not.toContain(new Date('2026-09-17T18:30:00-04:00').toISOString());
   expect(times.every((t) => t.staffId === 'staff-alek')).toBe(true);
@@ -70,7 +70,7 @@ test('default is a pending request: nothing is booked or charged until accepted'
   expect(req.lessonId).toBeUndefined();
   expect(await api.listMyLessons('member-jordan')).toHaveLength(0);
 
-  // The slot is held: no one else can see it as open.
+  // A pending request does not hold the slot: other members still see it as open.
   const open = await api.listBookableTimes('member-riley', {
     lessonType: 'swim',
     durationMin: 30,
@@ -78,7 +78,7 @@ test('default is a pending request: nothing is booked or charged until accepted'
     to: '2026-09-17',
     staffId: 'staff-alek',
   });
-  expect(open.map((t) => t.start)).not.toContain(new Date(T10).toISOString());
+  expect(open.map((t) => t.start)).toContain(new Date(T10).toISOString());
 });
 
 test('accepting a pay-before request books the lesson and charges the card', async () => {
@@ -129,8 +129,10 @@ test('only the requested instructor can answer, and only once', async () => {
 
 test('times outside availability or already taken are rejected', async () => {
   await expect(api.createSessionRequest('member-jordan', input({ start: '2026-09-17T14:30:00-04:00' }))).rejects.toThrow();
+  // Pending requests do not block other members, but the same member cannot ask twice for one time.
   await api.createSessionRequest('member-riley', input());
-  await expect(api.createSessionRequest('member-jordan', input())).rejects.toThrow();
+  await expect(api.createSessionRequest('member-riley', input())).rejects.toThrow();
+  await expect(api.createSessionRequest('member-jordan', input())).resolves.toBeDefined();
 });
 
 test('instant booking is off by default and confirms immediately for listed members only', async () => {

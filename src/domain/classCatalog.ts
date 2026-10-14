@@ -105,9 +105,9 @@ export const YMCA_CLASS_CATALOG: ClassCatalogEntry[] = [
     aliases: ['rocket yoga'],
     section: 'Mind-Body',
     shortSummary:
-      'Dynamic, fast-paced Ashtanga-inspired yoga that invigorates and challenges body and mind.',
+      'Vigorous, fast-paced sequence modifying the classical Ashtanga Primary and Intermediate series.',
     description:
-      'Rocket Yoga is a dynamic and fast-paced style of yoga, inspired by Ashtanga Vinyasa Yoga. It is a powerful and invigorating practice that challenges both the body and mind.',
+      'A style of yoga created by Larry Schultz in San Francisco during the 1980s, Rocket Yoga is rooted in the Ashtanga Vinyasa Yoga tradition. It is a vigorous, fast-paced workout combining modified poses from the classical Ashtanga Primary and Intermediate series.',
   },
   {
     id: 'tai-chi',
@@ -115,7 +115,7 @@ export const YMCA_CLASS_CATALOG: ClassCatalogEntry[] = [
     aliases: ['tai chi', 'taichi'],
     section: 'Mind-Body',
     shortSummary:
-      'Graceful meditation in motion using gentle, flowing postures to reduce stress and promote serenity.',
+      'Graceful flowing postures and gentle motion for balance, mobility, and stress reduction.',
     description:
       'Developed for self-defense, tai chi has evolved into a graceful form of exercise used for stress reduction and a variety of other health conditions. Often described as meditation in motion, tai chi promotes serenity through gentle, flowing postures and movements.',
   },
@@ -138,6 +138,16 @@ export const YMCA_CLASS_CATALOG: ClassCatalogEntry[] = [
       'Flowing sequence connecting posture to posture using synchronized breath and movement.',
     description:
       'A broad classification that encompasses many different types of yoga, Vinyasa Yoga connects one posture to the next using breath. This can be thought of as linking or flowing into postures. Vinyasa yoga is all about the movement and flow of energy as you sync the body and the mind together through motion and breath. This flow class strings poses together to make a sequence.',
+  },
+  {
+    id: 'pilates-flow',
+    title: 'Pilates Flow',
+    aliases: ['pilates flow'],
+    section: 'Mind-Body',
+    shortSummary:
+      'Fluid core-strengthening sequence blending classical Pilates flow with postural balance and control.',
+    description:
+      'Pilates Flow is a dynamic, continuous movement class focusing on deep abdominal activation, pelvic alignment, spinal articulation, and full-body stabilization.',
   },
 
   // ==========================================
@@ -206,7 +216,7 @@ export const YMCA_CLASS_CATALOG: ClassCatalogEntry[] = [
   {
     id: 'cycle',
     title: 'Cycle',
-    aliases: ['cycle', 'cycle & spin', 'spin'],
+    aliases: ['cycle', 'cycle & spin', 'spin', 'cycling'],
     section: 'Cardio',
     shortSummary:
       'Indoor cycling across hills, flat roads, time trials, and intervals to sweat and burn calories.',
@@ -232,6 +242,16 @@ export const YMCA_CLASS_CATALOG: ClassCatalogEntry[] = [
       'Simple, heart-pumping dance moves set to alternating slow and fast Latin, International, and Salsa music.',
     description:
       'Zumba is a great fitness class that combines Latin, International, and Salsa music with some amazing and fun filled dance moves. There will be slow and fast rhythms alternating throughout so that you can keep burning calories. Zumba is not just for people who can dance. Anybody can join in! The steps are simple, heart-pumping and fun.',
+  },
+  {
+    id: 'family-zumba',
+    title: 'Family Zumba',
+    aliases: ['family zumba'],
+    section: 'Cardio',
+    shortSummary:
+      'Simple, heart-pumping Latin and international dance moves for the whole family.',
+    description:
+      'Family Zumba brings members of all ages together for a high-energy dance party set to lively Latin and international music. Simple, heart-pumping choreography makes it fun for everyone.',
   },
 
   // ==========================================
@@ -312,9 +332,19 @@ export const YMCA_CLASS_CATALOG: ClassCatalogEntry[] = [
       'Targeted wellness and mobility protocol supporting chronic condition recovery, movement rehabilitation, and functional independence. Advance Registration Required.',
   },
   {
+    id: 'livestrong',
+    title: 'LiveStrong',
+    aliases: ['livestrong', 'live strong', 'livestrong at the ymca'],
+    section: 'Specialty & Aquatics',
+    shortSummary:
+      'Small-group cancer survivor wellness and recovery program supporting physical and emotional healing (Reg Required).',
+    description:
+      'LIVESTRONG at the YMCA is a 12-week, small-group program designed for adult cancer survivors. This evidence-based program helps survivors regain strength, build endurance, and find emotional support in a welcoming community. Advance Registration Required.',
+  },
+  {
     id: 'pedaling-for-parkinsons',
     title: 'Pedaling for Parkinsons',
-    aliases: ['pedaling for parkinsons', "pedaling for parkinson's"],
+    aliases: ['pedaling for parkinsons', "pedaling for parkinson's", 'pedaling for parkinsons sub'],
     section: 'Specialty & Aquatics',
     shortSummary:
       'Evidence-based indoor cycling supporting mobility and motor function for Parkinson’s (Reg Required).',
@@ -344,7 +374,7 @@ export const YMCA_CLASS_CATALOG: ClassCatalogEntry[] = [
   {
     id: 'heat',
     title: 'HEAT',
-    aliases: ['heat'],
+    aliases: ['heat', 'h.e.a.t.', 'h.e.a.t'],
     section: 'Cardio',
     shortSummary:
       'Fast-paced metabolic conditioning combining bodyweight drills, agility, and sprint intervals.',
@@ -374,7 +404,7 @@ export const YMCA_CLASS_CATALOG: ClassCatalogEntry[] = [
   {
     id: 'aqua-arthritis',
     title: 'Aqua Arthritis Warm Water Therapy',
-    aliases: ['aqua arthritis warm water therapy', 'aqua arthritis'],
+    aliases: ['aqua arthritis warm water therapy', 'aqua arthritis', 'aqua arthritis class'],
     section: 'Specialty & Aquatics',
     shortSummary:
       'Gentle warm-water exercise proven to ease arthritis pain and improve joint mobility.',
@@ -451,4 +481,3 @@ export function requiresAdvanceRegistration(
 ): boolean {
   return Boolean(item.registrationRequired);
 }
-

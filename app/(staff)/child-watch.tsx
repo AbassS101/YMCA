@@ -43,7 +43,7 @@ export default function StaffChildWatchScreen() {
   const load = useCallback(async () => {
     setNow(demoNow());
     const [v, kids, all] = await Promise.all([
-      childWatchRepo.allVisits(),
+      childWatchRepo.visitsForViewer(staffId),
       api.listAllMembers(BRANCH_ID).then(async (ms) => {
         const lists = await Promise.all(ms.map((m) => childWatchRepo.listChildren(m.id)));
         // Every adult in a household sees the same children, so de-duplicate by child id.

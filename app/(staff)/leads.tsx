@@ -257,6 +257,13 @@ function ConvertLeadSheet({
 
   const offeredPlans = useAppConfig().config.membershipPlans.filter((p) => p.active);
   const plan = offeredPlans.find((p) => p.id === planId) ?? offeredPlans[0];
+  if (!plan) {
+    return (
+      <Sheet visible={lead !== null} title={`Sell membership: ${lead?.name ?? ''}`} onClose={onClose}>
+        <ErrorBanner message="No membership plans are being offered right now. Turn one on in the Admin Control Center." />
+      </Sheet>
+    );
+  }
   const today = getDemoToday();
   const running = campaign && campaign.active && today >= campaign.startDate && today <= campaign.endDate ? campaign : null;
   const fee = effectiveEnrollmentFeeCents(plan, { campaign: running });

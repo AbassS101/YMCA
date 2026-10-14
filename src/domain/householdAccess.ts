@@ -47,11 +47,12 @@ export type PlanLike = MembershipPlan & { legacyNames?: string[]; minAge?: numbe
 export function findPlan<T extends PlanLike = PlanLike>(idOrName: string | undefined, plans?: T[]): T | undefined {
   if (!idOrName) return undefined;
   const lower = idOrName.toLowerCase();
-  return (plans ?? (YMCA_MEMBERSHIP_PLANS as PlanLike[] as T[])).find(
-    (p) =>
-      p.id === idOrName ||
-      p.name.toLowerCase() === lower ||
-      (p.legacyNames ?? []).some((n) => n.toLowerCase() === lower)
+  const list = plans ?? (YMCA_MEMBERSHIP_PLANS as PlanLike[] as T[]);
+  // A current id or name always wins over a former name.
+  return (
+    list.find((p) => p.id === idOrName) ??
+    list.find((p) => p.name.toLowerCase() === lower) ??
+    list.find((p) => (p.legacyNames ?? []).some((n) => n.toLowerCase() === lower))
   );
 }
 
@@ -59,8 +60,9 @@ export function isFamilyPlan(plan: MembershipPlan | undefined): boolean {
   return Boolean(plan && ((plan.maxAdults ?? 1) > 1 || plan.allowsDependents));
 }
 
-export function isPickleballOnly(planIdOrName?: string): boolean {
-  return /pickleball/i.test(planIdOrName ?? '');
+export function isPickleballOnly(planIdOrName?: string, plans?: PlanLike[]): boolean {
+  // Decide from the resolved plan id so a renamed plan still counts; fall back to the text given.
+  return /pickleball/i.test(findPlan(planIdOrName, plans)?.id ?? planIdOrName ?? '');
 }
 
 export type SoloCheck = { ok: true } | { ok: false; reason: string };

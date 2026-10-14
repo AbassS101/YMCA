@@ -123,7 +123,7 @@ const DEMO_PERSONAS = [
     badgeBg: '#CFFAFE',
     badgeColor: '#0E7490',
     borderColor: '#0891B2',
-    icon: 'headset' as const,
+    icon: 'id-card' as const,
     highlights: 'Member sign-in, billing follow-up, leads, campaigns & call scripts',
   },
   {

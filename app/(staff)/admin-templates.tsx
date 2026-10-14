@@ -14,8 +14,8 @@ export default function AdminTemplatesScreen() {
   const [form, setForm] = useDraftFrom(templates, (t) => ({ ...t }));
 
   const submit = async () => {
-    if (!form.welcomeCall.trim() || !form.guestPassShare.trim()) return setError('Every template needs text.');
-    await save({ welcomeCall: form.welcomeCall.trim(), guestPassShare: form.guestPassShare.trim() }, 'Templates were updated.');
+    if (!form.guestPassShare.trim()) return setError('Every template needs text.');
+    await save({ guestPassShare: form.guestPassShare.trim() }, 'Templates were updated.');
   };
 
   return (
@@ -26,9 +26,6 @@ export default function AdminTemplatesScreen() {
       {error ? <ErrorBanner message={error} /> : null}
       <SectionCard title="Guest Pass Share Message" icon="ticket" accent={accent} subtitle="Sent when a member shares a guest pass. Fills in {guestName} and {passCode}.">
         <TextField label="Message" value={form.guestPassShare} onChangeText={(guestPassShare) => setForm({ ...form, guestPassShare })} multiline />
-      </SectionCard>
-      <SectionCard title="Welcome Call Script" icon="call" accent={accent} subtitle="Front desk script for new members. Fills in {firstName} and {repName}.">
-        <TextField label="Script" value={form.welcomeCall} onChangeText={(welcomeCall) => setForm({ ...form, welcomeCall })} multiline />
       </SectionCard>
       <PrimaryButton title="Save Templates" onPress={() => void submit()} loading={busy} />
       <ActionButton label="Reset section to defaults" icon="refresh" color="#B42318" variant="outline" onPress={resetToDefaults} />

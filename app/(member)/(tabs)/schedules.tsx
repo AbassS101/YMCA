@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Platform,
   Pressable,
@@ -129,6 +130,7 @@ export default function MemberSchedulesScreen() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [dayIndex, setDayIndex] = useState(0);
   const [error, setError] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   // Filters & Search
@@ -171,6 +173,7 @@ export default function MemberSchedulesScreen() {
       setRegistrations(regs);
       setSavedIds(new Set(saved.map((s) => s.scheduleItemId)));
       setMembership(mem);
+      setLoaded(true);
 
       const counts: Record<string, number> = {};
       await Promise.all(
@@ -182,6 +185,8 @@ export default function MemberSchedulesScreen() {
       setRosterCounts(counts);
     } catch {
       setError(true);
+    } finally {
+      setLoaded(true);
     }
   }, [api, memberId]);
 
@@ -802,6 +807,19 @@ export default function MemberSchedulesScreen() {
           </View>
         }
         ListEmptyComponent={
+          !loaded && !error ? (
+            <View
+              style={[
+                styles.emptyContainer,
+                { backgroundColor: tc.cardBg, borderColor: tc.border },
+              ]}
+              accessibilityRole="progressbar"
+              accessibilityLabel="Loading classes"
+            >
+              <ActivityIndicator size="large" color={tc.primary} />
+              <Text style={[styles.emptyTitle, { color: tc.text }]}>Loading classes…</Text>
+            </View>
+          ) : (
           <View
             style={[
               styles.emptyContainer,
@@ -832,6 +850,7 @@ export default function MemberSchedulesScreen() {
               </Pressable>
             ) : null}
           </View>
+          )
         }
         renderItem={({ item }) => {
           const canRegister = requiresAdvanceRegistration(item);

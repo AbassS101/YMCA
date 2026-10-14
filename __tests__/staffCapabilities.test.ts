@@ -38,11 +38,14 @@ const ALL: StaffCapability[] = [
   'manageBusinessConfig',
   'manageSystemConfig',
   'viewConfigAudit',
+  'runChildWatchRoom',
+  'manageChildWatchProgram',
 ];
 
 // Staff Admin runs the business settings but not the system-level ones.
 const STAFF_ADMIN = ALL.filter((c) => c !== 'manageSystemConfig');
 const CONFIG_CAPS: StaffCapability[] = ['manageBusinessConfig', 'manageSystemConfig', 'viewConfigAudit'];
+const CHILD_WATCH_CAPS: StaffCapability[] = ['runChildWatchRoom', 'manageChildWatchProgram'];
 
 const REP: StaffCapability[] = [
   'viewAllMembers',
@@ -53,6 +56,7 @@ const REP: StaffCapability[] = [
   'logMemberContacts',
   'manageLeads',
   'sellMemberships',
+  'runChildWatchRoom',
 ];
 
 const EXPECTED: Record<string, StaffCapability[]> = {
@@ -61,7 +65,9 @@ const EXPECTED: Record<string, StaffCapability[]> = {
   it_admin: ALL,
   trainer: ['logWorkouts', 'manageOwnLessonSlots', 'takeAttendance'],
   // Everything a Staff Admin can do, except reading complaints and the generic config powers.
-  wellness_director: ALL.filter((c) => c !== 'manageComplaints' && !CONFIG_CAPS.includes(c)),
+  wellness_director: ALL.filter(
+    (c) => c !== 'manageComplaints' && !CONFIG_CAPS.includes(c) && !CHILD_WATCH_CAPS.includes(c)
+  ),
   aquatics_director: [
     'logWorkouts',
     'manageOwnLessonSlots',
@@ -89,6 +95,16 @@ const EXPECTED: Record<string, StaffCapability[]> = {
     'sellMemberships',
     'manageCampaigns',
     'viewRepKpis',
+    'runChildWatchRoom',
+  ],
+  child_watch_supervisor: ['viewAllMembers', 'checkIn', 'runChildWatchRoom', 'broadcast'],
+  child_watch_director: [
+    'viewAllMembers',
+    'checkIn',
+    'runChildWatchRoom',
+    'broadcast',
+    'manageChildWatchProgram',
+    'takeAttendance',
   ],
   staff: REP,
   desk: REP,
@@ -128,6 +144,10 @@ describe('staff capability matrix', () => {
     for (const cap of CONFIG_CAPS) expect(hasCapability('wellness_director', cap)).toBe(false);
   });
 
+  it('keeps Child Watch powers away from the Wellness Director', () => {
+    for (const cap of CHILD_WATCH_CAPS) expect(hasCapability('wellness_director', cap)).toBe(false);
+  });
+
   it('keeps system config (toggles, branding, thresholds) with IT only', () => {
     expect(hasCapability('it_admin', 'manageSystemConfig')).toBe(true);
     expect(hasCapability('staff_admin', 'manageSystemConfig')).toBe(false);
@@ -147,6 +167,8 @@ describe('staff persona helpers', () => {
     expect(personaForRole('aquatics_director')).toBe('aquaticsDirector');
     expect(isDirectorRole('aquatics_director')).toBe(true);
     expect(personaForRole('membership_director')).toBe('membershipDirector');
+    expect(personaForRole('child_watch_supervisor')).toBe('childWatchSupervisor');
+    expect(personaForRole('child_watch_director')).toBe('childWatchDirector');
     expect(personaForRole('desk')).toBe('frontDesk');
     expect(personaForRole('staff')).toBe('frontDesk');
     expect(personaForRole('member')).toBeNull();
@@ -160,6 +182,10 @@ describe('staff persona helpers', () => {
     expect(isStaffRole('guest')).toBe(false);
     expect(isDirectorRole('wellness_director')).toBe(true);
     expect(isDirectorRole('membership_director')).toBe(true);
+    expect(isDirectorRole('child_watch_director')).toBe(true);
+    expect(isDirectorRole('child_watch_supervisor')).toBe(false);
+    expect(isStaffRole('child_watch_supervisor')).toBe(true);
+    expect(isStaffRole('child_watch_director')).toBe(true);
     expect(isDirectorRole('staff_admin')).toBe(false);
     expect(isDirectorRole('trainer')).toBe(false);
   });

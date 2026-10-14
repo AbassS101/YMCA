@@ -2,7 +2,7 @@ import {
   APP_CONFIG_SECTIONS,
   applyConfigPatch,
   CONFIG_SECTION_LABELS,
-  defaultAppConfig,
+  defaultsForReset,
   describeConfigChange,
   FEATURE_TOGGLE_LABELS,
   normalizeAppConfig,
@@ -15,7 +15,8 @@ import {
   type FeatureToggles,
 } from '@/domain/appConfig';
 import { computeCancelDates } from '@/domain/cancelDates';
-import { demoNowIso, getDemoToday } from '@/domain/demoClock';
+import { canManageTrainerAvailability } from '@/domain/availabilityAccess';
+import { addDaysToDate, demoNowIso, getDemoToday } from '@/domain/demoClock';
 import { AQUATICS_CLASSES } from '@/domain/aquaticsGuideData';
 import {
   lessonPriceCents,
@@ -31,6 +32,12 @@ import {
   sessionLengthsFor,
   type Interval,
 } from '@/domain/sessionAvailability';
+import {
+  expandAvailability,
+  findConflicts,
+  normalizeAvailability,
+  validateAvailability,
+} from '@/domain/trainerAvailability';
 import { canInstantBook, canTransition, canViewSessionRequest } from '@/domain/sessionRequests';
 import {
   canEditConfigSection,
@@ -76,7 +83,10 @@ import {
   type ForumTopic,
   type ForumTopicCategory,
   type BookLessonOptions,
+  type AvailabilityConflict,
   type BookableTime,
+  type TrainerAvailability,
+  type TrainerAvailabilityInput,
   type CreateSessionRequestInput,
   type LessonType,
   type SessionRequest,
@@ -104,10 +114,23 @@ import {
   type TicketStatus,
   type TicketType,
   type UserForumInterests,
+  type ChildProfile,
+  type ChildWatchAuditAction,
+  type ChildWatchAuditEntry,
+  type ChildWatchAuthorizedPickup,
+  type ChildWatchDropOffResult,
+  type ChildWatchHeadcount,
+  type ChildWatchIncident,
+  type ChildWatchIncidentType,
+  type ChildWatchShift,
+  type ChildWatchVisit,
   type UserRole,
 } from '@/domain/types';
 import { loadStore, saveStore, type DemoState } from '@/storage/demoStore';
-import type { ProtivityPort } from '@/protivity/ProtivityPort';
+import { ageInWeeks, demoNow, formatLimit, validateSignIn } from '@/domain/childWatch';
+import { generatePickupCode, hashPickupCode, isGuardianOf, redactVisit, validatePickup } from '@/domain/childWatchSecurity';
+import { staffOnDutyAt } from '@/domain/childWatchStaffing';
+import type { ChildWatchAuditFilter, ProtivityPort } from '@/protivity/ProtivityPort';
 
 /** Calendar day from seeded ISO datetimes (YYYY-MM-DD), TZ-independent. */
 function scheduleCalendarDay(isoStart: string): string {
@@ -397,6 +420,8 @@ function credentialRoleForStaffRole(staffRole?: StaffRole): UserRole {
     case 'wellness_director':
     case 'aquatics_director':
     case 'membership_director':
+    case 'child_watch_supervisor':
+    case 'child_watch_director':
       return staffRole;
     default:
       return 'staff';
@@ -435,7 +460,9 @@ function assertConfigSectionAccess(
   }
 }
 
-/** Adds a change log entry (newest first). Skips no-op saves. A missing requester is logged as System. */
+const CONFIG_AUDIT_LIMIT = 200;
+
+/** Adds a change log entry (newest first, keeping the newest 200). Skips no-op saves. A missing requester is logged as System. */
 function recordConfigAudit(
   state: DemoState,
   requesterUserId: string | undefined,
@@ -446,7 +473,8 @@ function recordConfigAudit(
 ): void {
   if (JSON.stringify(before) === JSON.stringify(after)) return;
   const staff = requesterUserId ? state.staff.find((s) => s.id === requesterUserId) : undefined;
-  (state.configAudit ?? (state.configAudit = [])).unshift({
+  const log = state.configAudit ?? (state.configAudit = []);
+  log.unshift({
     id: `cfg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     at: demoNowIso(),
     byId: requesterUserId ?? 'system',
@@ -457,6 +485,7 @@ function recordConfigAudit(
     before,
     after,
   });
+  if (log.length > CONFIG_AUDIT_LIMIT) log.length = CONFIG_AUDIT_LIMIT;
 }
 
 const COACH_STAFF_ROLES = new Set<string>(['trainer', 'swim_instructor', 'wellness_director', 'aquatics_director']);
@@ -491,12 +520,57 @@ function addMinutesIso(iso: string, minutes: number): string {
   return new Date(new Date(iso).getTime() + minutes * 60000).toISOString();
 }
 
-function isInsideWindow(state: DemoState, staffId: string, iv: Interval): boolean {
+/** Weekly availability expanded for the dates, merged with the trainer's one-off lesson slots. */
+function windowsFor(state: DemoState, staffId: string, fromDate: string, toDate: string): LessonSlot[] {
+  const staff = state.staff.find((s) => s.id === staffId);
+  const weekly = expandAvailability(state.trainerAvailability?.[staffId], staff?.homeBranchId ?? '', fromDate, toDate);
+  const oneOff = state.lessonSlots.filter((w) => {
+    const day = scheduleCalendarDay(w.start);
+    return w.staffId === staffId && day >= fromDate && day <= toDate;
+  });
+  return [...weekly, ...oneOff];
+}
+
+/** The window that fully contains the interval, if any (checks the days either side for UTC/Eastern drift). */
+function windowContaining(state: DemoState, staffId: string, iv: Interval): LessonSlot | undefined {
   const s = new Date(iv.start).getTime();
   const e = new Date(iv.end).getTime();
-  return state.lessonSlots.some(
-    (w) => w.staffId === staffId && new Date(w.start).getTime() <= s && new Date(w.end).getTime() >= e
+  const day = iv.start.slice(0, 10);
+  return windowsFor(state, staffId, addDaysToDate(day, -1), addDaysToDate(day, 1)).find(
+    (w) => new Date(w.start).getTime() <= s && new Date(w.end).getTime() >= e
   );
+}
+
+function isInsideWindow(state: DemoState, staffId: string, iv: Interval): boolean {
+  return Boolean(windowContaining(state, staffId, iv));
+}
+
+/** Throws unless the requester may manage this trainer's availability and session requests. */
+function assertCanManageAvailability(state: DemoState, requesterUserId: string, staffId: string): Staff {
+  const target = state.staff.find((s) => s.id === staffId);
+  if (!target) throw new Error(`Staff member not found: ${staffId}`);
+  if (!canManageTrainerAvailability(requesterRole(state, requesterUserId), requesterUserId, target)) {
+    throw new Error('Your staff role is not permitted to manage this trainer\u2019s availability.');
+  }
+  return target;
+}
+
+/** Declines every other open request that overlaps a time that was just booked for the same trainer. */
+function declineOverlappingRequests(state: DemoState, accepted: SessionRequest): void {
+  for (const other of state.sessionRequests ?? []) {
+    if (other.id === accepted.id || other.staffId !== accepted.staffId) continue;
+    if (other.status !== 'pending' && other.status !== 'countered') continue;
+    if (!overlaps(other, accepted)) continue;
+    other.status = 'declined';
+    pushRequestEvent(state, other, accepted.staffId, 'declined', { note: 'That time was booked by another member.' });
+    notifyUser(
+      state,
+      other.memberId,
+      'Session declined',
+      `${other.staffName ?? 'Your instructor'} is no longer available ${describeWhen(other.start)}. Pick another time.`,
+      '/(member)/(tabs)/schedules'
+    );
+  }
 }
 
 function assertTimeFree(state: DemoState, req: SessionRequest, iv: Interval): void {
@@ -586,6 +660,7 @@ function confirmSessionRequest(state: DemoState, req: SessionRequest): PrivateLe
   state.privateLessons.push(lesson);
   req.status = 'accepted';
   req.lessonId = lesson.id;
+  declineOverlappingRequests(state, req);
   return lesson;
 }
 
@@ -600,6 +675,98 @@ function toggleReactionMap(
   if (updated.length === 0) delete next[emoji];
   else next[emoji] = updated;
   return next;
+}
+
+// --- Child Watch helpers ------------------------------------------------------------------------
+
+const CHILD_WATCH_AUDIT_LIMIT = 500;
+
+type ChildWatchActor =
+  | { kind: 'staff'; id: string; role: string; canRunRoom: boolean; canManage: boolean }
+  | { kind: 'member'; id: string; member: Member };
+
+/** Staff are told apart from members by role; anyone else must be a real member record. */
+function childWatchActor(state: DemoState, requesterUserId: string | undefined): ChildWatchActor {
+  if (!requesterUserId) throw new Error('Sign in to use Child Watch.');
+  const role = requesterRole(state, requesterUserId);
+  if (isStaffRole(role)) {
+    return {
+      kind: 'staff',
+      id: requesterUserId,
+      role: String(role),
+      canRunRoom: hasCapability(role, 'runChildWatchRoom'),
+      canManage: hasCapability(role, 'manageChildWatchProgram'),
+    };
+  }
+  const member = state.members.find((m) => m.id === requesterUserId);
+  if (!member) throw new Error('Sign in to use Child Watch.');
+  return { kind: 'member', id: member.id, member };
+}
+
+function requireChildWatchRoom(actor: ChildWatchActor, action: string): asserts actor is Extract<ChildWatchActor, { kind: 'staff' }> {
+  if (actor.kind !== 'staff' || !actor.canRunRoom) throw new Error(`Your staff role is not permitted to ${action}.`);
+}
+
+function requireChildWatchProgram(actor: ChildWatchActor, action: string): asserts actor is Extract<ChildWatchActor, { kind: 'staff' }> {
+  if (actor.kind !== 'staff' || !actor.canManage) throw new Error(`Your staff role is not permitted to ${action}.`);
+}
+
+function householdKeyOf(m: Member): string {
+  return m.householdId ?? m.id;
+}
+
+function childWatchChild(state: DemoState, childId: string): Member {
+  const child = state.members.find((m) => m.id === childId);
+  if (!child) throw new Error('Child not found.');
+  return child;
+}
+
+function isChildWatchGuardian(actor: ChildWatchActor, childMember: Member): boolean {
+  return actor.kind === 'member' && isGuardianOf(actor.member, childMember, getDemoToday());
+}
+
+/** A member may act on a household only as an adult in it. */
+function isHouseholdAdult(actor: ChildWatchActor, householdId: string): boolean {
+  return (
+    actor.kind === 'member' &&
+    householdKeyOf(actor.member) === householdId &&
+    Boolean(actor.member.birthDate) &&
+    ageOn(actor.member.birthDate as string, getDemoToday()) >= 18
+  );
+}
+
+function childWatchNowIso(now?: Date): string {
+  return (now ?? new Date()).toISOString();
+}
+
+function recordChildWatchAudit(
+  state: DemoState,
+  actor: ChildWatchActor,
+  action: ChildWatchAuditAction,
+  detail: string,
+  refs: { visitId?: string; childId?: string } = {},
+  now?: Date
+): void {
+  const log = state.childWatchAudit ?? (state.childWatchAudit = []);
+  log.unshift({
+    id: `cwa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    at: childWatchNowIso(now),
+    actorId: actor.id,
+    actorRole: actor.kind === 'staff' ? actor.role : 'member',
+    action,
+    ...refs,
+    detail,
+  });
+  if (log.length > CHILD_WATCH_AUDIT_LIMIT) log.length = CHILD_WATCH_AUDIT_LIMIT;
+}
+
+function childWatchLocalDay(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function childWatchAgeMonths(birthDate: string | undefined, now: Date): number {
+  return birthDate ? Math.floor(ageInWeeks(birthDate, now) / 4.345) : 0;
 }
 
 export class MockProtivityAdapter implements ProtivityPort {
@@ -1195,10 +1362,7 @@ export class MockProtivityAdapter implements ProtivityPort {
         sessionLengthsFor(s).includes(q.durationMin)
     );
     const ids = new Set(staff.map((s) => s.id));
-    const windows = state.lessonSlots.filter((w) => {
-      const day = scheduleCalendarDay(w.start);
-      return ids.has(w.staffId) && day >= q.from && day <= q.to;
-    });
+    const windows = [...ids].flatMap((id) => windowsFor(state, id, q.from, q.to));
     const busyByStaff: Record<string, Interval[]> = {};
     for (const s of staff) busyByStaff[s.id] = staffBusy(state, s.id);
     const times = availableAt(windows, busyByStaff, memberBusy(state, memberId), q.durationMin, {
@@ -1234,10 +1398,7 @@ export class MockProtivityAdapter implements ProtivityPort {
       durationMin: input.durationMin,
       start: iv.start,
       end: iv.end,
-      location:
-        state.lessonSlots.find(
-          (w) => w.staffId === staff.id && new Date(w.start).getTime() <= new Date(iv.start).getTime() && new Date(w.end).getTime() >= new Date(iv.end).getTime()
-        )?.location ?? 'Facility',
+      location: windowContaining(state, staff.id, iv)?.location ?? 'Facility',
       paymentTiming: input.paymentTiming,
       status: 'pending',
       swimmerName: input.swimmerName?.trim() || undefined,
@@ -1248,6 +1409,10 @@ export class MockProtivityAdapter implements ProtivityPort {
       createdAt: new Date().toISOString(),
       history: [],
     };
+    const duplicate = state.sessionRequests.some(
+      (r) => r.memberId === memberId && (r.status === 'pending' || r.status === 'countered') && overlaps(r, iv)
+    );
+    if (duplicate) throw new Error('You already have a request for that time.');
     assertTimeFree(state, req, iv);
     pushRequestEvent(state, req, memberId, 'requested', { start: req.start, end: req.end });
     if (canInstantBook(staff, memberId)) {
@@ -1282,7 +1447,12 @@ export class MockProtivityAdapter implements ProtivityPort {
     const state = await loadStore();
     const req = (state.sessionRequests ?? []).find((r) => r.id === requestId);
     if (!req) throw new Error('Request not found');
-    if (req.staffId !== staffId) throw new Error('Only the requested instructor can respond.');
+    if (req.staffId !== staffId) {
+      const target = state.staff.find((s) => s.id === req.staffId);
+      if (!target || !canManageTrainerAvailability(requesterRole(state, staffId), staffId, target)) {
+        throw new Error('Only the requested instructor can respond.');
+      }
+    }
     if (!canTransition(req.status, response.action, 'staff')) {
       throw new Error('This request has already been answered.');
     }
@@ -1401,9 +1571,9 @@ export class MockProtivityAdapter implements ProtivityPort {
     return state.lessonPricing;
   }
 
-  async updateLessonPricing(updates: Partial<LessonPricing>, requesterUserId?: string): Promise<LessonPricing> {
+  async updateLessonPricing(updates: Partial<LessonPricing>, requesterUserId: string): Promise<LessonPricing> {
     const state = await loadStore();
-    if (requesterUserId !== undefined) assertConfigSectionAccess(state, requesterUserId, 'lessonPricing');
+    assertConfigSectionAccess(state, requesterUserId, 'lessonPricing');
     const before = state.lessonPricing;
     const next = normalizePricing({ ...state.lessonPricing, ...updates });
     for (const key of ['training', 'swim'] as const) {
@@ -2074,6 +2244,7 @@ export class MockProtivityAdapter implements ProtivityPort {
   ): Promise<Donation> {
     const state = await loadStore();
     assertFeatureOn(state, 'donations');
+    if (!Number.isInteger(donation.amountCents)) throw new Error('The gift amount must be a whole number of cents.');
     const { minimumGiftCents } = configOf(state).donations;
     if (donation.amountCents < minimumGiftCents) {
       throw new Error(`The minimum gift is $${(minimumGiftCents / 100).toFixed(2)}.`);
@@ -2453,8 +2624,9 @@ export class MockProtivityAdapter implements ProtivityPort {
     return lesson;
   }
 
-  async addLessonSlot(slot: Omit<LessonSlot, 'id'>): Promise<LessonSlot> {
+  async addLessonSlot(slot: Omit<LessonSlot, 'id'>, requesterUserId?: string): Promise<LessonSlot> {
     const state = await loadStore();
+    if (requesterUserId !== undefined) assertCanManageAvailability(state, requesterUserId, slot.staffId);
     const newSlot: LessonSlot = {
       ...slot,
       id: `slot-${Date.now()}`,
@@ -2464,10 +2636,64 @@ export class MockProtivityAdapter implements ProtivityPort {
     return newSlot;
   }
 
-  async deleteLessonSlot(slotId: string): Promise<void> {
+  async deleteLessonSlot(slotId: string, requesterUserId?: string): Promise<void> {
     const state = await loadStore();
+    const existing = state.lessonSlots.find((s) => s.id === slotId);
+    if (requesterUserId !== undefined && existing) assertCanManageAvailability(state, requesterUserId, existing.staffId);
     state.lessonSlots = state.lessonSlots.filter((s) => s.id !== slotId);
     await saveStore(state);
+  }
+
+  async getTrainerAvailability(staffId: string, requesterUserId: string): Promise<TrainerAvailability> {
+    const state = await loadStore();
+    assertCanManageAvailability(state, requesterUserId, staffId);
+    return (
+      state.trainerAvailability?.[staffId] ?? {
+        staffId,
+        weekly: [],
+        effectiveFrom: getDemoToday(),
+        exceptions: [],
+        updatedAt: demoNowIso(),
+        updatedBy: '',
+      }
+    );
+  }
+
+  async saveTrainerAvailability(
+    staffId: string,
+    input: TrainerAvailabilityInput,
+    requesterUserId: string
+  ): Promise<{ availability: TrainerAvailability; conflicts: AvailabilityConflict[] }> {
+    const state = await loadStore();
+    const staff = assertCanManageAvailability(state, requesterUserId, staffId);
+    const check = validateAvailability(input);
+    if (!check.ok) throw new Error(check.errors[0].msg);
+    const next = normalizeAvailability(input);
+    const availability: TrainerAvailability = {
+      staffId,
+      weekly: next.weekly,
+      effectiveFrom: next.effectiveFrom,
+      effectiveUntil: next.effectiveUntil,
+      exceptions: next.exceptions,
+      updatedAt: demoNowIso(),
+      updatedBy: requesterUserId,
+    };
+    state.trainerAvailability = { ...(state.trainerAvailability ?? {}), [staffId]: availability };
+    // Existing bookings are never cancelled here; they are reported so a person can follow up.
+    const conflicts = findConflicts(
+      availability,
+      staff.homeBranchId,
+      state.privateLessons.filter((l) => l.staffId === staffId),
+      (state.sessionRequests ?? []).filter((r) => r.staffId === staffId),
+      { extraWindows: state.lessonSlots.filter((s) => s.staffId === staffId), fromIso: demoNowIso() }
+    );
+    await saveStore(state);
+    return { availability, conflicts };
+  }
+
+  async listAvailabilityWindows(staffId: string, from: string, to: string): Promise<LessonSlot[]> {
+    const state = await loadStore();
+    return windowsFor(state, staffId, from, to).sort((a, b) => a.start.localeCompare(b.start));
   }
 
   // ==========================================
@@ -4436,7 +4662,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     requesterUserId: string
   ): Promise<EnrollmentCampaign> {
     const state = await loadStore();
-    assertStaffCapability(state, requesterUserId, 'manageCampaigns', 'manage enrollment campaigns');
+    assertConfigSectionAccess(state, requesterUserId, 'campaigns');
     if (!input.name.trim()) throw new Error('Campaign name is required.');
     if (input.endDate < input.startDate) throw new Error('End date must be on or after the start date.');
     const list = state.enrollmentCampaigns ?? (state.enrollmentCampaigns = []);
@@ -4461,7 +4687,7 @@ export class MockProtivityAdapter implements ProtivityPort {
 
   async deleteCampaign(id: string, requesterUserId: string): Promise<void> {
     const state = await loadStore();
-    assertStaffCapability(state, requesterUserId, 'manageCampaigns', 'manage enrollment campaigns');
+    assertConfigSectionAccess(state, requesterUserId, 'campaigns');
     const removed = (state.enrollmentCampaigns ?? []).find((c) => c.id === id);
     state.enrollmentCampaigns = (state.enrollmentCampaigns ?? []).filter((c) => c.id !== id);
     if (removed) {
@@ -4498,7 +4724,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     assertConfigSectionAccess(state, requesterUserId, section);
     if (!APP_CONFIG_SECTIONS.includes(section)) throw new Error('Unknown settings section.');
     const current = normalizeAppConfig(state.appConfig);
-    const after = defaultAppConfig()[section];
+    const after = defaultsForReset(current, section);
     recordConfigAudit(
       state,
       requesterUserId,
@@ -4517,6 +4743,443 @@ export class MockProtivityAdapter implements ProtivityPort {
     if (!requesterUserId) throw new Error('Sign in as staff to view the change log.');
     assertStaffCapability(state, requesterUserId, 'viewConfigAudit', 'view the settings change log');
     return [...(state.configAudit ?? [])];
+  }
+
+  // --- Child Watch ---------------------------------------------------------------------------------
+
+  async listChildWatchVisits(
+    filter: { date?: string; activeOnly?: boolean; householdId?: string },
+    requesterUserId: string
+  ): Promise<ChildWatchVisit[]> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    if (actor.kind === 'staff') requireChildWatchRoom(actor, 'view Child Watch visits');
+    const childById = new Map(state.members.map((m) => [m.id, m]));
+    return state.childWatchVisits
+      .filter((v) => {
+        if (filter.activeOnly && v.signedOutAt) return false;
+        if (filter.date && childWatchLocalDay(v.signedInAt) !== filter.date) return false;
+        const child = childById.get(v.childId);
+        if (filter.householdId && (child ? householdKeyOf(child) : v.memberId) !== filter.householdId) return false;
+        return true;
+      })
+      .map((v) => {
+        const child = childById.get(v.childId);
+        return redactVisit(v, Boolean(child) && isChildWatchGuardian(actor, child as Member));
+      });
+  }
+
+  async childWatchDropOff(input: {
+    childId: string;
+    requesterUserId: string;
+    deskCheckInConfirmed: boolean;
+    notes?: string;
+    emergencyPhone?: string;
+    now?: Date;
+  }): Promise<ChildWatchDropOffResult> {
+    const state = await loadStore();
+    assertFeatureOn(state, 'childWatch');
+    const actor = childWatchActor(state, input.requesterUserId);
+    const childMember = childWatchChild(state, input.childId);
+    if (!childMember.householdId || !childMember.birthDate) throw new Error('Child not found.');
+    if (actor.kind === 'member') {
+      if (!isChildWatchGuardian(actor, childMember)) throw new Error('Only a guardian in this household can drop off this child.');
+    } else {
+      requireChildWatchRoom(actor, 'sign children in to Child Watch');
+    }
+    const now = input.now ?? demoNow();
+    const rules = configOf(state).childWatch;
+    const primaryId = childMember.householdId;
+    const [firstName, ...rest] = childMember.name.trim().split(/\s+/);
+    const child: ChildProfile = {
+      id: childMember.id,
+      memberId: primaryId,
+      firstName: firstName ?? '',
+      lastName: rest.join(' '),
+      birthDate: childMember.birthDate,
+    };
+    const active = state.childWatchVisits.filter((v) => !v.signedOutAt);
+    const check = validateSignIn(
+      {
+        now,
+        child,
+        visits: state.childWatchVisits,
+        parentCheckedInAtDesk: input.deskCheckInConfirmed,
+        staffOnDuty: staffOnDutyAt(state.childWatchShifts ?? [], now),
+        occupantAgesMonths: active.map((v) =>
+          childWatchAgeMonths(state.members.find((m) => m.id === v.childId)?.birthDate, now)
+        ),
+      },
+      rules
+    );
+    if (!check.ok) throw new Error(check.reason);
+
+    const id = `cwv-${Date.now()}-${input.childId}`;
+    const pickupCode = generatePickupCode(rules.pickupCodeLength);
+    const visit: ChildWatchVisit = {
+      id,
+      childId: input.childId,
+      memberId: primaryId,
+      signedInAt: now.toISOString(),
+      signedInBy: input.requesterUserId,
+      // New visits keep only a hash; the plain code is returned once to the caller.
+      pickupCode: '',
+      pickupCodeHash: hashPickupCode(pickupCode, id),
+      ...(actor.kind === 'member' ? { droppedOffByMemberId: actor.id } : {}),
+      ...(input.notes?.trim() ? { dropOffNotes: input.notes.trim() } : {}),
+      ...(input.emergencyPhone?.trim() ? { emergencyPhone: input.emergencyPhone.trim() } : {}),
+    };
+    state.childWatchVisits.push(visit);
+    state.notifications.unshift({
+      id: `notif-cw-${visit.id}`,
+      userId: primaryId,
+      title: `${child.firstName} signed in to Child Watch`,
+      body: `Open Child Watch to view your pickup code. Remember: maximum of ${formatLimit(rules.maxMinutesPerDay)} per day, and parents must remain in the building.`,
+      type: 'event',
+      createdAt: new Date().toISOString(),
+      read: false,
+      relatedId: visit.id,
+      link: '/(member)/child-watch',
+    });
+    recordChildWatchAudit(state, actor, 'drop_off', `${child.firstName} dropped off`, { visitId: id, childId: input.childId }, now);
+    await saveStore(state);
+    return { visit, pickupCode };
+  }
+
+  async childWatchPickUp(input: {
+    visitId: string;
+    requesterUserId: string;
+    pickupCode?: string;
+    guardianId?: string;
+    idVerified?: boolean;
+    overrideReason?: string;
+    now?: Date;
+  }): Promise<ChildWatchVisit> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, input.requesterUserId);
+    const visit = state.childWatchVisits.find((v) => v.id === input.visitId);
+    if (!visit) throw new Error('Visit not found.');
+    const childMember = childWatchChild(state, visit.childId);
+    if (actor.kind === 'staff') requireChildWatchRoom(actor, 'release children from Child Watch');
+    const now = input.now ?? demoNow();
+    const refs = { visitId: visit.id, childId: visit.childId };
+    const rules = configOf(state).childWatch;
+
+    const deny = async (reason: string, action: ChildWatchAuditAction = 'pickup_denied'): Promise<never> => {
+      recordChildWatchAudit(state, actor, action, reason, refs, now);
+      await saveStore(state);
+      throw new Error(reason);
+    };
+
+    let authorized: ChildWatchAuthorizedPickup | undefined;
+    if (input.guardianId) {
+      authorized = (state.childWatchAuthorizedPickups ?? []).find(
+        (p) => p.id === input.guardianId && p.householdId === householdKeyOf(childMember)
+      );
+      if (!authorized) return deny('That pickup person is not on this household\'s list.');
+    }
+
+    const decision = validatePickup({
+      visit,
+      code: input.pickupCode?.trim(),
+      guardian: authorized,
+      idVerified: Boolean(input.idVerified),
+      requester:
+        actor.kind === 'member'
+          ? { kind: 'member', isGuardian: isChildWatchGuardian(actor, childMember) }
+          : { kind: 'staff', canRunRoom: actor.canRunRoom },
+      rules,
+      overrideReason: input.overrideReason,
+      today: getDemoToday(),
+    });
+
+    if (!decision.ok) {
+      if (decision.codeFailed) {
+        visit.failedCodeAttempts = (visit.failedCodeAttempts ?? 0) + 1;
+        recordChildWatchAudit(state, actor, 'code_failed', `Wrong pickup code (attempt ${visit.failedCodeAttempts})`, refs, now);
+        if (decision.lock) {
+          visit.locked = true;
+          recordChildWatchAudit(state, actor, 'visit_locked', 'Visit locked after too many wrong codes', refs, now);
+          const childName = childMember.name;
+          for (const s of state.staff.filter((x) => x.staffRole === 'child_watch_director')) {
+            notifyUser(state, s.id, 'Child Watch visit locked', `${childName}'s visit was locked after too many wrong pickup codes. ID verification is required to release the child.`);
+          }
+        }
+        await saveStore(state);
+        throw new Error(decision.reason);
+      }
+      return deny(decision.reason);
+    }
+
+    visit.signedOutAt = now.toISOString();
+    visit.signedOutBy = input.requesterUserId;
+    visit.verification = decision.verification;
+    if (authorized) {
+      visit.pickedUpByGuardianId = authorized.id;
+      visit.pickedUpByName = authorized.name;
+    } else if (actor.kind === 'member') {
+      visit.pickedUpByName = actor.member.name;
+    }
+    if (decision.verification === 'supervisor_override') {
+      recordChildWatchAudit(state, actor, 'override', `Released after lock: ${input.overrideReason?.trim()}`, refs, now);
+    }
+    recordChildWatchAudit(state, actor, 'pickup', `Picked up (${decision.verification})`, refs, now);
+    await saveStore(state);
+    return visit;
+  }
+
+  async listAuthorizedPickups(householdId: string, requesterUserId: string): Promise<ChildWatchAuthorizedPickup[]> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    if (actor.kind === 'staff') {
+      if (!actor.canRunRoom && !actor.canManage) throw new Error('Your staff role is not permitted to view authorized pickups.');
+    } else if (!isHouseholdAdult(actor, householdId)) {
+      throw new Error('Only a guardian in this household can view its pickup people.');
+    }
+    return (state.childWatchAuthorizedPickups ?? []).filter((p) => p.householdId === householdId);
+  }
+
+  async addAuthorizedPickup(
+    input: Pick<ChildWatchAuthorizedPickup, 'householdId' | 'name' | 'relationship' | 'phone'> &
+      Partial<Pick<ChildWatchAuthorizedPickup, 'photoUrl' | 'idType' | 'idLast4' | 'expiresOn'>>,
+    requesterUserId: string
+  ): Promise<ChildWatchAuthorizedPickup> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    if (!isHouseholdAdult(actor, input.householdId)) {
+      throw new Error('Only a guardian in this household can add a pickup person.');
+    }
+    if (!input.name.trim() || !input.relationship.trim() || !input.phone.trim()) {
+      throw new Error('Enter the name, relationship and phone number of the pickup person.');
+    }
+    const person: ChildWatchAuthorizedPickup = {
+      id: `cwp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      householdId: input.householdId,
+      name: input.name.trim(),
+      relationship: input.relationship.trim(),
+      phone: input.phone.trim(),
+      ...(input.photoUrl ? { photoUrl: input.photoUrl } : {}),
+      ...(input.idType ? { idType: input.idType } : {}),
+      ...(input.idLast4 ? { idLast4: input.idLast4 } : {}),
+      ...(input.expiresOn ? { expiresOn: input.expiresOn } : {}),
+      status: 'pending',
+      addedByMemberId: requesterUserId,
+      addedAt: new Date().toISOString(),
+    };
+    (state.childWatchAuthorizedPickups ??= []).push(person);
+    recordChildWatchAudit(state, actor, 'guardian_added', `${person.name} (${person.relationship}) added, pending approval`);
+    for (const s of state.staff.filter((x) => x.staffRole === 'child_watch_director')) {
+      notifyUser(state, s.id, 'Pickup person awaiting approval', `${person.name} was added as an authorized pickup person.`);
+    }
+    await saveStore(state);
+    return person;
+  }
+
+  async reviewAuthorizedPickup(
+    id: string,
+    decision: 'approved' | 'revoked',
+    requesterUserId: string
+  ): Promise<ChildWatchAuthorizedPickup> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    requireChildWatchProgram(actor, 'approve or revoke pickup people');
+    const person = (state.childWatchAuthorizedPickups ?? []).find((p) => p.id === id);
+    if (!person) throw new Error('Pickup person not found.');
+    person.status = decision;
+    person.reviewedByStaffId = requesterUserId;
+    person.reviewedAt = new Date().toISOString();
+    recordChildWatchAudit(state, actor, decision === 'approved' ? 'guardian_approved' : 'guardian_revoked', `${person.name} ${decision}`);
+    notifyUser(
+      state,
+      person.addedByMemberId,
+      decision === 'approved' ? 'Pickup person approved' : 'Pickup person removed',
+      `${person.name} was ${decision === 'approved' ? 'approved' : 'removed'} as an authorized Child Watch pickup person.`
+    );
+    await saveStore(state);
+    return person;
+  }
+
+  async logChildWatchIncident(
+    input: {
+      visitId?: string;
+      childId: string;
+      type: ChildWatchIncidentType;
+      severity: ChildWatchIncident['severity'];
+      description: string;
+      actionTaken: string;
+      now?: Date;
+    },
+    requesterUserId: string
+  ): Promise<ChildWatchIncident> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    requireChildWatchRoom(actor, 'log Child Watch incidents');
+    const child = childWatchChild(state, input.childId);
+    if (!input.description.trim()) throw new Error('Describe what happened.');
+    const at = childWatchNowIso(input.now);
+    const incident: ChildWatchIncident = {
+      id: `cwi-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      ...(input.visitId ? { visitId: input.visitId } : {}),
+      childId: input.childId,
+      householdId: householdKeyOf(child),
+      type: input.type,
+      severity: input.severity,
+      description: input.description.trim(),
+      actionTaken: input.actionTaken.trim(),
+      reportedByStaffId: requesterUserId,
+      at,
+      parentNotifiedAt: at,
+      status: 'open',
+    };
+    (state.childWatchIncidents ??= []).unshift(incident);
+    notifyUser(
+      state,
+      householdKeyOf(child),
+      `Child Watch incident: ${child.name}`,
+      `${incident.type.replace('_', ' ')} (${incident.severity}). ${incident.description}`,
+      '/(member)/child-watch'
+    );
+    recordChildWatchAudit(state, actor, 'incident_logged', `${incident.type} (${incident.severity})`, { visitId: input.visitId, childId: input.childId }, input.now);
+    await saveStore(state);
+    return incident;
+  }
+
+  async listChildWatchIncidents(
+    filter: { childId?: string; householdId?: string; status?: ChildWatchIncident['status'] },
+    requesterUserId: string
+  ): Promise<ChildWatchIncident[]> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    if (actor.kind === 'staff') requireChildWatchRoom(actor, 'view Child Watch incidents');
+    return (state.childWatchIncidents ?? []).filter((i) => {
+      if (actor.kind === 'member' && !isHouseholdAdult(actor, i.householdId)) return false;
+      if (filter.childId && i.childId !== filter.childId) return false;
+      if (filter.householdId && i.householdId !== filter.householdId) return false;
+      if (filter.status && i.status !== filter.status) return false;
+      return true;
+    });
+  }
+
+  async acknowledgeChildWatchIncident(id: string, memberId: string): Promise<ChildWatchIncident> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, memberId);
+    const incident = (state.childWatchIncidents ?? []).find((i) => i.id === id);
+    if (!incident) throw new Error('Incident not found.');
+    if (!isHouseholdAdult(actor, incident.householdId)) {
+      throw new Error('Only a guardian in this household can acknowledge this incident.');
+    }
+    incident.parentAcknowledgedAt = new Date().toISOString();
+    await saveStore(state);
+    return incident;
+  }
+
+  async reviewChildWatchIncident(id: string, note: string, requesterUserId: string): Promise<ChildWatchIncident> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    requireChildWatchProgram(actor, 'review Child Watch incidents');
+    const incident = (state.childWatchIncidents ?? []).find((i) => i.id === id);
+    if (!incident) throw new Error('Incident not found.');
+    incident.status = 'reviewed';
+    incident.reviewedByStaffId = requesterUserId;
+    incident.reviewNote = note.trim();
+    recordChildWatchAudit(state, actor, 'incident_reviewed', `Incident reviewed: ${incident.type}`, { visitId: incident.visitId, childId: incident.childId });
+    await saveStore(state);
+    return incident;
+  }
+
+  async recordChildWatchHeadcount(
+    input: { counted: number; expected?: number; note?: string; now?: Date },
+    requesterUserId: string
+  ): Promise<ChildWatchHeadcount> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    requireChildWatchRoom(actor, 'record Child Watch headcounts');
+    if (!Number.isInteger(input.counted) || input.counted < 0) throw new Error('Enter how many children you counted.');
+    const now = input.now ?? demoNow();
+    const entry: ChildWatchHeadcount = {
+      id: `cwh-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      at: now.toISOString(),
+      staffId: requesterUserId,
+      counted: input.counted,
+      expected: input.expected ?? state.childWatchVisits.filter((v) => !v.signedOutAt).length,
+      staffOnDuty: staffOnDutyAt(state.childWatchShifts ?? [], now),
+      ...(input.note?.trim() ? { note: input.note.trim() } : {}),
+    };
+    (state.childWatchHeadcounts ??= []).push(entry);
+    recordChildWatchAudit(state, actor, 'headcount', `Counted ${entry.counted}, expected ${entry.expected}`, {}, now);
+    await saveStore(state);
+    return entry;
+  }
+
+  async listChildWatchHeadcounts(date: string, requesterUserId: string): Promise<ChildWatchHeadcount[]> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    requireChildWatchRoom(actor, 'view Child Watch headcounts');
+    return (state.childWatchHeadcounts ?? [])
+      .filter((h) => childWatchLocalDay(h.at) === date)
+      .sort((a, b) => a.at.localeCompare(b.at));
+  }
+
+  async listChildWatchShifts(date: string, requesterUserId: string): Promise<ChildWatchShift[]> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    if (actor.kind !== 'staff' || (!actor.canRunRoom && !actor.canManage)) {
+      throw new Error('Your staff role is not permitted to view Child Watch shifts.');
+    }
+    return (state.childWatchShifts ?? []).filter((s) => s.date === date).sort((a, b) => a.start.localeCompare(b.start));
+  }
+
+  async saveChildWatchShift(
+    input: Omit<ChildWatchShift, 'id'> & { id?: string },
+    requesterUserId: string
+  ): Promise<ChildWatchShift> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    requireChildWatchProgram(actor, 'manage Child Watch shifts');
+    const clock = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (!clock.test(input.start) || !clock.test(input.end) || input.start >= input.end) {
+      throw new Error('Shift times must be HH:MM with the start before the end.');
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Error('Enter the shift date as YYYY-MM-DD.');
+    if (!state.staff.some((s) => s.id === input.staffId)) throw new Error('Staff member not found.');
+    const shifts = (state.childWatchShifts ??= []);
+    const existing = input.id ? shifts.find((s) => s.id === input.id) : undefined;
+    const shift: ChildWatchShift = {
+      id: existing?.id ?? `cws-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      staffId: input.staffId,
+      date: input.date,
+      start: input.start,
+      end: input.end,
+    };
+    if (existing) Object.assign(existing, shift);
+    else shifts.push(shift);
+    recordChildWatchAudit(state, actor, 'shift_changed', `Shift ${existing ? 'updated' : 'added'}: ${shift.staffId} ${shift.date} ${shift.start}-${shift.end}`);
+    await saveStore(state);
+    return shift;
+  }
+
+  async deleteChildWatchShift(id: string, requesterUserId: string): Promise<void> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    requireChildWatchProgram(actor, 'manage Child Watch shifts');
+    const shift = (state.childWatchShifts ?? []).find((s) => s.id === id);
+    if (!shift) throw new Error('Shift not found.');
+    state.childWatchShifts = state.childWatchShifts.filter((s) => s.id !== id);
+    recordChildWatchAudit(state, actor, 'shift_changed', `Shift removed: ${shift.staffId} ${shift.date} ${shift.start}-${shift.end}`);
+    await saveStore(state);
+  }
+
+  async listChildWatchAudit(filter: ChildWatchAuditFilter, requesterUserId: string): Promise<ChildWatchAuditEntry[]> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    requireChildWatchProgram(actor, 'view the Child Watch audit log');
+    return (state.childWatchAudit ?? []).filter(
+      (e) =>
+        (!filter.action || e.action === filter.action) &&
+        (!filter.visitId || e.visitId === filter.visitId) &&
+        (!filter.childId || e.childId === filter.childId) &&
+        (!filter.date || childWatchLocalDay(e.at) === filter.date)
+    );
   }
 }
 

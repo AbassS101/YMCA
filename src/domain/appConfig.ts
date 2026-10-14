@@ -252,6 +252,39 @@ export function normalizeAppConfig(raw?: AppConfigInput | null): AppConfig {
   };
 }
 
+/**
+ * The defaults for one section. Entries that existing data may reference are kept (custom plans, funds and
+ * wellness programs are never deleted), and a renamed default plan keeps its current name as a former name.
+ */
+export function defaultsForReset<S extends AppConfigSection>(current: AppConfig, section: S): AppConfig[S] {
+  const defaults = defaultAppConfig();
+  const extras = <T extends { id: string }>(base: T[], saved: T[]): T[] => {
+    const known = new Set(base.map((b) => b.id));
+    return saved.filter((s) => !known.has(s.id));
+  };
+  if (section === 'membershipPlans') {
+    const saved = current.membershipPlans;
+    const byId = new Map(saved.map((p) => [p.id, p]));
+    const reset = defaults.membershipPlans.map((p) => {
+      const was = byId.get(p.id);
+      const former = [...(was?.legacyNames ?? []), ...(was ? [was.name] : [])];
+      const names = [...new Set([...(p.legacyNames ?? []), ...former])].filter(
+        (n) => n.trim().toLowerCase() !== p.name.toLowerCase()
+      );
+      return names.length > 0 ? { ...p, legacyNames: names } : p;
+    });
+    return [...reset, ...clone(extras(defaults.membershipPlans, saved))] as AppConfig[S];
+  }
+  if (section === 'donations') {
+    const funds = [...defaults.donations.funds, ...clone(extras(defaults.donations.funds, current.donations.funds))];
+    return { ...defaults.donations, funds } as AppConfig[S];
+  }
+  if (section === 'wellnessPackages') {
+    return [...defaults.wellnessPackages, ...clone(extras(defaults.wellnessPackages, current.wellnessPackages))] as AppConfig[S];
+  }
+  return defaults[section];
+}
+
 /** Max participants for a swim class: its own override, else the default. */
 export function swimClassCapacity(swim: SwimClassConfig, classId: string): number {
   return swim.overrides[classId]?.capacity ?? swim.capacity;
@@ -283,6 +316,13 @@ function validatePlans(next: AppConfigPlan[], current: AppConfigPlan[]): string 
   if (nameKey.some((n) => !n)) return 'Every membership plan needs a name.';
   if (duplicate(nameKey)) return 'Two membership plans cannot share a name.';
   for (const p of next) {
+    const own = [String(p.name).trim().toLowerCase(), String(p.id).toLowerCase()];
+    const clash = next.some(
+      (q) => q !== p && (q.legacyNames ?? []).some((n) => own.includes(String(n).trim().toLowerCase()))
+    );
+    if (clash) return `${p.name} is already a former name of another plan.`;
+  }
+  for (const p of next) {
     if (!isCents(p.monthlyAmountCents) || !isCents(p.enrollmentFeeCents)) {
       return `${p.name}: prices must be whole cents of zero or more.`;
     }
@@ -313,6 +353,23 @@ function validateChildWatch(c: ChildWatchRules): string | null {
   if (!isText(c.intro) || !isText(c.note)) return 'Child Watch needs introduction and note text.';
   if (typeof c.contactText !== 'string' || typeof c.contactEmail !== 'string') return 'Contact details must be text.';
   if (c.contactEmail.trim() !== '' && !c.contactEmail.includes('@')) return 'Enter a valid contact email address.';
+  if (!Array.isArray(c.ratios) || c.ratios.length === 0) return 'Child Watch needs at least one staffing ratio.';
+  for (let i = 0; i < c.ratios.length; i++) {
+    const r = c.ratios[i];
+    if (!isPositiveInt(r?.maxAgeMonths) || !isPositiveInt(r?.childrenPerStaff)) {
+      return 'Staffing ratios need a whole number of months and children per staff above zero.';
+    }
+    if (i > 0 && r.maxAgeMonths <= c.ratios[i - 1].maxAgeMonths) return 'Staffing ratios must be sorted by age, youngest first.';
+  }
+  if (typeof c.enforceRatios !== 'boolean') return 'Enforce ratios must be on or off.';
+  if (!Number.isInteger(c.pickupCodeLength) || c.pickupCodeLength < 4 || c.pickupCodeLength > 8) {
+    return 'Pickup code length must be between 4 and 8 digits.';
+  }
+  if (!isPositiveInt(c.maxCodeAttempts)) return 'Allowed code attempts must be a whole number of 1 or more.';
+  if (typeof c.allowMemberSelfSignOut !== 'boolean' || typeof c.requireIdForNonHouseholdPickup !== 'boolean') {
+    return 'Pickup options must be on or off.';
+  }
+  if (!isPositiveInt(c.headcountIntervalMin)) return 'Headcount interval must be a whole number of minutes above zero.';
   return null;
 }
 
@@ -348,7 +405,7 @@ function validateWellness(next: WellnessTrainingProgram[], current: WellnessTrai
   if (missing) return `${missing.title} cannot be deleted or have its id changed.`;
   for (const p of next) {
     if (!isText(p.title)) return 'Every wellness program needs a title.';
-    if (!Array.isArray(p.tiers)) return `${p.title}: add at least one package.`;
+    if (!Array.isArray(p.tiers) || p.tiers.length === 0) return `${p.title}: add at least one package.`;
     for (const t of p.tiers) {
       if (!isPositiveInt(t.sessions)) return `${p.title}: sessions must be a whole number above zero.`;
       // The wellness rate card is kept in dollars (unlike plans and lessons, which are cents).

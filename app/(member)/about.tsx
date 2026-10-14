@@ -142,7 +142,7 @@ const DEMO_ROLES = [
     email: 'frontdesk@silverspring.ymca',
     role: 'Front Desk Membership Rep',
     color: '#0891B2',
-    icon: 'headset' as const,
+    icon: 'id-card' as const,
   },
 ];
 

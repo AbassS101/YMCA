@@ -8,12 +8,16 @@ import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import { CONFIG_SECTION_LABELS, type AppConfigPatch, type AppConfigSection } from '@/domain/appConfig';
 import { configRepo } from '@/repositories/configRepo';
 
-/** Editable form state that starts from `source` and starts over whenever `source` changes (e.g. after a save or reset). */
+/**
+ * Editable form state that starts from `source` and starts over whenever its content changes (e.g. after a
+ * save or reset). Compared by content, not identity, so saving another section keeps unsaved edits here.
+ */
 export function useDraftFrom<T, D>(source: T, build: (source: T) => D): [D, Dispatch<SetStateAction<D>>] {
+  const key = JSON.stringify(source);
   const [draft, setDraft] = useState(() => build(source));
-  const [seen, setSeen] = useState(source);
-  if (seen !== source) {
-    setSeen(source);
+  const [seen, setSeen] = useState(key);
+  if (seen !== key) {
+    setSeen(key);
     setDraft(build(source));
   }
   return [draft, setDraft];

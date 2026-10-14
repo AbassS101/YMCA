@@ -18,7 +18,7 @@ import { useAppConfig } from '@/context/AppConfigContext';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
-import { getDemoToday } from '@/domain/demoClock';
+import { easternOffset, getDemoToday } from '@/domain/demoClock';
 import { ageOn, facilityAccess } from '@/domain/householdAccess';
 import type { Member, PrivateLesson, ScheduleItem } from '@/domain/types';
 import { householdRepo } from '@/repositories/householdRepo';
@@ -140,8 +140,8 @@ export function TrainerWorkspace({ day, staffId, accent, showQuickActions = true
         await api.addLessonSlot({
           staffId,
           branchId: BRANCH_ID,
-          start: `${date}T${slotStart}:00-04:00`,
-          end: `${date}T${slotEnd}:00-04:00`,
+          start: `${date}T${slotStart}:00${easternOffset(date, Number(slotStart.slice(0, 2)))}`,
+          end: `${date}T${slotEnd}:00${easternOffset(date, Number(slotEnd.slice(0, 2)))}`,
           location: slotLocation.trim(),
         });
       }
@@ -175,7 +175,8 @@ export function TrainerWorkspace({ day, staffId, accent, showQuickActions = true
         <QuickActionBar
           actions={[
             { key: 'log', label: 'Log Workout', icon: 'barbell-outline', onPress: startWorkoutLog, color: accent },
-            { key: 'slot', label: 'Availability', icon: 'time-outline', onPress: () => setSlotModalVisible(true), color: '#15803D' },
+            { key: 'avail', label: 'Availability', icon: 'calendar-outline', onPress: () => router.push({ pathname: '/(staff)/trainer-availability', params: { staffId } }), color: '#15803D' },
+            { key: 'slot', label: 'One-off window', icon: 'time-outline', onPress: () => setSlotModalVisible(true), color: '#0F766E' },
             { key: 'msg', label: 'Messages', icon: 'chatbubbles-outline', onPress: () => router.push('/(staff)/messages'), color: '#0284C7' },
             ...(forumOn
               ? [{ key: 'forum', label: 'Forum', icon: 'people-outline' as const, onPress: () => router.push('/(member)/community-forum') }]

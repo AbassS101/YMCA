@@ -9,7 +9,9 @@ export type UserRole =
   | 'staff_admin'
   | 'wellness_director'
   | 'aquatics_director'
-  | 'membership_director';
+  | 'membership_director'
+  | 'child_watch_supervisor'
+  | 'child_watch_director';
 export type MemberStatus = 'active' | 'paused' | 'cancel_pending' | 'cancelled';
 export type StaffRole =
   | 'it_admin'
@@ -20,7 +22,9 @@ export type StaffRole =
   | 'admin'
   | 'wellness_director'
   | 'aquatics_director'
-  | 'membership_director';
+  | 'membership_director'
+  | 'child_watch_supervisor'
+  | 'child_watch_director';
 export type ScheduleCategory = 'groupEx' | 'swim' | 'event' | 'seniors';
 
 export type ChildProfile = {
@@ -44,7 +48,102 @@ export type ChildWatchVisit = {
   signedInBy: string;
   signedOutBy?: string;
   pickupCode: string;
+  /** Member who dropped the child off. */
+  droppedOffByMemberId?: string;
+  pickedUpByGuardianId?: string;
+  pickedUpByName?: string;
+  verification?: ChildWatchVerification;
+  failedCodeAttempts?: number;
+  locked?: boolean;
+  dropOffNotes?: string;
+  emergencyPhone?: string;
+  /** Hash of the pickup code; new visits store this instead of the plain code. */
+  pickupCodeHash?: string;
 };
+export type ChildWatchVerification = 'code' | 'code_and_id' | 'household_self' | 'supervisor_override';
+
+export type ChildWatchAuthorizedPickup = {
+  id: string;
+  householdId: string;
+  name: string;
+  relationship: string;
+  phone: string;
+  photoUrl?: string;
+  idType?: string;
+  idLast4?: string;
+  status: 'pending' | 'approved' | 'revoked';
+  addedByMemberId: string;
+  addedAt: string; // ISO
+  reviewedByStaffId?: string;
+  reviewedAt?: string; // ISO
+  expiresOn?: string; // YYYY-MM-DD
+};
+
+export type ChildWatchIncidentType = 'injury' | 'illness' | 'allergy' | 'behavior' | 'late_pickup' | 'other';
+
+export type ChildWatchIncident = {
+  id: string;
+  visitId?: string;
+  childId: string;
+  householdId: string;
+  type: ChildWatchIncidentType;
+  severity: 'low' | 'medium' | 'high';
+  description: string;
+  actionTaken: string;
+  reportedByStaffId: string;
+  at: string; // ISO
+  parentNotifiedAt?: string; // ISO
+  parentAcknowledgedAt?: string; // ISO
+  status: 'open' | 'reviewed' | 'closed';
+  reviewedByStaffId?: string;
+  reviewNote?: string;
+};
+
+export type ChildWatchHeadcount = {
+  id: string;
+  at: string; // ISO
+  staffId: string;
+  counted: number;
+  expected: number;
+  staffOnDuty: number;
+  note?: string;
+};
+
+export type ChildWatchShift = {
+  id: string;
+  staffId: string;
+  date: string; // YYYY-MM-DD
+  start: string; // HH:MM
+  end: string; // HH:MM
+};
+
+export type ChildWatchAuditAction =
+  | 'drop_off'
+  | 'pickup'
+  | 'pickup_denied'
+  | 'code_failed'
+  | 'visit_locked'
+  | 'override'
+  | 'guardian_added'
+  | 'guardian_approved'
+  | 'guardian_revoked'
+  | 'incident_logged'
+  | 'incident_reviewed'
+  | 'headcount'
+  | 'shift_changed';
+
+export type ChildWatchAuditEntry = {
+  id: string;
+  at: string; // ISO
+  actorId: string;
+  actorRole: string;
+  action: ChildWatchAuditAction;
+  visitId?: string;
+  childId?: string;
+  detail: string;
+};
+
+export type ChildWatchDropOffResult = { visit: ChildWatchVisit; pickupCode: string };
 export type RegistrationStatus = 'registered' | 'cancelled';
 export type AttendanceStatus = 'unmarked' | 'attended' | 'no_show';
 export type LessonStatus = 'booked' | 'cancelled' | 'completed' | 'no_show';
@@ -110,7 +209,8 @@ export function isTopLevelStaffRole(role?: string | null): boolean {
     role === 'staff_admin' ||
     role === 'wellness_director' ||
     role === 'aquatics_director' ||
-    role === 'membership_director'
+    role === 'membership_director' ||
+    role === 'child_watch_director'
   );
 }
 
@@ -372,6 +472,8 @@ export type PrivateLesson = {
   paymentStatus?: 'paid' | 'due';
   /** Session request this lesson was created from, if any. */
   requestId?: string;
+  /** Wellness orientation: the only private session that is complimentary. */
+  isOrientation?: boolean;
 };
 
 export type PaymentTiming = 'before' | 'after';
@@ -450,6 +552,49 @@ export type SessionRequestFilter = {
 };
 
 export type BookableTime = { staffId: string; start: string; end: string; location: string; instant: boolean };
+
+/** A repeating weekly availability window. weekday: 0 = Sunday ... 6 = Saturday. Times are Eastern 'HH:MM'. */
+export type WeeklyWindow = {
+  id: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  location: string;
+};
+export type DateWindow = Omit<WeeklyWindow, 'weekday'>;
+
+/** A one-day override: 'blocked' removes the day's windows, 'custom' replaces them. */
+export type AvailabilityException = {
+  id: string;
+  date: string;
+  kind: 'blocked' | 'custom';
+  windows: DateWindow[];
+  note?: string;
+};
+
+export type TrainerAvailability = {
+  staffId: string;
+  weekly: WeeklyWindow[];
+  effectiveFrom: string;
+  effectiveUntil?: string;
+  exceptions: AvailabilityException[];
+  updatedAt: string;
+  updatedBy: string;
+};
+
+export type TrainerAvailabilityInput = Pick<
+  TrainerAvailability,
+  'weekly' | 'effectiveFrom' | 'effectiveUntil' | 'exceptions'
+>;
+
+/** A booked lesson or open request that no longer sits inside a trainer's availability. */
+export type AvailabilityConflict = {
+  kind: 'lesson' | 'request';
+  id: string;
+  memberName?: string;
+  start: string;
+  end: string;
+};
 
 export type WorkoutExercise = {
   name: string;

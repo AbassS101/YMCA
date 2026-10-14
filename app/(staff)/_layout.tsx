@@ -11,6 +11,7 @@ export default function StaffLayout() {
       <Stack.Screen name="settings" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="lesson-pricing" />
+      <Stack.Screen name="trainer-availability" />
       <Stack.Screen name="child-watch" />
       <Stack.Screen name="billing-issues" />
       <Stack.Screen name="leads" />

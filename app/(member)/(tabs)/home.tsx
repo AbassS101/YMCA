@@ -1,13 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
-  Dimensions,
-  FlatList,
   Modal,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -23,6 +19,7 @@ import { GuestPassCard } from '@/components/GuestPassCard';
 import { MemberCheckInCard } from '@/components/MemberCheckInCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
+import { WeekAgenda, type WeekItem } from '@/components/WeekAgenda';
 import { YHeader } from '@/components/YHeader';
 import { useAppConfig } from '@/context/AppConfigContext';
 import { useSession } from '@/context/SessionContext';
@@ -51,11 +48,6 @@ import { colors } from '@/theme/colors';
 import { radii, spacing, typography } from '@/theme/typography';
 
 const BRANCH_ID = 'silver-spring';
-const CARD_WIDTH = Dimensions.get('window').width - 48;
-
-type WeekItem =
-  | { kind: 'class'; item: ScheduleItem; paidAmountCents?: number; starredOnly?: boolean }
-  | { kind: 'lesson'; item: PrivateLesson };
 
 function formatBillingDateLabel(isoDate: string): string {
   const d = new Date(`${isoDate}T12:00:00`);
@@ -68,18 +60,6 @@ function formatCents(cents: number): string {
 
 function membershipSubtitle(member: Member, membership: Membership): string {
   return `${member.type} Membership · ${formatCents(membership.monthlyAmountCents)}/mo · ${membership.paymentBrand} ••${membership.paymentLast4}`;
-}
-
-function formatClassTime(isoStart: string): string {
-  return new Date(isoStart).toLocaleTimeString(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-function formatDayShort(isoStart: string): string {
-  const d = new Date(isoStart);
-  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 function addDays(isoDate: string, days: number): string {
@@ -107,9 +87,8 @@ export default function MemberHomeScreen() {
   const [activePopupNotice, setActivePopupNotice] = useState<Announcement | null>(null);
   const [popupNoticeVisible, setPopupNoticeVisible] = useState(false);
   const [weekItems, setWeekItems] = useState<WeekItem[]>([]);
-  const [cardIndex, setCardIndex] = useState(0);
+  const [staffNames, setStaffNames] = useState<Record<string, string>>({});
   const [error, setError] = useState(false);
-  const listRef = useRef<FlatList<WeekItem>>(null);
   const hasCheckedPopupRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -120,7 +99,7 @@ export default function MemberHomeScreen() {
       setError(false);
       const today = getDemoToday();
       const to = addDays(today, 6);
-      const [nextMember, nextMembership, regs, savedList, lessons, schedules, anns, surveysList, streakData] = await Promise.all([
+      const [nextMember, nextMembership, regs, savedList, lessons, schedules, anns, surveysList, streakData, staffList] = await Promise.all([
         api.getMember(memberId),
         membershipRepo.getMembership(api, memberId),
         registrationRepo.listMine(api, memberId),
@@ -130,6 +109,7 @@ export default function MemberHomeScreen() {
         announcementRepo.list(api, BRANCH_ID),
         surveyRepo.list(api, BRANCH_ID, true).catch(() => []),
         streakRepo.getStreakProfile(memberId),
+        api.listStaff(BRANCH_ID).catch(() => []),
       ]);
       const byId = new Map<string, ScheduleItem>(schedules.map((s: ScheduleItem) => [s.id, s]));
       const seenClassIds = new Set<string>();
@@ -165,7 +145,7 @@ export default function MemberHomeScreen() {
       }
       setActiveSurveys(surveysList ?? []);
       setWeekItems(combined);
-      setCardIndex(0);
+      setStaffNames(Object.fromEntries(staffList.map((st: { id: string; name: string }) => [st.id, st.name])));
 
       // Pop-up Notice on App Open
       const popups: Announcement[] = (anns || []).filter((a: Announcement) => a.popupNotice);
@@ -225,21 +205,6 @@ export default function MemberHomeScreen() {
 
   const firstName = member?.name.split(' ')[0] ?? '';
   const isGuest = session?.role === 'guest' || member?.type === '1-Day Guest Pass';
-
-  const onCardScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const index = Math.round(e.nativeEvent.contentOffset.x / (CARD_WIDTH + 12));
-    if (index >= 0 && index < weekItems.length) {
-      setCardIndex(index);
-    }
-  };
-
-  const dots = useMemo(
-    () =>
-      weekItems.map((_, i) => (
-        <View key={i} style={[styles.dot, i === cardIndex && styles.dotActive]} />
-      )),
-    [weekItems, cardIndex]
-  );
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -668,102 +633,16 @@ export default function MemberHomeScreen() {
           </Pressable>
         </View>
 
-        {/* This Week Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]} allowFontScaling>
-            Your Bookings & Starred Classes This Week
-          </Text>
-          {weekItems.length === 0 ? (
-            <View
-              style={[
-                styles.emptyCard,
-                { backgroundColor: colors.cardBg, borderColor: colors.cardBorder },
-              ]}
-            >
-              <Text style={[styles.muted, { color: colors.textMuted }]} allowFontScaling>
-                You have nothing booked or starred yet this week. Star drop-in classes for reminders or reserve your spot in a program!
-              </Text>
-              <PrimaryButton
-                title="Explore Classes & Events"
-                onPress={() => router.push('/(member)/(tabs)/schedules')}
-                accessibilityHint="Go to Classes to star or register"
-              />
-            </View>
-          ) : (
-            <>
-              <FlatList
-                ref={listRef}
-                data={weekItems}
-                keyExtractor={(w) =>
-                  w.kind === 'class' ? `class-${w.item.id}` : `lesson-${w.item.id}`
-                }
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                decelerationRate="fast"
-                snapToInterval={CARD_WIDTH + 12}
-                contentContainerStyle={styles.cardList}
-                onMomentumScrollEnd={onCardScrollEnd}
-                renderItem={({ item: w }) => (
-                  <View style={[styles.weekCard, { width: CARD_WIDTH }]}>
-                    <View style={styles.cardTopRow}>
-                      <View style={styles.badgePill}>
-                        <Text style={styles.badgePillText} allowFontScaling>
-                          {w.kind === 'class'
-                            ? w.starredOnly
-                              ? 'Saved Class'
-                              : 'Booked Class'
-                            : 'Private Lesson'}
-                        </Text>
-                      </View>
-                      {w.kind === 'class' && w.item.priceCents && w.item.priceCents > 0 ? (
-                        <View style={styles.paidPill}>
-                          <Text style={styles.paidPillText}>
-                            Paid ${((w.paidAmountCents ?? w.item.priceCents) / 100).toFixed(2)}
-                          </Text>
-                        </View>
-                      ) : (
-                        <View style={styles.includedPill}>
-                          <Text style={styles.includedPillText}>
-                            {w.kind === 'class' && w.starredOnly ? 'Drop-In · Alert On' : 'Included Free'}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-
-                    <Text style={styles.weekTitle} allowFontScaling>
-                      {w.kind === 'class' ? w.item.title : 'Private Lesson'}
-                    </Text>
-                    <Text style={styles.weekTime} allowFontScaling>
-                      {formatDayShort(w.item.start)} · {formatClassTime(w.item.start)}
-                    </Text>
-                    <Text style={styles.weekMeta} allowFontScaling>
-                      Location: {w.item.location}
-                    </Text>
-                    {w.kind === 'class' ? (
-                      <Text style={styles.weekMeta} allowFontScaling>
-                        Instructor: {w.item.instructorName}
-                      </Text>
-                    ) : null}
-                  </View>
-                )}
-              />
-              <View style={styles.dots}>{dots}</View>
-            </>
-          )}
-        </View>
-
-        {member ? (
-          <Pressable
-            onPress={() => router.push('/(member)/(tabs)/schedules')}
-            accessibilityRole="button"
-            accessibilityLabel="Browse full schedule"
-            style={styles.linkRow}
-          >
-            <Text style={styles.linkText} allowFontScaling>
-              View Full Week Schedule ›
-            </Text>
-          </Pressable>
-        ) : null}
+        <WeekAgenda
+          items={weekItems}
+          staffNames={staffNames}
+          onBrowse={() => router.push('/(member)/(tabs)/schedules')}
+          onBookLesson={featureToggles.lessonBooking ? () => router.push('/(member)/book-lesson') : undefined}
+          onUnstar={async (scheduleItemId) => {
+            await savedClassesRepo.toggle(memberId, scheduleItemId);
+            await load();
+          }}
+        />
       </ScrollView>
 
       {/* ========================================================= */}
@@ -974,121 +853,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: colors.primaryDark,
-  },
-  section: {
-    gap: 8,
-  },
-  sectionTitle: {
-    ...typography.title,
-    fontSize: 20,
-    color: colors.nearBlack,
-  },
-  muted: {
-    ...typography.body,
-    fontSize: 15,
-    color: colors.muted,
-    marginBottom: spacing.sm,
-    lineHeight: 22,
-  },
-  emptyCard: {
-    ...cardStyle,
-    gap: spacing.sm,
-  },
-  cardList: {
-    gap: 12,
-    paddingVertical: 4,
-  },
-  weekCard: {
-    ...cardStyle,
-    gap: 6,
-  },
-  cardTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  badgePill: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  badgePillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  paidPill: {
-    backgroundColor: colors.paidBadgeBg,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-  },
-  paidPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.paidBadge,
-  },
-  includedPill: {
-    backgroundColor: colors.successBg,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-  },
-  includedPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.success,
-  },
-  weekTitle: {
-    ...typography.title,
-    fontSize: 20,
-    color: colors.nearBlack,
-  },
-  weekTime: {
-    ...typography.bodyStrong,
-    fontSize: 16,
-    color: colors.primary,
-  },
-  weekMeta: {
-    ...typography.caption,
-    fontSize: 14,
-    color: colors.muted,
-  },
-  dots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 8,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.border,
-  },
-  dotActive: {
-    backgroundColor: colors.primary,
-    width: 18,
-  },
-  linkRow: {
-    minHeight: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.white,
-    borderRadius: radii.button,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-  },
-  linkText: {
-    ...typography.bodyStrong,
-    fontSize: 16,
-    color: colors.primary,
   },
   billingSectionWrap: {
     gap: 8,

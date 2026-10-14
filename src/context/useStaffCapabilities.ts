@@ -28,6 +28,8 @@ export type StaffCapabilities = {
   isAquaticsDirector: boolean;
   isMembershipDirector: boolean;
   isFrontDesk: boolean;
+  isChildWatchSupervisor: boolean;
+  isChildWatchDirector: boolean;
   coachesClients: boolean;
 };
 
@@ -53,6 +55,8 @@ export function useStaffCapabilities(): StaffCapabilities {
       isAquaticsDirector: persona === 'aquaticsDirector',
       isMembershipDirector: persona === 'membershipDirector',
       isFrontDesk: persona === 'frontDesk',
+      isChildWatchSupervisor: persona === 'childWatchSupervisor',
+      isChildWatchDirector: persona === 'childWatchDirector',
       coachesClients:
         persona === 'trainer' ||
         persona === 'swimInstructor' ||

@@ -124,7 +124,7 @@ const DEMO_ACCOUNTS = [
     name: 'Liz',
     email: 'frontdesk@silverspring.ymca',
     role: 'Front Desk Membership Representative',
-    icon: 'headset' as const,
+    icon: 'id-card' as const,
     color: '#0891B2',
   },
 ];

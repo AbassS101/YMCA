@@ -116,6 +116,11 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
     }, [load])
   );
 
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(member)/(tabs)/home' as never);
+  };
+
   const openPicker = async () => {
     setQuery('');
     setPickerOpen(true);
@@ -241,6 +246,20 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
   return (
     <View style={[styles.screen, { backgroundColor: theme.bg }]}>
       <YHeader subtitle="Messages" />
+      {!iAmStaff ? (
+        <View style={[styles.backBar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Pressable
+            onPress={goBack}
+            hitSlop={8}
+            style={styles.backBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Ionicons name="arrow-back" size={21} color={theme.text} />
+            <Text style={[styles.backText, { color: theme.text }]}>Back</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
 
       <FlatList
@@ -382,6 +401,15 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  backBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 4 },
+  backText: { fontSize: 15, fontWeight: '700' },
   listHeader: {
     flexDirection: 'row',
     alignItems: 'center',

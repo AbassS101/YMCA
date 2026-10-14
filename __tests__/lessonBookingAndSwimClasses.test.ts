@@ -83,7 +83,7 @@ test('admin price change applies to next booking', async () => {
   await api.updateLessonPricing({
     swim: { 30: 4000, 60: 7000 },
     swimClassOverrides: { 'class-sat-06': { fullCents: 9900, programCents: 15000 } },
-  });
+  }, 'staff-itadmin');
   const lesson = await api.bookPrivateLesson('member-jordan', 'slot-elena-mon-1500', {
     lessonType: 'swim',
     durationMin: 60,
@@ -91,7 +91,7 @@ test('admin price change applies to next booking', async () => {
   expect(lesson.paidAmountCents).toBe(7000);
   const e = await api.enrollInSwimClass('member-jordan', 'class-sat-06');
   expect(e.paidAmountCents).toBe(9900);
-  await expect(api.updateLessonPricing({ swim: { 30: -1, 60: 1 } })).rejects.toThrow();
+  await expect(api.updateLessonPricing({ swim: { 30: -1, 60: 1 } }, 'staff-itadmin')).rejects.toThrow();
 });
 
 test('an install from an older schema is refreshed with current pricing, staff types and slots', async () => {
@@ -104,7 +104,7 @@ test('an install from an older schema is refreshed with current pricing, staff t
   await AsyncStorage.setItem('@ymca/demo-state', JSON.stringify(legacy));
 
   const migrated = await loadStore();
-  expect(migrated.schemaVersion).toBe(9);
+  expect(migrated.schemaVersion).toBe(10);
   expect(migrated.lessonPricing.training[60]).toBe(6000);
   expect(Array.isArray(migrated.swimEnrollments)).toBe(true);
   expect(migrated.staff.find((s) => s.id === 'staff-elena')?.lessonTypes).toEqual(['swim']);

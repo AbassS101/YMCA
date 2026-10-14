@@ -12,6 +12,11 @@ import type {
   Announcement,
   AppNotification,
   CancelRequest,
+  ChildWatchAuditEntry,
+  ChildWatchAuthorizedPickup,
+  ChildWatchHeadcount,
+  ChildWatchIncident,
+  ChildWatchShift,
   ChildWatchVisit,
   ClassForumPost,
   ClassRegistration,
@@ -21,6 +26,7 @@ import type {
   ForumTopic,
   LessonPricing,
   LessonSlot,
+  TrainerAvailability,
   SwimClassEnrollment,
   Member,
   Membership,
@@ -65,6 +71,8 @@ export type DemoState = {
   savedClasses: SavedClass[];
   classRegistrations: ClassRegistration[];
   lessonSlots: LessonSlot[];
+  /** Weekly availability per trainer; expanded into bookable windows on demand. */
+  trainerAvailability: Record<string, TrainerAvailability>;
   sessionRequests: SessionRequest[];
   privateLessons: PrivateLesson[];
   assignments: TrainerAssignment[];
@@ -89,6 +97,11 @@ export type DemoState = {
   lessonPricing: LessonPricing;
   swimEnrollments: SwimClassEnrollment[];
   childWatchVisits: ChildWatchVisit[];
+  childWatchAuthorizedPickups: ChildWatchAuthorizedPickup[];
+  childWatchIncidents: ChildWatchIncident[];
+  childWatchHeadcounts: ChildWatchHeadcount[];
+  childWatchShifts: ChildWatchShift[];
+  childWatchAudit: ChildWatchAuditEntry[];
   arrivals: ArrivalRecord[];
   memberContacts: MemberContact[];
   leads: Lead[];
@@ -100,7 +113,7 @@ export type DemoState = {
   seedWeekAnchor?: string;
 };
 
-const CURRENT_SCHEMA_VERSION = 9;
+const CURRENT_SCHEMA_VERSION = 10;
 
 type LegacyChildProfile = {
   id: string;
@@ -195,20 +208,25 @@ function migrateHouseholds(
   return { members: nextMembers, memberships: nextMemberships, credentials: nextCreds };
 }
 
+const REPEAT_WEEKS_AHEAD = 8;
+
 /**
- * The seed authors one week of classes; copy the recurring ones to the following week so the
- * seven-day views (which start on today) never run out of schedule.
+ * The seed authors one week of classes; repeat the recurring ones for the following weeks so the
+ * schedule views never run out of classes.
  */
 function extendToNextWeek(state: DemoState): void {
-  const recurring = state.schedules.filter((s) => s.category !== 'event' && !s.id.endsWith('-w2'));
-  const nextWeek = shiftSeedDates(recurring, 1).map((s) => ({ ...s, id: `${s.id}-w2` }));
+  const baseSchedules = state.schedules.filter((s) => s.category !== 'event' && !/-w\d+$/.test(s.id));
+  const baseSlots = state.lessonSlots.filter((s) => !/-w\d+$/.test(s.id));
   const taken = new Set(state.schedules.map((s) => s.id));
-  state.schedules = [...state.schedules, ...nextWeek.filter((s) => !taken.has(s.id))];
-
-  const slots = state.lessonSlots.filter((s) => !s.id.endsWith('-w2'));
-  const nextSlots = shiftSeedDates(slots, 1).map((s) => ({ ...s, id: `${s.id}-w2` }));
   const takenSlots = new Set(state.lessonSlots.map((s) => s.id));
-  state.lessonSlots = [...state.lessonSlots, ...nextSlots.filter((s) => !takenSlots.has(s.id))];
+
+  for (let week = 1; week <= REPEAT_WEEKS_AHEAD; week++) {
+    const suffix = `-w${week + 1}`;
+    const nextWeek = shiftSeedDates(baseSchedules, week).map((s) => ({ ...s, id: `${s.id}${suffix}` }));
+    state.schedules = [...state.schedules, ...nextWeek.filter((s) => !taken.has(s.id))];
+    const nextSlots = shiftSeedDates(baseSlots, week).map((s) => ({ ...s, id: `${s.id}${suffix}` }));
+    state.lessonSlots = [...state.lessonSlots, ...nextSlots.filter((s) => !takenSlots.has(s.id))];
+  }
 }
 
 /** Fills in recent gym check-ins and Child Watch visits so the branch looks busy and live. */
@@ -487,6 +505,7 @@ function migrateState(raw: DemoState): DemoState {
     schedules,
     classRegistrations: cleanedRegistrations,
     lessonSlots: mergedSlots,
+    trainerAvailability: raw.trainerAvailability ?? seed.trainerAvailability,
     sessionRequests: raw.sessionRequests ?? seed.sessionRequests,
     privateLessons: raw.privateLessons ?? [],
     announcements: raw.announcements ?? seed.announcements,
@@ -507,6 +526,11 @@ function migrateState(raw: DemoState): DemoState {
     lessonPricing: normalizePricing(raw.lessonPricing),
     swimEnrollments: raw.swimEnrollments ?? [],
     childWatchVisits: raw.childWatchVisits ?? [],
+    childWatchAuthorizedPickups: raw.childWatchAuthorizedPickups ?? seed.childWatchAuthorizedPickups ?? [],
+    childWatchIncidents: raw.childWatchIncidents ?? seed.childWatchIncidents ?? [],
+    childWatchHeadcounts: raw.childWatchHeadcounts ?? seed.childWatchHeadcounts ?? [],
+    childWatchShifts: raw.childWatchShifts ?? seed.childWatchShifts ?? [],
+    childWatchAudit: raw.childWatchAudit ?? seed.childWatchAudit ?? [],
     arrivals: raw.arrivals ?? [],
     memberContacts: raw.memberContacts ?? seed.memberContacts,
     leads: raw.leads ?? seed.leads,
@@ -518,31 +542,172 @@ function migrateState(raw: DemoState): DemoState {
   return migrated;
 }
 
-export async function resetStore(): Promise<DemoState> {
+/*
+ * In-memory cache.
+ * Every adapter call does load -> modify -> save, and screens fire dozens of calls at once (e.g.
+ * one roster lookup per class). Re-reading AsyncStorage and re-running the full migration blocked
+ * the JS thread and made every tap feel slow. We migrate once per launch and keep the state in
+ * memory, with debounced background writes to disk.
+ *
+ * Callers mutate what they load (and hand those objects to React state), so each load must stay
+ * isolated: loadStore returns a lazy view that deep-copies a collection only when a call first
+ * touches it, and saveStore merges just the touched collections back into the cache.
+ * Jest tests manipulate AsyncStorage directly, so the cache is bypassed there
+ * (set YMCA_FORCE_CACHE=1 to exercise it).
+ */
+const CACHE_ENABLED =
+  (typeof process !== 'undefined' && process.env?.YMCA_FORCE_CACHE === '1') ||
+  !(typeof process !== 'undefined' && process.env?.JEST_WORKER_ID);
+/** How often the cached state gets fresh "live" check-ins / week alignment. */
+const LIVE_REFRESH_MS = 60_000;
+/** Coalesce rapid saves into one disk write. */
+const PERSIST_DEBOUNCE_MS = 500;
+
+let cachedState: DemoState | null = null;
+let cachedAt = 0;
+let initialLoad: Promise<void> | null = null;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+let persistInFlight: Promise<void> | null = null;
+
+function setCache(state: DemoState) {
+  cachedState = state;
+  cachedAt = Date.now();
+}
+
+async function flushPersist(): Promise<void> {
+  persistTimer = null;
+  if (persistInFlight) await persistInFlight;
+  if (!cachedState) return;
+  persistInFlight = (async () => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(cachedState));
+    } catch (err) {
+      console.warn('[demoStore] Failed to persist state', err);
+    }
+  })();
+  await persistInFlight;
+  persistInFlight = null;
+}
+
+function schedulePersist() {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => void flushPersist(), PERSIST_DEBOUNCE_MS);
+}
+
+function alignToCurrentWeek(state: DemoState): DemoState {
+  const weeks = Math.round(
+    (Date.parse(currentWeekMonday()) - Date.parse(state.seedWeekAnchor ?? currentWeekMonday())) / (7 * 86_400_000)
+  );
+  const aligned = weeks > 0 ? shiftSeedDates(state, weeks) : state;
+  aligned.seedWeekAnchor = currentWeekMonday();
+  return aligned;
+}
+
+const views = new WeakMap<object, Record<string, unknown>>();
+
+function cloneValue<T>(v: T): T {
+  return v !== null && typeof v === 'object' ? (JSON.parse(JSON.stringify(v)) as T) : v;
+}
+
+/** Lazy, isolated copy of `base`: top-level collections are deep-copied on first access. */
+function makeView(base: DemoState): DemoState {
+  const touched: Record<string, unknown> = {};
+  const baseRec = base as unknown as Record<string, unknown>;
+  const view: DemoState = new Proxy({} as DemoState, {
+    get(_t, key) {
+      if (typeof key !== 'string') return undefined;
+      if (key in touched) return touched[key];
+      if (!(key in baseRec)) return undefined;
+      touched[key] = cloneValue(baseRec[key]);
+      return touched[key];
+    },
+    set(_t, key, value) {
+      touched[key as string] = value;
+      return true;
+    },
+    has(_t, key) {
+      return key in touched || key in baseRec;
+    },
+    ownKeys() {
+      return Array.from(new Set([...Object.keys(baseRec), ...Object.keys(touched)]));
+    },
+    getOwnPropertyDescriptor(_t, key) {
+      if (typeof key !== 'string' || !(key in touched || key in baseRec)) return undefined;
+      return {
+        enumerable: true,
+        configurable: true,
+        writable: true,
+        value: (view as unknown as Record<string, unknown>)[key],
+      };
+    },
+  });
+  views.set(view, touched);
+  return view;
+}
+
+async function resetToSeed(): Promise<DemoState> {
   const state = topUpActivity(cloneSeed());
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (CACHE_ENABLED) {
+    setCache(state);
+    schedulePersist();
+  } else {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
   return state;
 }
 
+export async function resetStore(): Promise<DemoState> {
+  const state = await resetToSeed();
+  return CACHE_ENABLED ? makeView(state) : state;
+}
+
 export async function saveStore(state: DemoState): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (!CACHE_ENABLED) {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return;
+  }
+  const touched = views.get(state);
+  if (touched && cachedState) {
+    cachedState = { ...cachedState, ...touched } as DemoState;
+  } else {
+    cachedState = state;
+  }
+  schedulePersist();
 }
 
 export async function loadStore(): Promise<DemoState> {
+  if (!CACHE_ENABLED) return loadStoreFromDisk();
+
+  if (cachedState === null) {
+    if (!initialLoad) {
+      initialLoad = loadStoreFromDisk()
+        .then((state) => {
+          // A save may have landed while we were reading; never clobber newer state.
+          if (cachedState === null) setCache(state);
+        })
+        .finally(() => {
+          initialLoad = null;
+        });
+    }
+    await initialLoad;
+  } else if (Date.now() - cachedAt > LIVE_REFRESH_MS) {
+    setCache(topUpActivity(alignToCurrentWeek(cachedState)));
+    schedulePersist();
+  }
+
+  return makeView(cachedState as DemoState);
+}
+
+async function loadStoreFromDisk(): Promise<DemoState> {
   const raw = await AsyncStorage.getItem(STORAGE_KEY);
   if (raw == null) {
-    return resetStore();
+    return resetToSeed();
   }
   const parsed = JSON.parse(raw) as DemoState;
   // Older installs hold the previous, much smaller sample data set: replace it once.
   if ((parsed.schemaVersion ?? 0) < CURRENT_SCHEMA_VERSION) {
-    return resetStore();
+    return resetToSeed();
   }
   // Keep stored dates aligned with the current calendar week.
-  const weeks = Math.round(
-    (Date.parse(currentWeekMonday()) - Date.parse(parsed.seedWeekAnchor ?? currentWeekMonday())) / (7 * 86_400_000)
-  );
-  const aligned = weeks > 0 ? shiftSeedDates(parsed, weeks) : parsed;
-  aligned.seedWeekAnchor = currentWeekMonday();
-  return topUpActivity(migrateState(aligned));
+  return topUpActivity(migrateState(alignToCurrentWeek(parsed)));
 }

@@ -115,6 +115,8 @@ export function generateActivity(input: ActivityInput): { arrivals: ArrivalRecor
           signedInAt: iso(date, signIn),
           ...(open ? {} : { signedOutAt: iso(date, signOut), signedOutBy: 'member' }),
           signedInBy: 'member',
+          droppedOffByMemberId: parent.id,
+          verification: 'household_self',
           pickupCode: String(1000 + (hash(`${kid.id}-${date}`) % 9000)),
         });
       }

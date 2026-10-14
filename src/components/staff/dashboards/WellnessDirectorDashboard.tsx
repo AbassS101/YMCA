@@ -19,6 +19,7 @@ import { getDemoToday } from '@/domain/demoClock';
 import { personaForRole } from '@/domain/staffCapabilities';
 import type { Member, Staff } from '@/domain/types';
 import { formatWellnessPrice } from '@/domain/wellnessPrograms';
+import { availabilityRepo } from '@/repositories/lessonRepo';
 import { radii } from '@/theme/typography';
 
 import { DashboardScaffold } from './DashboardScaffold';
@@ -64,7 +65,7 @@ export function WellnessDirectorDashboard({ staffId }: { staffId: string }) {
           const [lessons, classes, slots, clients] = await Promise.all([
             api.listStaffLessons(trainer.id, today).catch(() => []),
             api.getStaffDay(trainer.id, today).catch(() => []),
-            api.listLessonSlots(trainer.id, today, today).catch(() => []),
+            availabilityRepo.listWindows(api, trainer.id, today, today).catch(() => []),
             api.listAssignedMembers(trainer.id).catch(() => []),
           ]);
           return {
@@ -191,7 +192,7 @@ export function WellnessDirectorDashboard({ staffId }: { staffId: string }) {
       <QuickActionBar
         actions={[
           { key: 'members', label: 'All Clients', icon: 'people-outline', onPress: () => router.push('/(staff)/members'), color: theme.color },
-          { key: 'slots', label: 'Team Slots', icon: 'calendar-outline', onPress: () => router.push('/(staff)/schedules'), color: '#15803D' },
+          { key: 'slots', label: 'Team Hours', icon: 'calendar-outline', onPress: () => router.push('/(staff)/trainer-availability'), color: '#15803D' },
           { key: 'team', label: 'Trainer Directory', icon: 'id-card-outline', onPress: () => router.push('/(staff)/staff-management'), color: '#0284C7' },
           { key: 'notice', label: 'Wellness Notice', icon: 'megaphone-outline', onPress: () => setBroadcastVisible(true), color: '#B45309' },
         ]}
@@ -223,11 +224,20 @@ export function WellnessDirectorDashboard({ staffId }: { staffId: string }) {
                     <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: theme.color }]} />
                   </View>
                 </View>
-                <StatusPill
-                  label={capacity === 0 ? 'NO SLOTS' : `${pct}%`}
-                  color={capacity === 0 ? tc.textMuted : theme.color}
-                  bg={capacity === 0 ? tc.cardBorder : theme.softBg}
-                />
+                <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                  <StatusPill
+                    label={capacity === 0 ? 'NO SLOTS' : `${pct}%`}
+                    color={capacity === 0 ? tc.textMuted : theme.color}
+                    bg={capacity === 0 ? tc.cardBorder : theme.softBg}
+                  />
+                  <ActionButton
+                    label="Hours"
+                    icon="calendar-outline"
+                    color={theme.color}
+                    variant="outline"
+                    onPress={() => router.push({ pathname: '/(staff)/trainer-availability', params: { staffId: t.trainer.id } })}
+                  />
+                </View>
               </View>
             );
           })

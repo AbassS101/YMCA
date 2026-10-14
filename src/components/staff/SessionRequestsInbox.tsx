@@ -10,8 +10,9 @@ import { EmptyState, SectionCard } from '@/components/staff/SectionCard';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
-import { getDemoToday } from '@/domain/demoClock';
-import type { SessionRequest } from '@/domain/types';
+import { canManageTrainerAvailability } from '@/domain/availabilityAccess';
+import { easternOffset, getDemoToday } from '@/domain/demoClock';
+import type { SessionRequest, Staff } from '@/domain/types';
 import { sessionRequestRepo } from '@/repositories/lessonRepo';
 import { radii } from '@/theme/typography';
 
@@ -33,14 +34,23 @@ type Mode = { kind: 'counter' | 'decline'; request: SessionRequest } | null;
 
 /** Instructor inbox: accept, decline, or offer another time for private session requests. */
 export function SessionRequestsInbox({ staffId, accent, onChanged }: { staffId: string; accent: string; onChanged?: () => void }) {
-  const { api } = useSession();
+  const { api, session } = useSession();
   const { colors: tc } = useTheme();
   const [requests, setRequests] = useState<SessionRequest[]>([]);
+  const [target, setTarget] = useState<Staff | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>(null);
   const [date, setDate] = useState(getDemoToday());
   const [time, setTime] = useState('09:00');
   const [note, setNote] = useState('');
+
+  const actorId = session?.userId ?? staffId;
+  // The trainer, an admin, or the director for this department may answer; everyone else just reads.
+  const canRespond = target != null && canManageTrainerAvailability(session?.role, actorId, target);
+
+  useEffect(() => {
+    api.getStaff(staffId).then(setTarget).catch(() => setTarget(null));
+  }, [api, staffId]);
 
   const load = useCallback(async () => {
     try {
@@ -88,10 +98,10 @@ export function SessionRequestsInbox({ staffId, accent, onChanged }: { staffId: 
     setMode(null);
     await run(request.id, () =>
       kind === 'decline'
-        ? sessionRequestRepo.respond(api, request.id, staffId, { action: 'decline', note: note.trim() || undefined })
-        : sessionRequestRepo.respond(api, request.id, staffId, {
+        ? sessionRequestRepo.respond(api, request.id, actorId, { action: 'decline', note: note.trim() || undefined })
+        : sessionRequestRepo.respond(api, request.id, actorId, {
             action: 'counter',
-            start: `${date}T${time}:00-04:00`,
+            start: `${date}T${time}:00${easternOffset(date, Number(time.slice(0, 2)))}`,
             note: note.trim() || undefined,
           })
     );
@@ -112,18 +122,20 @@ export function SessionRequestsInbox({ staffId, accent, onChanged }: { staffId: 
       ) : (
         requests.map((r) => (
           <SessionRequestCard key={r.id} request={r} perspective="staff">
-            {r.status === 'pending' ? (
+            {r.status === 'pending' && canRespond ? (
               <>
                 <SmallButton
                   label="Accept"
                   disabled={busy === r.id}
                   onPress={() =>
-                    void run(r.id, () => sessionRequestRepo.respond(api, r.id, staffId, { action: 'accept' }))
+                    void run(r.id, () => sessionRequestRepo.respond(api, r.id, actorId, { action: 'accept' }))
                   }
                 />
                 <SmallButton label="Other time" kind="secondary" disabled={busy === r.id} onPress={() => openMode('counter', r)} />
                 <SmallButton label="Decline" kind="danger" disabled={busy === r.id} onPress={() => openMode('decline', r)} />
               </>
+            ) : r.status === 'pending' ? (
+              <Text style={{ color: tc.textMuted, fontSize: 12 }}>Waiting for the instructor to reply.</Text>
             ) : r.status === 'countered' ? (
               <Text style={{ color: tc.textMuted, fontSize: 12 }}>Waiting for the member to answer your offer.</Text>
             ) : (

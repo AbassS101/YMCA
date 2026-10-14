@@ -10,14 +10,17 @@ import type { ChatTheme } from './chatTheme';
 import type { ChatMessage } from './chatTypes';
 
 export function roleTag(role: string): { label: string; color: string } | null {
-  if (role === 'admin' || role === 'it_admin' || role === 'staff_admin')
-    return { label: 'ADMIN', color: '#7C3AED' };
+  if (role === 'it_admin') return { label: 'IT ADMIN', color: '#6D28D9' };
+  if (role === 'admin' || role === 'staff_admin') return { label: 'STAFF ADMIN', color: '#7C3AED' };
+  if (role === 'child_watch_director') return { label: 'CHILD WATCH DIR', color: '#B45309' };
+  if (role === 'child_watch_supervisor') return { label: 'CHILD WATCH SUP', color: '#B45309' };
   if (role === 'wellness_director') return { label: 'WELLNESS DIR', color: '#9D174D' };
   if (role === 'aquatics_director') return { label: 'AQUATICS DIR', color: '#0369A1' };
   if (role === 'membership_director') return { label: 'MEMBERSHIP DIR', color: '#4338CA' };
   if (role === 'swim_instructor') return { label: 'SWIM INSTRUCTOR', color: '#0284C7' };
   if (role === 'trainer') return { label: 'TRAINER', color: '#15803D' };
-  if (role === 'staff' || role === 'desk') return { label: 'STAFF', color: '#0284C7' };
+  if (role === 'desk') return { label: 'FRONT DESK', color: '#0284C7' };
+  if (role === 'staff') return { label: 'STAFF', color: '#0284C7' };
   return null;
 }
 
