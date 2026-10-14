@@ -322,7 +322,7 @@ export function WellnessPackagesView({
 
                 {tier.savingsNote && isMember ? (
                   <Text style={[styles.savingsNote, { color: '#16A34A' }]}>
-                    ✓ {tier.savingsNote}
+                    {tier.savingsNote}
                   </Text>
                 ) : !isMember ? (
                   <Text style={[styles.savingsNote, { color: colors.textMuted }]}>

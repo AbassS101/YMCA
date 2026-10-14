@@ -39,6 +39,7 @@ const AVAILABLE_STAFF_TAGS: StaffTagOption[] = [
   { id: 'staff-alex', name: 'Doc', roleLabel: 'Personal Wellness Trainer', icon: 'barbell' },
   { id: 'staff-sarah', name: 'Jane Doe', roleLabel: 'Swim Instructor', icon: 'water' },
   { id: 'staff-celine', name: 'Celine', roleLabel: 'Wellness Director', icon: 'fitness' },
+  { id: 'staff-alek', name: 'Alek', roleLabel: 'Aquatics Director', icon: 'water' },
   { id: 'staff-desk', name: 'Billy Deveaux', roleLabel: 'Membership Director', icon: 'people' },
   { id: 'staff-admin', name: 'David', roleLabel: 'Staff Admin', icon: 'shield-checkmark' },
 ];
@@ -77,9 +78,9 @@ const TOPIC_TEMPLATES: TopicTemplate[] = [
     label: 'Pool & Lap Swimming',
     icon: 'water-outline',
     category: 'swim',
-    defaultStaffId: 'staff-desk',
-    titleSuggestion: '@Marcus Taylor Question about lap pool: ',
-    bodySuggestion: 'Hi Marcus, checking on the pool temperatures and lane availability for ',
+    defaultStaffId: 'staff-alek',
+    titleSuggestion: '@Alek Question about lap pool: ',
+    bodySuggestion: 'Hi Alek, checking on the pool temperatures and lane availability for ',
   },
   {
     id: 'find_partner',

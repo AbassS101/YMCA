@@ -59,10 +59,10 @@ describe('Support Ticket System, IT Chat & Mention Autocomplete', () => {
       expect(userMsg.body).toContain(result.ticket.ticketNumber);
       expect(userMsg.body).toContain('Barcode scan shortcut');
 
-      // Message 2 automated reply from IT Admin David Miller
+      // Message 2 automated reply from IT Admin Abass Shikur
       const itMsg = messages[1];
       expect(itMsg.fromId).toBe('staff-itadmin');
-      expect(itMsg.body).toContain('David Miller');
+      expect(itMsg.body).toContain('Abass Shikur');
       expect(itMsg.body).toContain('YMCA IT Systems');
       expect(itMsg.body).toContain(result.ticket.ticketNumber);
 
@@ -70,7 +70,7 @@ describe('Support Ticket System, IT Chat & Mention Autocomplete', () => {
       const notifs = await notificationRepo.list(adapter, 'member-jordan');
       const ticketNotif = notifs.find((n) => n.title.includes(result.ticket.ticketNumber));
       expect(ticketNotif).toBeDefined();
-      expect(ticketNotif?.body).toContain('David Miller from YMCA IT responded');
+      expect(ticketNotif?.body).toContain('Abass Shikur from YMCA IT responded');
     });
 
     it('creates a problem report ticket with high priority', async () => {

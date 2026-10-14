@@ -169,7 +169,7 @@ export function SupportTicketModal({
 
       dialog.alert(
         'Ticket Created & Chat Opened!',
-        `Your ticket #${ticket.ticketNumber} has been logged. We've opened a direct support thread with David Miller from YMCA IT Systems.`,
+        `Your ticket #${ticket.ticketNumber} has been logged. We've opened a direct support thread with Abass Shikur from YMCA IT Systems.`,
         [
           {
             text: 'Open IT Chat',

@@ -42,7 +42,7 @@ export const savedClassesRepo = {
         state.notifications.unshift({
           id: notifId,
           userId: memberId,
-          title: `⭐ Class Reminder Set: ${item.title}`,
+          title: `Class saved: ${item.title}`,
           body: `You starred ${item.title} with ${item.instructorName} (${whenStr} · ${item.location}). You will be notified when this class is happening!`,
           type: 'event',
           createdAt: new Date().toISOString(),

@@ -57,7 +57,7 @@ export function GuestPassCard({
       previousBrightnessRef.current = prev;
       setIsBrightnessBoosted(true);
     } catch (e) {
-      console.warn('Error boosting brightness for guest scan modal:', e);
+      void e; // Brightness boost is optional.
     }
   };
 
@@ -68,7 +68,7 @@ export function GuestPassCard({
       previousBrightnessRef.current = null;
       setIsBrightnessBoosted(false);
     } catch (e) {
-      console.warn('Error restoring brightness:', e);
+      void e; // Brightness restore is optional.
     }
   };
 

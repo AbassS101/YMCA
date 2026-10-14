@@ -849,22 +849,67 @@ export class MockProtivityAdapter implements ProtivityPort {
     threadId: string;
     fromId: string;
     body: string;
+    replyToId?: string;
+    replyToAuthorName?: string;
+    replyToExcerpt?: string;
   }): Promise<Message> {
     const state = await loadStore();
     const thread = state.threads.find((t) => t.id === input.threadId);
     if (!thread) {
       throw new Error(`Thread not found: ${input.threadId}`);
     }
+    const text = filterProfanity(input.body.trim());
+    if (!text) throw new Error('Message cannot be empty.');
     const message: Message = {
-      id: `msg-${state.messages.length + 1}-${input.threadId}`,
+      id: `msg-${Date.now().toString(36)}-${state.messages.length + 1}-${input.threadId}`,
       threadId: input.threadId,
       fromId: input.fromId,
-      body: input.body,
+      body: text,
       createdAt: new Date().toISOString(),
+      replyToId: input.replyToId,
+      replyToAuthorName: input.replyToAuthorName,
+      replyToExcerpt: input.replyToExcerpt,
     };
     state.messages.push(message);
     await saveStore(state);
     return message;
+  }
+
+  async editMessage(messageId: string, userId: string, body: string): Promise<Message> {
+    const state = await loadStore();
+    const message = state.messages.find((m) => m.id === messageId);
+    if (!message) throw new Error(`Message not found: ${messageId}`);
+    if (message.fromId !== userId) throw new Error('Only the author can edit this message.');
+    const text = filterProfanity(body.trim());
+    if (!text) throw new Error('Message cannot be empty.');
+    message.body = text;
+    message.editedAt = new Date().toISOString();
+    await saveStore(state);
+    return message;
+  }
+
+  async toggleMessageReaction(
+    messageId: string,
+    userId: string,
+    emoji: string
+  ): Promise<Message> {
+    const state = await loadStore();
+    const message = state.messages.find((m) => m.id === messageId);
+    if (!message) throw new Error(`Message not found: ${messageId}`);
+    message.reactions = toggleReactionMap(message.reactions, emoji, userId);
+    await saveStore(state);
+    return message;
+  }
+
+  async deleteMessage(messageId: string, userId: string): Promise<void> {
+    const state = await loadStore();
+    const idx = state.messages.findIndex((m) => m.id === messageId);
+    if (idx === -1) throw new Error(`Message not found: ${messageId}`);
+    if (state.messages[idx].fromId !== userId) {
+      throw new Error('Only the author can delete this message.');
+    }
+    state.messages.splice(idx, 1);
+    await saveStore(state);
   }
 
   async registerForClass(
@@ -3668,7 +3713,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     latestState.notifications.unshift({
       id: `notif-it-report-${Date.now()}`,
       userId: 'staff-itadmin',
-      title: `🚨 Forum Report Ticket #${result.ticket.ticketNumber}`,
+      title: `Forum report ticket #${result.ticket.ticketNumber}`,
       body: `${input.reporterName} reported a ${targetLabel.toLowerCase()} by ${input.targetAuthorName} for "${input.reason}".`,
       type: 'staff_inquiry',
       createdAt: new Date().toISOString(),
@@ -3741,7 +3786,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     state.supportTickets.unshift(ticket);
 
     // 3. Post user's initial ticket message into thread
-    const typeLabel = input.type === 'feature_request' ? '💡 Feature Request' : '🛠️ Problem Report';
+    const typeLabel = input.type === 'feature_request' ? 'Feature Request' : 'Problem Report';
     const userMsgBody = `[Ticket #${ticketNumber} · ${typeLabel}]\nSubject: ${input.title}\nCategory: ${input.category}\nPriority: ${input.priority.toUpperCase()}\n\n${input.description}`;
     const userMessage: Message = {
       id: `msg-${Date.now()}-1`,
@@ -3752,8 +3797,8 @@ export class MockProtivityAdapter implements ProtivityPort {
     };
     state.messages.push(userMessage);
 
-    // 4. Auto-generate IT triage acknowledgment response from David Miller (IT Admin)
-    const itAckBody = `Hello ${input.userName.split(' ')[0]}! This is David Miller from YMCA IT Systems. We've logged your ticket #${ticketNumber} ("${input.title}") as ${input.priority.toUpperCase()} priority. Our technical support team is reviewing your report. Please feel free to send any additional details or screenshots right here!`;
+    // 4. Auto-generate IT triage acknowledgment response from Abass Shikur (IT Admin)
+    const itAckBody = `Hello ${input.userName.split(' ')[0]}! This is Abass Shikur from YMCA IT Systems. We've logged your ticket #${ticketNumber} ("${input.title}") as ${input.priority.toUpperCase()} priority. Our technical support team is reviewing your report. Please feel free to send any additional details or screenshots right here!`;
     const itAckMsg: Message = {
       id: `msg-${Date.now()}-2`,
       threadId: thread.id,
@@ -3768,7 +3813,7 @@ export class MockProtivityAdapter implements ProtivityPort {
       id: `notif-${Date.now()}`,
       userId: input.userId,
       title: `IT Support Ticket Logged: ${ticketNumber}`,
-      body: `Ticket "${input.title}" has been registered. David Miller from YMCA IT responded.`,
+      body: `Ticket "${input.title}" has been registered. Abass Shikur from YMCA IT responded.`,
       type: 'general',
       createdAt: now,
       read: false,

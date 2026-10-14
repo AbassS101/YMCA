@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { colors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
@@ -33,7 +34,11 @@ export function ScheduleRow({
         accessibilityRole="button"
         accessibilityLabel={starred ? 'Remove from saved classes' : 'Save class'}
       >
-        <Text style={[styles.star, starred && styles.starActive]}>{starred ? '★' : '☆'}</Text>
+        <Ionicons
+          name={starred ? 'star' : 'star-outline'}
+          size={22}
+          color={starred ? colors.scarlet : colors.nearBlack}
+        />
       </Pressable>
     </View>
   );

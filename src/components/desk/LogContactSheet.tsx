@@ -113,7 +113,7 @@ export function LogContactSheet({
         label="Follow-up date (optional, YYYY-MM-DD)"
         value={followUp}
         onChangeText={setFollowUp}
-        placeholder="2026-09-15"
+        placeholder="YYYY-MM-DD"
         autoCapitalize="none"
       />
       <PrimaryButton title="Save Contact" onPress={() => void save()} loading={busy} />

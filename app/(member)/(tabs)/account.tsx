@@ -13,7 +13,6 @@ import {
 
 import { AppText } from '@/components/AppText';
 import { AttendanceStreakModal } from '@/components/AttendanceStreakModal';
-import { ChatModal } from '@/components/ChatModal';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { MemberCheckInCard } from '@/components/MemberCheckInCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -32,7 +31,6 @@ import type { Member, Membership, MemberStreakProfile, Message, Staff, TicketTyp
 import { householdRepo } from '@/repositories/householdRepo';
 import { memberRepo } from '@/repositories/memberRepo';
 import { membershipRepo } from '@/repositories/membershipRepo';
-import { messageRepo } from '@/repositories/messageRepo';
 import { streakRepo } from '@/repositories/streakRepo';
 import { cardStyle } from '@/theme/card';
 import { radii, spacing, tapTarget, typography } from '@/theme/typography';
@@ -87,6 +85,13 @@ const DEMO_ACCOUNTS = [
     color: '#15803D',
   },
   {
+    name: 'Jane Doe',
+    email: 'sarah@silverspring.ymca',
+    role: 'Swim Instructor · Aquatics',
+    icon: 'water' as const,
+    color: '#0284C7',
+  },
+  {
     name: 'Abass Shikur',
     email: 'itadmin@silverspring.ymca',
     role: 'IT Admin · Systems Administrator',
@@ -101,11 +106,25 @@ const DEMO_ACCOUNTS = [
     color: '#EC4899',
   },
   {
+    name: 'Alek',
+    email: 'aquatics@silverspring.ymca',
+    role: 'Aquatics Director',
+    icon: 'water' as const,
+    color: '#0EA5E9',
+  },
+  {
     name: 'Billy Deveaux',
-    email: 'wellness@silverspring.ymca',
-    role: 'Membership Director · 301 585 2120 ext 2506',
+    email: 'membership@silverspring.ymca',
+    role: 'Membership Director',
     icon: 'business' as const,
     color: '#D97706',
+  },
+  {
+    name: 'Maya Brooks',
+    email: 'frontdesk@silverspring.ymca',
+    role: 'Front Desk Membership Representative',
+    icon: 'headset' as const,
+    color: '#0891B2',
   },
 ];
 
@@ -187,36 +206,12 @@ export default function MemberAccountScreen() {
   // Support Ticket & IT Chat State
   const [supportModalVisible, setSupportModalVisible] = useState(false);
   const [supportInitialType, setSupportInitialType] = useState<TicketType>('problem_report');
-  const [chatModalVisible, setChatModalVisible] = useState(false);
-  const [activeITStaff, setActiveITStaff] = useState<Staff | null>(null);
-  const [activeThreadId, setActiveThreadId] = useState<string>('');
-  const [itMessages, setITMessages] = useState<Message[]>([]);
 
-  const handleOpenITChat = async (itStaff: Staff, threadId: string) => {
-    setActiveITStaff(itStaff);
-    setActiveThreadId(threadId);
-    try {
-      const msgs = await messageRepo.listMessages(api, threadId);
-      setITMessages(msgs);
-    } catch {
-      setITMessages([]);
-    }
-    setChatModalVisible(true);
+  const handleOpenITChat = async (_itStaff: Staff, threadId: string) => {
+    setSupportModalVisible(false);
+    router.push(`/(member)/messages/${threadId}` as never);
   };
 
-  const handleSendITMessage = async (body: string) => {
-    if (!activeThreadId || !memberId) return;
-    try {
-      const newMsg = await messageRepo.sendMessage(api, {
-        threadId: activeThreadId,
-        fromId: memberId,
-        body,
-      });
-      setITMessages((prev) => [...prev, newMsg]);
-    } catch {
-      // ignore
-    }
-  };
 
   const load = useCallback(async () => {
     if (memberId === '') {
@@ -802,7 +797,7 @@ export default function MemberAccountScreen() {
             </AppText>
           </View>
           <AppText style={[styles.meta, { color: colors.textMuted }]}>
-            Switch instantly between member, trainer, and director roles without logging out.
+            Switch instantly between member, guest, staff, trainers, swim staff, directors, and front desk roles without logging out.
           </AppText>
 
           <View style={{ gap: 8, marginTop: 6 }}>
@@ -1004,15 +999,6 @@ export default function MemberAccountScreen() {
         onOpenITChat={handleOpenITChat}
       />
 
-      {/* IT Live Chat Modal */}
-      <ChatModal
-        visible={chatModalVisible}
-        onClose={() => setChatModalVisible(false)}
-        recipient={activeITStaff}
-        messages={itMessages}
-        currentUserId={memberId}
-        onSend={handleSendITMessage}
-      />
 
       {/* Digital Member Barcode Pass Modal */}
       {showBarcodeModal && member ? (

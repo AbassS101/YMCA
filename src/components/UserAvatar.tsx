@@ -25,7 +25,7 @@ export const YMCA_AVATAR_PRESETS = [
   },
   {
     id: 'wellness-1',
-    label: 'John (Member)',
+    label: 'Taylor Smith (Guest)',
     url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
   },
   {
@@ -35,22 +35,22 @@ export const YMCA_AVATAR_PRESETS = [
   },
   {
     id: 'wellness-3',
-    label: 'Jane (Swim Instructor)',
+    label: 'Jane Doe (Swim Instructor)',
     url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&q=80',
   },
   {
     id: 'wellness-4',
-    label: 'Pat (Director)',
+    label: 'Celine (Wellness Director)',
     url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&q=80',
   },
   {
     id: 'wellness-5',
-    label: 'David (IT Admin)',
+    label: 'David (Staff Admin)',
     url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=80',
   },
   {
     id: 'wellness-6',
-    label: 'Elena (Aquatics)',
+    label: 'Emily Wilson (Aquatics)',
     url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&q=80',
   },
 ];

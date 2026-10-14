@@ -20,8 +20,27 @@ export const messageRepo = {
 
   sendMessage(
     api: ProtivityPort,
-    input: { threadId: string; fromId: string; body: string }
+    input: {
+      threadId: string;
+      fromId: string;
+      body: string;
+      replyToId?: string;
+      replyToAuthorName?: string;
+      replyToExcerpt?: string;
+    }
   ): Promise<Message> {
     return api.sendMessage(input);
+  },
+
+  editMessage(api: ProtivityPort, id: string, userId: string, body: string): Promise<Message> {
+    return api.editMessage(id, userId, body);
+  },
+
+  toggleReaction(api: ProtivityPort, id: string, userId: string, emoji: string): Promise<Message> {
+    return api.toggleMessageReaction(id, userId, emoji);
+  },
+
+  deleteMessage(api: ProtivityPort, id: string, userId: string): Promise<void> {
+    return api.deleteMessage(id, userId);
   },
 };

@@ -40,7 +40,7 @@ export function MessageThread({
   listHeader,
 }: MessageThreadProps) {
   const insets = useSafeAreaInsets();
-  const { colors: themeColors, isDark } = useTheme();
+  const { colors: themeColors } = useTheme();
   const [draft, setDraft] = useState('');
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -136,7 +136,7 @@ export function MessageThread({
                 <Text
                   style={[
                     styles.bubbleText,
-                    mine ? styles.bubbleTextMine : [styles.bubbleTextTheirs, { color: themeColors.nearBlack }],
+                    mine ? styles.bubbleTextMine : [styles.bubbleTextTheirs, { color: themeColors.text }],
                   ]}
                 >
                   {item.body}
@@ -172,11 +172,7 @@ export function MessageThread({
               style={({ pressed }) => [
                 styles.dismissKeyboardBtn,
                 {
-                  backgroundColor: pressed
-                    ? '#E0F2FE'
-                    : isDark
-                      ? themeColors.background
-                      : '#F1F5F9',
+                  backgroundColor: pressed ? themeColors.primaryLight : themeColors.background,
                 },
               ]}
               accessibilityRole="button"

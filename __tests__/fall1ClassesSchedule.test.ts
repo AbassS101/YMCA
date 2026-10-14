@@ -415,7 +415,7 @@ describe('Official YMCA Silver Spring Fall 1 Group Exercise Schedule', () => {
       let notifs = await notificationRepo.list(adapter, 'member-jordan');
       const starNotif = notifs.find((n) => n.id === 'notif-star-member-jordan-sched-tue-zumba-1815');
       expect(starNotif).toBeDefined();
-      expect(starNotif?.title).toContain('Class Reminder Set: Zumba');
+      expect(starNotif?.title).toContain('Class saved: Zumba');
       expect(starNotif?.body).toContain('You will be notified when this class is happening!');
 
       const unSaved = await savedClassesRepo.toggle('member-jordan', 'sched-tue-zumba-1815');

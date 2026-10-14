@@ -16,7 +16,7 @@ import { containsProfanity } from '@/domain/types';
 import type { ChatTheme } from './chatTheme';
 import type { ChatMessage } from './chatTypes';
 
-const QUICK_REPLIES = ['Thanks for the info! 🙌', 'Great tip, will try tomorrow! 💪', 'See you there! 👍', 'Count me in! 🎾'];
+const QUICK_REPLIES = ['Thanks for the info!', 'Great tip, I will try it tomorrow.', 'See you there!', 'Count me in!'];
 const TAGS = ['@All Staff Desk', '@Doc', '@Billy Deveaux', '@Jane Doe'];
 
 type Props = {

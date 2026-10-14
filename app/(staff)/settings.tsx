@@ -11,7 +11,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChatModal } from '@/components/ChatModal';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SupportTicketModal } from '@/components/SupportTicketModal';
 import { TextField } from '@/components/TextField';
@@ -22,7 +21,6 @@ import { useSession } from '@/context/SessionContext';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import { type Message, type NotificationPreferences, type Staff, type TicketType } from '@/domain/types';
-import { messageRepo } from '@/repositories/messageRepo';
 import { notificationRepo } from '@/repositories/notificationRepo';
 import { cardStyle } from '@/theme/card';
 import { colors } from '@/theme/colors';
@@ -61,35 +59,9 @@ export default function StaffSettingsScreen() {
   // IT Support Ticket & Chat State
   const [supportModalVisible, setSupportModalVisible] = useState(false);
   const [supportInitialType, setSupportInitialType] = useState<TicketType>('problem_report');
-  const [chatModalVisible, setChatModalVisible] = useState(false);
-  const [activeITStaff, setActiveITStaff] = useState<Staff | null>(null);
-  const [activeThreadId, setActiveThreadId] = useState<string>('');
-  const [itMessages, setITMessages] = useState<Message[]>([]);
-
-  const handleOpenITChat = async (itStaff: Staff, threadId: string) => {
-    setActiveITStaff(itStaff);
-    setActiveThreadId(threadId);
-    try {
-      const msgs = await messageRepo.listMessages(api, threadId);
-      setITMessages(msgs);
-    } catch {
-      setITMessages([]);
-    }
-    setChatModalVisible(true);
-  };
-
-  const handleSendITMessage = async (body: string) => {
-    if (!activeThreadId || !staffId) return;
-    try {
-      const newMsg = await messageRepo.sendMessage(api, {
-        threadId: activeThreadId,
-        fromId: staffId,
-        body,
-      });
-      setITMessages((prev) => [...prev, newMsg]);
-    } catch {
-      // ignore
-    }
+  const handleOpenITChat = async (_itStaff: Staff, threadId: string) => {
+    setSupportModalVisible(false);
+    router.push(`/(staff)/messages/${threadId}` as never);
   };
 
   const loadStaffData = useCallback(async () => {
@@ -510,7 +482,7 @@ export default function StaffSettingsScreen() {
             <Text style={[styles.sectionTitle, { color: tc.text }]}>IT Support & Feature Requests</Text>
           </View>
           <Text style={[styles.sectionDesc, { color: tc.textMuted }]}>
-            Report internal bugs, request staff management features, or chat directly with David Miller (IT Systems Administrator).
+            Report internal bugs, request staff management features, or chat directly with Abass Shikur (IT Systems Administrator).
           </Text>
 
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
@@ -702,15 +674,7 @@ export default function StaffSettingsScreen() {
         onOpenITChat={handleOpenITChat}
       />
 
-      {/* IT Chat Modal */}
-      <ChatModal
-        visible={chatModalVisible}
-        onClose={() => setChatModalVisible(false)}
-        recipient={activeITStaff}
-        messages={itMessages}
-        currentUserId={staffId}
-        onSend={handleSendITMessage}
-      />
+
     </View>
   );
 }

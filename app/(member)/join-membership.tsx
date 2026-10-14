@@ -205,7 +205,7 @@ export default function JoinMembershipScreen() {
         )} was successfully authorized to ${tokenized.brand} •••• ${tokenized.last4}. Full facility, pool, and group fitness privileges begin immediately!`,
         [
           {
-            text: 'Go to Member Home',
+            text: 'Go to Home',
             onPress: () => {
               router.replace('/(member)/home');
             },

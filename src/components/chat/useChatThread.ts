@@ -33,6 +33,10 @@ export function useChatThread({ source, me, enabled, onSent, onRemoved }: Option
   useEffect(() => {
     sourceRef.current = source;
   }, [source]);
+  const editTargetRef = useRef<ChatMessage | null>(null);
+  useEffect(() => {
+    editTargetRef.current = editTarget;
+  }, [editTarget]);
   const draftsRef = useRef<Record<string, ChatDraft>>({});
 
   const load = useCallback(async () => {
@@ -41,7 +45,10 @@ export function useChatThread({ source, me, enabled, onSent, onRemoved }: Option
     try {
       const list = await src.list();
       // keep unsent local messages
-      setMessages((prev) => [...list, ...prev.filter((m) => m.status !== 'sent')]);
+      setMessages((prev) => {
+        const next = [...list, ...prev.filter((m) => m.status !== 'sent')];
+        return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
+      });
     } catch {
       // keep existing
     }
@@ -70,13 +77,25 @@ export function useChatThread({ source, me, enabled, onSent, onRemoved }: Option
     };
   }, [enabled, source]);
 
+  // Pick up new messages from the other side while the conversation is open.
+  useEffect(() => {
+    if (!enabled || !source) return;
+    const id = setInterval(() => {
+      if (editTargetRef.current) return;
+      void load();
+    }, 4000);
+    return () => clearInterval(id);
+  }, [enabled, source, load]);
+
   const deliver = useCallback(
     async (tempId: string, draft: ChatDraft) => {
       const src = sourceRef.current;
       if (!src) return;
       try {
         const saved = await src.send(draft);
-        setMessages((prev) => prev.map((m) => (m.id === tempId ? saved : m)));
+        setMessages((prev) =>
+          prev.filter((m) => m.id !== saved.id).map((m) => (m.id === tempId ? saved : m))
+        );
         delete draftsRef.current[tempId];
         onSent?.(saved);
       } catch {

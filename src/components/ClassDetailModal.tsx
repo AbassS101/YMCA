@@ -221,7 +221,7 @@ export function ClassDetailModal({
                 {item.registrationRequired ? (
                   <View style={[styles.regReqBadge, { backgroundColor: isDark ? '#7F1D1D' : '#FEE2E2' }]}>
                     <Text style={[styles.regReqBadgeText, { color: isDark ? '#FCA5A5' : '#B91C1C' }]}>
-                      ⚠️ REGISTRATION REQUIRED
+                      REGISTRATION REQUIRED
                     </Text>
                   </View>
                 ) : !needsRegistration ? (
@@ -546,7 +546,7 @@ export function ClassDetailModal({
                     { color: calendarAdded ? (isDark ? '#6EE7B7' : '#047857') : tc.text },
                   ]}
                 >
-                  {calendarAdded ? 'In Calendar ✓' : 'Add Calendar'}
+                  {calendarAdded ? 'In Calendar' : 'Add Calendar'}
                 </Text>
               </Pressable>
 

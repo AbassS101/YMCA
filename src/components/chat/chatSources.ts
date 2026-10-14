@@ -1,4 +1,5 @@
-import type { ClassForumPost, ForumReply, ForumTopic, ScheduleItem } from '@/domain/types';
+import type { ClassForumPost, ForumReply, ForumTopic, Message, ScheduleItem } from '@/domain/types';
+import { messageRepo } from '@/repositories/messageRepo';
 import { forumRepo } from '@/repositories/forumRepo';
 import { classForumRepo } from '@/repositories/classForumRepo';
 import { parseMentionedStaffIds } from './mentions';
@@ -138,6 +139,88 @@ export function classSource(api: any, item: ScheduleItem, me: ChatIdentity): Cha
         targetAuthorName: message.authorName,
         targetContent: message.content,
         contextTitle: `${item.title} (${item.instructorName})`,
+        reason,
+        details,
+      });
+      return ticket.ticketNumber;
+    },
+  };
+}
+
+export type DirectParticipant = {
+  id: string;
+  name: string;
+  role: string;
+  avatarUrl?: string;
+  isStaff: boolean;
+};
+
+export function directMessageToChat(
+  m: Message,
+  people: Record<string, DirectParticipant>
+): ChatMessage {
+  const p = people[m.fromId];
+  return {
+    id: m.id,
+    authorId: m.fromId,
+    authorName: p?.name ?? 'Unknown',
+    authorRole: p?.role ?? 'member',
+    authorAvatarUrl: p?.avatarUrl,
+    content: m.body,
+    createdAt: m.createdAt,
+    editedAt: m.editedAt,
+    reactions: m.reactions ?? {},
+    replyTo: replyToRef(m.replyToId, m.replyToAuthorName, m.replyToExcerpt),
+    isStaff: p?.isStaff ?? false,
+    status: 'sent',
+  };
+}
+
+/** One-to-one conversation between a member and a staff member. */
+export function directMessageSource(
+  api: any,
+  threadId: string,
+  me: ChatIdentity,
+  people: Record<string, DirectParticipant>,
+  contextTitle: string
+): ChatSource {
+  return {
+    async list() {
+      const list = await messageRepo.listMessages(api, threadId);
+      return [...list]
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .map((m) => directMessageToChat(m, people));
+    },
+    async send(draft) {
+      const m = await messageRepo.sendMessage(api, {
+        threadId,
+        fromId: me.userId,
+        body: draft.content,
+        replyToId: draft.replyTo?.id,
+        replyToAuthorName: draft.replyTo?.authorName,
+        replyToExcerpt: draft.replyTo?.excerpt,
+      });
+      return directMessageToChat(m, people);
+    },
+    async edit(id, content) {
+      return directMessageToChat(await messageRepo.editMessage(api, id, me.userId, content), people);
+    },
+    async toggleReaction(id, emoji) {
+      return directMessageToChat(await messageRepo.toggleReaction(api, id, me.userId, emoji), people);
+    },
+    remove(id) {
+      return messageRepo.deleteMessage(api, id, me.userId);
+    },
+    async report(message, reason, details) {
+      const { ticket } = await classForumRepo.reportPost(api, {
+        reporterId: me.userId,
+        reporterName: me.name,
+        reporterRole: me.role,
+        targetId: message.id,
+        targetAuthorId: message.authorId,
+        targetAuthorName: message.authorName,
+        targetContent: message.content,
+        contextTitle,
         reason,
         details,
       });

@@ -52,7 +52,7 @@ const DEMO_PERSONAS = [
   {
     name: 'Doc',
     email: 'alex@silverspring.ymca',
-    roleTitle: 'Personal Trainer · Wellness',
+    roleTitle: 'Personal Trainer',
     badge: 'TRAINER',
     badgeBg: '#DCFCE7',
     badgeColor: '#15803D',
@@ -106,7 +106,7 @@ const DEMO_PERSONAS = [
   },
   {
     name: 'Billy Deveaux',
-    email: 'wellness@silverspring.ymca',
+    email: 'membership@silverspring.ymca',
     roleTitle: 'Membership Director · Front Desk Lead',
     badge: 'MEMBERSHIP DIR',
     badgeBg: '#E0E7FF',
@@ -114,6 +114,17 @@ const DEMO_PERSONAS = [
     borderColor: '#6366F1',
     icon: 'business' as const,
     highlights: 'Front desk check-in, cancellation approvals, plan changes, new members',
+  },
+  {
+    name: 'Maya Brooks',
+    email: 'frontdesk@silverspring.ymca',
+    roleTitle: 'Front Desk Membership Representative',
+    badge: 'FRONT DESK',
+    badgeBg: '#CFFAFE',
+    badgeColor: '#0E7490',
+    borderColor: '#0891B2',
+    icon: 'headset' as const,
+    highlights: 'Member sign-in, billing follow-up, leads, campaigns & call scripts',
   },
   {
     name: 'Taylor Smith',
@@ -156,7 +167,7 @@ export default function LoginScreen() {
       const next = await login(trimmed, password);
       router.replace(routeForRole(next.role));
     } catch {
-      setError('Invalid email or password. You can also use 1-tap demo login below.');
+      setError('Invalid email or password. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -169,7 +180,7 @@ export default function LoginScreen() {
       const next = await login(targetEmail, DEMO_PASSWORD);
       router.replace(routeForRole(next.role));
     } catch {
-      setError('Could not sign in with demo account.');
+      setError('Could not sign in. Please try again.');
     } finally {
       setDirectSigningIn(null);
     }
@@ -183,14 +194,14 @@ export default function LoginScreen() {
 
   async function handleResetDemoData() {
     dialog.show({
-      title: 'Reset Demo Environment',
+      title: 'Reset sample data',
       message:
-        'Restore all schedules, memberships, cancellations, and support tickets to the original presentation seed state?',
+        'Restore schedules, memberships, messages and all other sample records to their starting state? Anything you added will be removed.',
       icon: 'alert',
       buttons: [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Reset All Data',
+          text: 'Reset',
           style: 'destructive',
           onPress: async () => {
             setResetting(true);
@@ -200,8 +211,8 @@ export default function LoginScreen() {
               setPassword('');
               setError(null);
               dialog.alert(
-                'Demo Data Restored',
-                'The local database has been restored to pristine initial seed state.',
+                'Sample data restored',
+                'Everything is back to its starting state.',
                 [{ text: 'OK' }],
                 'checkmark'
               );
@@ -227,37 +238,10 @@ export default function LoginScreen() {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Client Presentation Banner */}
-          <View
-            style={[
-              styles.showcaseBanner,
-              {
-                backgroundColor: isDark ? '#1E293B' : '#F0FDF4',
-                borderColor: isDark ? '#334155' : '#86EFAC',
-              },
-            ]}
-          >
-            <View style={styles.showcaseTopRow}>
-              <View style={styles.showcaseIconPill}>
-                <Ionicons name="sparkles" size={16} color="#16A34A" />
-                <Text style={styles.showcasePillText}>CLIENT DEMO SHOWCASE</Text>
-              </View>
-              <Text style={[styles.showcaseBranch, { color: tc.textMuted }]}>
-                Silver Spring Branch
-              </Text>
-            </View>
-            <Text style={[styles.showcaseText, { color: tc.text }]}>
-              Pre-loaded with live schedules, class rosters, digital scan pass, and branch governance. Tap any persona below for instant 1-tap sign in.
-            </Text>
-          </View>
-
-          {/* 1-Tap Demo Persona Launchers */}
           <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: tc.text }]}>
-              1-Tap Demo Persona Access
-            </Text>
+            <Text style={[styles.sectionTitle, { color: tc.text }]}>Sign in as</Text>
             <Text style={[styles.sectionSubtitle, { color: tc.textMuted }]}>
-              Instant login without typing credentials
+              YMCA Silver Spring members and staff
             </Text>
           </View>
 
@@ -327,14 +311,14 @@ export default function LoginScreen() {
                         pressed && { opacity: 0.85 },
                       ]}
                       accessibilityRole="button"
-                      accessibilityLabel={`1-Tap Sign In as ${p.name}`}
+                      accessibilityLabel={`Sign in as ${p.name}`}
                     >
                       {isCurrent ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
                         <>
                           <Text style={styles.quickLaunchBtnText}>
-                            Launch as {p.name.split(' ')[0]}
+                            Sign in as {p.name.split(' ')[0]}
                           </Text>
                           <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
                         </>
@@ -453,43 +437,24 @@ export default function LoginScreen() {
             >
               <Ionicons name="heart" size={16} color="#DC2626" />
               <Text style={[styles.donateLinkText, { color: colors.primary }]}>
-                Support Our Cause: Make a Charitable Donation ›
+                Support the Y: make a donation ›
               </Text>
             </Pressable>
           </View>
 
-          {/* Demo Control Center */}
-          <View
-            style={[
-              styles.demoResetWrap,
-              { backgroundColor: tc.cardBg, borderColor: tc.cardBorder },
-            ]}
+          <Pressable
+            onPress={() => void handleResetDemoData()}
+            disabled={resetting}
+            style={styles.resetLink}
+            accessibilityRole="button"
+            accessibilityLabel="Reset sample data"
           >
-            <View style={styles.resetHeaderRow}>
-              <Ionicons name="refresh-circle" size={22} color={colors.scarlet} />
-              <Text style={[styles.resetTitle, { color: tc.text }]}>
-                Demo Data Reset
-              </Text>
-            </View>
-            <Text style={[styles.resetDesc, { color: tc.textMuted }]}>
-              Restore mock rosters, schedules, and test accounts to original seed state before or after a client pitch.
-            </Text>
-            <Pressable
-              onPress={() => void handleResetDemoData()}
-              disabled={resetting}
-              style={[styles.resetBtn, { borderColor: colors.scarlet }]}
-              accessibilityRole="button"
-              accessibilityLabel="Reset demo data to initial state"
-            >
-              {resetting ? (
-                <ActivityIndicator size="small" color={colors.scarlet} />
-              ) : (
-                <Text style={styles.resetBtnText}>
-                  Reset Demo Data to Initial State
-                </Text>
-              )}
-            </Pressable>
-          </View>
+            {resetting ? (
+              <ActivityIndicator size="small" color={tc.textMuted} />
+            ) : (
+              <Text style={[styles.resetLinkText, { color: tc.textMuted }]}>Reset sample data</Text>
+            )}
+          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -507,40 +472,6 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.md,
     paddingBottom: 40,
-  },
-  showcaseBanner: {
-    borderRadius: radii.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    gap: 8,
-  },
-  showcaseTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  showcaseIconPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(22, 163, 74, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: radii.sm,
-  },
-  showcasePillText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#16A34A',
-    letterSpacing: 0.5,
-  },
-  showcaseBranch: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  showcaseText: {
-    fontSize: 13,
-    lineHeight: 18,
   },
   sectionHeaderRow: {
     gap: 2,
@@ -696,37 +627,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  demoResetWrap: {
-    borderRadius: radii.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    gap: 8,
-    marginTop: 8,
-  },
-  resetHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  resetTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  resetDesc: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  resetBtn: {
-    borderWidth: 1,
-    borderRadius: radii.sm,
-    paddingVertical: 10,
+  resetLink: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FEF2F2',
+    paddingVertical: 12,
+    marginTop: 4,
   },
-  resetBtnText: {
-    color: colors.scarlet,
-    fontSize: 13,
-    fontWeight: '700',
+  resetLinkText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });

@@ -2,7 +2,7 @@ export function formatShortDate(isoDate: string): string {
   if (isoDate === '') {
     return 'none remaining';
   }
-  const d = new Date(`${isoDate}T12:00:00`);
+  const d = new Date(`${isoDate.slice(0, 10)}T12:00:00`);
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 

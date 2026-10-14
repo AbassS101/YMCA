@@ -70,7 +70,7 @@ export function MemberCheckInCard({
       previousBrightnessRef.current = prev;
       setIsBrightnessBoosted(true);
     } catch (e) {
-      console.warn('Error boosting brightness for scan modal:', e);
+      void e; // Brightness boost is optional.
     }
   };
 
@@ -82,7 +82,7 @@ export function MemberCheckInCard({
       previousBrightnessRef.current = null;
       setIsBrightnessBoosted(false);
     } catch (e) {
-      console.warn('Error restoring brightness:', e);
+      void e; // Brightness restore is optional.
     }
     if (member?.id) {
       try {
@@ -171,7 +171,7 @@ export function MemberCheckInCard({
                   >
                     {streakProfile.activeHold?.active
                       ? 'ON HOLD'
-                      : `${streakProfile.currentStreakWeeks}w 🔥`}
+                      : `${streakProfile.currentStreakWeeks} wk streak`}
                   </AppText>
                 </View>
               ) : null}
@@ -191,6 +191,7 @@ export function MemberCheckInCard({
                 {member.name
                   .split(' ')
                   .map((n) => n[0])
+                  .slice(0, 2)
                   .join('')}
               </AppText>
             </View>
@@ -211,7 +212,7 @@ export function MemberCheckInCard({
                 <View style={styles.orientationBadge}>
                   <Ionicons name="alert-circle" size={14} color="#92400E" />
                   <AppText style={styles.orientationText}>
-                    Gym: orientation required. Book one with a trainer to unlock the fitness center.
+                    Gym: orientation required. Book one with a trainer to use the fitness center.
                   </AppText>
                 </View>
               ) : null}

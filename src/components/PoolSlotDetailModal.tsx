@@ -238,7 +238,7 @@ export function PoolSlotDetailModal({
                     { color: calendarAdded ? '#059669' : tc.text },
                   ]}
                 >
-                  {calendarAdded ? 'In Calendar ✓' : 'Add Calendar'}
+                  {calendarAdded ? 'In Calendar' : 'Add Calendar'}
                 </Text>
               </Pressable>
             ) : null}

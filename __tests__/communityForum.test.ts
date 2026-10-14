@@ -99,7 +99,7 @@ describe('Dedicated YMCA Community Forum & @ Staff Mentions', () => {
       // Staff reply check
       const staffReply = replies.find((r) => r.isStaffReply);
       expect(staffReply).toBeDefined();
-      expect(staffReply?.authorName).toBe('Marcus Taylor');
+      expect(staffReply?.authorName).toBe('Alek');
     });
 
     it('allows members and staff to post replies to a topic', async () => {
@@ -499,7 +499,7 @@ describe('Dedicated YMCA Community Forum & @ Staff Mentions', () => {
       remaining = await forumRepo.listReplies(adapter, thread.id);
       expect(remaining.some((r) => r.id === reply2.id)).toBe(false);
 
-      // IT Admin (David Miller, staff-itadmin) CAN delete reply3
+      // IT Admin (Abass Shikur, staff-itadmin) CAN delete reply3
       await forumRepo.deleteReply(adapter, reply3.id, 'staff-itadmin');
       remaining = await forumRepo.listReplies(adapter, thread.id);
       expect(remaining.some((r) => r.id === reply3.id)).toBe(false);

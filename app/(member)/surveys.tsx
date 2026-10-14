@@ -324,7 +324,7 @@ export default function MemberSurveysScreen() {
                 <View style={styles.badgeRow}>
                   {hasCompleted ? (
                     <View style={[styles.badge, { backgroundColor: '#DCFCE7' }]}>
-                      <Text style={[styles.badgeText, { color: '#15803D' }]}>COMPLETED ✓</Text>
+                      <Text style={[styles.badgeText, { color: '#15803D' }]}>COMPLETED</Text>
                     </View>
                   ) : survey.isActive ? (
                     <View style={[styles.badge, { backgroundColor: '#EFF6FF' }]}>

@@ -444,12 +444,12 @@ export default function PoolScheduleScreen() {
             >
               {[
                 { key: 'all', label: 'All Sessions' },
-                { key: 'lap', label: '🏊 Lap Swim (3+ Lanes)' },
-                { key: 'rec', label: '🤽 Rec & Family' },
-                { key: 'fitness', label: '💧 Water Fitness' },
-                { key: 'team', label: '🐬 Swim Team & Masters' },
-                { key: 'lessons', label: '👶 Swim Lessons' },
-                { key: 'waterpolo', label: '🤽‍♂️ Water Polo' },
+                { key: 'lap', label: 'Lap Swim' },
+                { key: 'rec', label: 'Rec & Family' },
+                { key: 'fitness', label: 'Water Fitness' },
+                { key: 'team', label: 'Swim Team & Masters' },
+                { key: 'lessons', label: 'Swim Lessons' },
+                { key: 'waterpolo', label: 'Water Polo' },
               ].map((chip) => {
                 const active = activeCategory === chip.key;
                 return (
@@ -559,7 +559,7 @@ export default function PoolScheduleScreen() {
           <View style={styles.guidelinesGrid}>
             <View style={styles.guidelineItem}>
               <Text style={[styles.guidelineItemTitle, { color: tc.text }]}>
-                🏊 Circle Swimming Rule
+                Circle Swimming Rule
               </Text>
               <Text style={[styles.guidelineItemBody, { color: tc.textMuted }]}>
                 When 3 or more swimmers share a lane, circle swimming in a counter-clockwise direction is strictly required. Yield to faster swimmers at the wall.
@@ -568,7 +568,7 @@ export default function PoolScheduleScreen() {
 
             <View style={styles.guidelineItem}>
               <Text style={[styles.guidelineItemTitle, { color: tc.text }]}>
-                🌡️ Pool Temperatures
+                Pool Temperatures
               </Text>
               <Text style={[styles.guidelineItemBody, { color: tc.textMuted }]}>
                 Indoor 25m Pool is maintained at 83°F. The Heated Outdoor Pool is maintained at 82°F year-round with nightly thermal blankets.
@@ -577,7 +577,7 @@ export default function PoolScheduleScreen() {
 
             <View style={styles.guidelineItem}>
               <Text style={[styles.guidelineItemTitle, { color: tc.text }]}>
-                👶 Test · Mark · Protect
+                Swim Test and Wristbands
               </Text>
               <Text style={[styles.guidelineItemBody, { color: tc.textMuted }]}>
                 Children under 14 must pass our green wristband swim test to enter water deeper than chest height or must wear a Coast Guard-approved PFD.
@@ -586,7 +586,7 @@ export default function PoolScheduleScreen() {
 
             <View style={styles.guidelineItem}>
               <Text style={[styles.guidelineItemTitle, { color: tc.text }]}>
-                🚿 Showers & Locker Rooms
+                Showers & Locker Rooms
               </Text>
               <Text style={[styles.guidelineItemBody, { color: tc.textMuted }]}>
                 Maryland state health code requires all swimmers to rinse thoroughly before stepping onto the pool deck. Direct dry sauna access in both locker rooms.

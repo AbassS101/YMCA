@@ -1017,7 +1017,7 @@ export default function StaffSurveysScreen() {
                             return (
                               <View key={stars} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                 <Text style={{ width: 45, fontSize: 12, color: tc.text }}>
-                                  {stars} ★
+                                  {stars} {stars === 1 ? 'star' : 'stars'}
                                 </Text>
                                 <View style={[styles.progressBarTrack, { flex: 1, backgroundColor: tc.border }]}>
                                   <View

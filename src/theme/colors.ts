@@ -43,6 +43,14 @@ export const lightColors = {
   text: '#0F172A',
   textMuted: '#475467',
   cardBorder: '#E2E8F0',
+
+  // Semantic badge / chip tokens
+  surfaceMuted: '#F1F5F9',
+  successText: '#166534',
+  warningBg: '#FEF9C3',
+  warningText: '#854D0E',
+  infoBg: '#E0F2FE',
+  infoText: '#075985',
 };
 
 export const darkColors = {
@@ -89,6 +97,14 @@ export const darkColors = {
   text: '#F8FAFC',
   textMuted: '#94A3B8',
   cardBorder: '#1E3A5F',
+
+  // Semantic badge / chip tokens
+  surfaceMuted: '#1E293B',
+  successText: '#6EE7B7',
+  warningBg: '#713F12',
+  warningText: '#FDE68A',
+  infoBg: '#0C4A6E',
+  infoText: '#BAE6FD',
 };
 
 export type ThemeColors = {
@@ -118,6 +134,12 @@ export type ThemeColors = {
   text: string;
   textMuted: string;
   cardBorder: string;
+  surfaceMuted: string;
+  successText: string;
+  warningBg: string;
+  warningText: string;
+  infoBg: string;
+  infoText: string;
 };
 
 /** Default backward-compatible colors object */

@@ -105,6 +105,13 @@ const DEMO_ROLES = [
     icon: 'barbell' as const,
   },
   {
+    name: 'Jane Doe',
+    email: 'sarah@silverspring.ymca',
+    role: 'Swim Instructor · Aquatics',
+    color: '#0284C7',
+    icon: 'water' as const,
+  },
+  {
     name: 'Abass Shikur',
     email: 'itadmin@silverspring.ymca',
     role: 'IT Admin · Chief Systems',
@@ -119,11 +126,25 @@ const DEMO_ROLES = [
     icon: 'fitness' as const,
   },
   {
+    name: 'Alek',
+    email: 'aquatics@silverspring.ymca',
+    role: 'Aquatics Director',
+    color: '#0EA5E9',
+    icon: 'water' as const,
+  },
+  {
     name: 'Billy Deveaux',
-    email: 'wellness@silverspring.ymca',
+    email: 'membership@silverspring.ymca',
     role: 'Membership Director',
     color: '#D97706',
     icon: 'business' as const,
+  },
+  {
+    name: 'Maya Brooks',
+    email: 'frontdesk@silverspring.ymca',
+    role: 'Front Desk Membership Rep',
+    color: '#0891B2',
+    icon: 'headset' as const,
   },
 ];
 
@@ -506,14 +527,13 @@ export default function AboutScreen() {
             ]}
           >
             <AppText style={[styles.techSpecsTitle, { color: tc.text }]}>
-              Platform Capabilities
+              What You Can Do In The App
             </AppText>
             <AppText style={[styles.techSpecsList, { color: tc.textMuted }]}>
-              • Protivity Port/Adapter Architecture{'\n'}
-              • Offline-Resilient Seed Storage{'\n'}
-              • Live Rosters & Private Lesson Booking Engine{'\n'}
-              • Dynamic WCAG AA Text Scaling & Theme Engine{'\n'}
-              • Multi-Tier Membership Change & Retention Flow
+              • Class registration and private lesson booking{'\n'}
+              • Pool schedule and swim lesson enrollment{'\n'}
+              • Light and dark themes with adjustable text size{'\n'}
+              • Membership changes, holds and guest passes
             </AppText>
           </View>
 

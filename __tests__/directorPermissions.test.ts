@@ -47,7 +47,7 @@ describe('Director roles and membership permissions', () => {
     });
 
     it('signs Billy in as the Membership Director', async () => {
-      const session = await adapter.login('wellness@silverspring.ymca', 'ymca-demo');
+      const session = await adapter.login('membership@silverspring.ymca', 'ymca-demo');
       expect(session.role).toBe('membership_director');
       expect((await adapter.getStaff(MEMBERSHIP_DIRECTOR)).staffRole).toBe('membership_director');
     });
@@ -63,12 +63,12 @@ describe('Director roles and membership permissions', () => {
       await saveStore(state);
 
       expect((await adapter.login('celine@silverspring.ymca', 'ymca-demo')).role).toBe('wellness_director');
-      expect((await adapter.login('wellness@silverspring.ymca', 'ymca-demo')).role).toBe('membership_director');
+      expect((await adapter.login('membership@silverspring.ymca', 'ymca-demo')).role).toBe('membership_director');
     });
 
     it('keeps an admin-assigned role instead of forcing the director role', async () => {
       await adapter.updateStaff(MEMBERSHIP_DIRECTOR, { staffRole: 'staff_admin' });
-      expect((await adapter.login('wellness@silverspring.ymca', 'ymca-demo')).role).toBe('staff_admin');
+      expect((await adapter.login('membership@silverspring.ymca', 'ymca-demo')).role).toBe('staff_admin');
     });
   });
 

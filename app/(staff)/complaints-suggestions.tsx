@@ -238,11 +238,11 @@ export default function StaffComplaintsSuggestionsScreen() {
             </View>
             <View style={[styles.statBox, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC' }]}>
               <Text style={[styles.statNum, { color: colors.scarlet }]}>{stats.complaints}</Text>
-              <Text style={[styles.statLabel, { color: tc.textMuted }]}>Complaints ⚠️</Text>
+              <Text style={[styles.statLabel, { color: tc.textMuted }]}>Complaints</Text>
             </View>
             <View style={[styles.statBox, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC' }]}>
               <Text style={[styles.statNum, { color: '#15803D' }]}>{stats.suggestions}</Text>
-              <Text style={[styles.statLabel, { color: tc.textMuted }]}>Suggestions 💡</Text>
+              <Text style={[styles.statLabel, { color: tc.textMuted }]}>Suggestions</Text>
             </View>
           </View>
         </View>
@@ -253,8 +253,8 @@ export default function StaffComplaintsSuggestionsScreen() {
           <View style={styles.filterRow}>
             {[
               { key: 'all', label: 'All Types' },
-              { key: 'complaint', label: 'Complaints ⚠️' },
-              { key: 'suggestion', label: 'Suggestions 💡' },
+              { key: 'complaint', label: 'Complaints' },
+              { key: 'suggestion', label: 'Suggestions' },
             ].map((f) => {
               const active = typeFilter === f.key;
               return (

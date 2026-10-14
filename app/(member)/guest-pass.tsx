@@ -102,7 +102,7 @@ const TODAY_DROP_IN_CLASSES = [
     title: 'Total Body Strength & Core',
     time: '5:30 PM – 6:30 PM',
     room: 'Fitness Studio A',
-    instructor: 'David Miller',
+    instructor: 'Ryanne',
     badge: 'Strength',
     icon: 'barbell-outline' as const,
     color: '#E11D48',
@@ -1033,7 +1033,7 @@ export default function GuestPassScreen() {
               </View>
 
               <AppText style={[styles.frontDeskWelcomeNote, { color: tc.textMuted }]}>
-                Need assistance during your visit? Ask Marcus Taylor or any member of our Member Services front desk team!
+                Need assistance during your visit? Ask Maya Brooks or any member of our Member Services front desk team!
               </AppText>
             </View>
 

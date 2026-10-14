@@ -31,7 +31,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { trainerRepo } from '@/repositories/trainerRepo';
-import { cardStyle } from '@/theme/card';
+import { makeCardStyle } from '@/theme/card';
 import { type ThemeColors } from '@/theme/colors';
 import { typography } from '@/theme/typography';
 
@@ -342,8 +342,8 @@ export default function StaffMembersScreen() {
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Text style={[styles.name, { color: tc.text }]}>{member.name}</Text>
                       {filterMode === 'assigned' || goal ? (
-                        <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                          <Text style={{ fontSize: 9, fontWeight: '800', color: '#15803D' }}>CLIENT</Text>
+                        <View style={{ backgroundColor: tc.successBg, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: tc.success }}>CLIENT</Text>
                         </View>
                       ) : null}
                     </View>
@@ -367,10 +367,10 @@ export default function StaffMembersScreen() {
                       {
                         backgroundColor:
                           member.status === 'active'
-                            ? '#F0FDF4'
+                            ? tc.successBg
                             : member.status === 'cancel_pending'
-                            ? '#FEF2F2'
-                            : '#F3F4F6',
+                            ? tc.dangerBg
+                            : tc.border,
                       },
                     ]}
                   >
@@ -380,7 +380,7 @@ export default function StaffMembersScreen() {
                         {
                           color:
                             member.status === 'active'
-                              ? '#15803D'
+                              ? tc.success
                               : member.status === 'cancel_pending'
                               ? colors.scarlet
                               : colors.muted,
@@ -394,9 +394,9 @@ export default function StaffMembersScreen() {
 
                 {/* Client Goal Preview if assigned */}
                 {goal ? (
-                  <View style={{ backgroundColor: '#F9FAFB', padding: 8, borderRadius: 6, marginTop: 2 }}>
+                  <View style={{ backgroundColor: tc.primaryLight, padding: 8, borderRadius: 6, marginTop: 2 }}>
                     <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary }}>
-                      🎯 Goal: {goal.primaryGoal}
+                      Goal: {goal.primaryGoal}
                     </Text>
                     {goal.currentWeightLbs && goal.targetWeightLbs ? (
                       <Text style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
@@ -407,7 +407,7 @@ export default function StaffMembersScreen() {
                 ) : null}
 
                 {canLogWorkouts ? (
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)', paddingTop: 8 }}>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, borderTopWidth: 1, borderTopColor: tc.cardBorder, paddingTop: 8 }}>
                     <Pressable
                       onPress={() => {
                         setSelectedWorkoutMember(member);
@@ -445,10 +445,10 @@ export default function StaffMembersScreen() {
                         justifyContent: 'center',
                         gap: 4,
                         paddingVertical: 7,
-                        backgroundColor: '#EFF6FF',
+                        backgroundColor: tc.primaryLight,
                         borderRadius: 6,
                         borderWidth: 1,
-                        borderColor: '#BFDBFE',
+                        borderColor: tc.cardBorder,
                       }}
                       accessibilityRole="button"
                     >
@@ -465,7 +465,7 @@ export default function StaffMembersScreen() {
                         justifyContent: 'center',
                         gap: 4,
                         paddingVertical: 7,
-                        backgroundColor: '#F3F4F6',
+                        backgroundColor: tc.border,
                         borderRadius: 6,
                       }}
                       accessibilityRole="button"
@@ -549,6 +549,7 @@ export default function StaffMembersScreen() {
 }
 
 function makeStyles(colors: ThemeColors) {
+  const cardStyle = makeCardStyle(colors);
   return StyleSheet.create({
   screen: {
     flex: 1,
@@ -754,7 +755,7 @@ function makeStyles(colors: ThemeColors) {
   },
   planCardActive: {
     borderColor: colors.primary,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: colors.primaryLight,
   },
   planTitle: {
     fontSize: 14,

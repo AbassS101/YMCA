@@ -66,18 +66,18 @@ export function AttendanceStreakCard({
 
       if (result.isNewCheckIn) {
         if (result.justHitMilestone) {
-          setJustCheckedInMsg(`🎉 ${result.justHitMilestone.tierName} unlocked!`);
+          setJustCheckedInMsg(`You reached ${result.justHitMilestone.tierName}.`);
         } else if (result.goalMetThisWeek) {
-          setJustCheckedInMsg('🔥 Weekly goal achieved! Streak +1');
+          setJustCheckedInMsg('Weekly goal met. Streak extended by a week.');
         } else {
-          setJustCheckedInMsg('✅ Checked in today!');
+          setJustCheckedInMsg('Checked in for today.');
         }
       } else {
         setJustCheckedInMsg('Great job, already visited today!');
       }
       setTimeout(() => setJustCheckedInMsg(null), 3500);
     } catch (e) {
-      console.warn('Quick check in error:', e);
+      void e; // Quick check-in is best effort.
     }
   };
 
@@ -151,7 +151,7 @@ export function AttendanceStreakCard({
                 { color: isFrozen ? '#0284C7' : tier.textColor },
               ]}
             >
-              {isFrozen ? '🛡️ Protected' : `${tier.emoji} Tier ${tier.tier}`}
+              {isFrozen ? 'Protected' : `Tier ${tier.tier}`}
             </Text>
           </Pressable>
         </View>
@@ -179,7 +179,7 @@ export function AttendanceStreakCard({
             <Text style={[styles.goalStatusText, { color: colors.text }]}>
               {isGoalMetThisWeek ? (
                 <Text style={{ color: colors.success, fontWeight: '800' }}>
-                  🎯 Goal Met ({weekInfo.visitsThisWeek}/{profile.weeklyTargetDays} days)
+                  Goal met ({weekInfo.visitsThisWeek}/{profile.weeklyTargetDays} days)
                 </Text>
               ) : (
                 `Goal: ${profile.weeklyTargetDays}x/wk · ${weekInfo.visitsThisWeek} of ${profile.weeklyTargetDays} visits completed`

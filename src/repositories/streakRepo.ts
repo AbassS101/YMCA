@@ -8,39 +8,48 @@ import {
   StreakHold,
   StreakHoldReason,
 } from '@/domain/attendanceStreak';
-import { getDemoToday } from '@/domain/demoClock';
+import { addDaysToDate, getDemoToday } from '@/domain/demoClock';
 
-const STREAK_STORAGE_PREFIX = '@ymca/attendance_streak:';
+import { SEED } from '@/protivity/seed';
+
+const STREAK_STORAGE_PREFIX = '@ymca/attendance_streak:v2:';
 
 function getStorageKey(memberId: string): string {
   return `${STREAK_STORAGE_PREFIX}${memberId}`;
 }
 
+const SEEDED_MEMBER_IDS = new Set(SEED.members.map((m) => m.id));
+
+function hashId(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h;
+}
+
 function getDefaultProfile(memberId: string): MemberStreakProfile {
   const today = getDemoToday();
-  // Provide pre-seeded engaging streak for demo member Jordan
-  if (memberId === 'member-jordan' || memberId.includes('jordan')) {
-    return {
-      memberId,
-      weeklyTargetDays: 3,
-      currentStreakWeeks: 12, // 10+ Ruby Blaze Milestone reached!
-      longestStreakWeeks: 14,
-      totalCheckIns: 38,
-      checkInDates: ['2026-09-07', '2026-09-09', '2026-09-11', today],
-      holdHistory: [],
-      updatedAt: new Date().toISOString(),
-    };
-  }
-
-  return {
+  const base = {
     memberId,
     weeklyTargetDays: 3,
-    currentStreakWeeks: 0,
-    longestStreakWeeks: 0,
-    totalCheckIns: 0,
-    checkInDates: [],
     holdHistory: [],
     updatedAt: new Date().toISOString(),
+  };
+  if (!SEEDED_MEMBER_IDS.has(memberId) || memberId.startsWith('guest-')) {
+    return { ...base, currentStreakWeeks: 0, longestStreakWeeks: 0, totalCheckIns: 0, checkInDates: [] };
+  }
+  // Demo member Jordan has a long-running streak; everyone else gets a believable, id-derived one.
+  const isJordan = memberId === 'member-jordan';
+  const h = hashId(memberId);
+  const weeks = isJordan ? 12 : h % 9;
+  const longest = isJordan ? 14 : weeks + (h % 4);
+  const visits = isJordan ? [0, 2, 4, 7, 9, 11, 14] : [1 + (h % 3), 3 + (h % 3), 8 + (h % 3), 10 + (h % 2)];
+  const checkInDates = Array.from(new Set(visits.map((d) => addDaysToDate(today, -d)))).sort();
+  return {
+    ...base,
+    currentStreakWeeks: weeks,
+    longestStreakWeeks: longest,
+    totalCheckIns: isJordan ? 38 : weeks * 3 + checkInDates.length,
+    checkInDates,
   };
 }
 
@@ -68,7 +77,7 @@ export const streakRepo = {
     try {
       await AsyncStorage.setItem(getStorageKey(profile.memberId), JSON.stringify(profile));
     } catch (e) {
-      console.warn('Failed to save streak profile:', e);
+      void e; // Persisting the streak is best effort.
     }
     return profile;
   },

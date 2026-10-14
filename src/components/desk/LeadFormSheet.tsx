@@ -91,7 +91,7 @@ export function LeadFormSheet({
         onChange={setPlanId}
       />
       <TextField label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Goals, questions, best time to call" />
-      <TextField label="Follow-up date (optional, YYYY-MM-DD)" value={followUp} onChangeText={setFollowUp} autoCapitalize="none" placeholder="2026-09-15" />
+      <TextField label="Follow-up date (optional, YYYY-MM-DD)" value={followUp} onChangeText={setFollowUp} autoCapitalize="none" placeholder="YYYY-MM-DD" />
       <PrimaryButton title="Save Lead" onPress={() => void save()} loading={busy} />
     </Sheet>
   );

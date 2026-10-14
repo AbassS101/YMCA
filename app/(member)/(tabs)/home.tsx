@@ -245,7 +245,7 @@ export default function MemberHomeScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <YHeader subtitle={firstName ? (isGuest ? `Welcome to the Y, ${firstName} (Guest Pass)` : `Welcome back, ${firstName}`) : 'Member Home'} />
+      <YHeader subtitle={firstName ? (isGuest ? `Welcome to the Y, ${firstName} (Guest Pass)` : `Welcome back, ${firstName}`) : 'YMCA Silver Spring'} />
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -702,7 +702,7 @@ export default function MemberHomeScreen() {
                         <Text style={styles.badgePillText} allowFontScaling>
                           {w.kind === 'class'
                             ? w.starredOnly
-                              ? '★ Starred Reminder'
+                              ? 'Saved Class'
                               : 'Booked Class'
                             : 'Private Lesson'}
                         </Text>

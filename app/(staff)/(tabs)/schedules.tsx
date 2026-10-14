@@ -34,12 +34,13 @@ import { dialog } from '@/context/DialogContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useSession } from '@/context/SessionContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
+import { addDaysToDate, getDemoToday, mondayOf } from '@/domain/demoClock';
 import { formatShortDate } from '@/domain/displayDates';
 import { type LessonSlot, type Member, type PrivateLesson, type ScheduleCategory, type ScheduleItem, type Staff } from '@/domain/types';
 import { registrationRepo } from '@/repositories/registrationRepo';
 import { scheduleRepo } from '@/repositories/scheduleRepo';
 import { trainerRepo } from '@/repositories/trainerRepo';
-import { cardStyle } from '@/theme/card';
+import { makeCardStyle } from '@/theme/card';
 import { type ThemeColors } from '@/theme/colors';
 import { radii, typography } from '@/theme/typography';
 
@@ -112,7 +113,7 @@ export default function StaffSchedulesScreen() {
   const [formInstructor, setFormInstructor] = useState('');
   const [formStaffId, setFormStaffId] = useState('');
   const [formLocation, setFormLocation] = useState('');
-  const [formStartDate, setFormStartDate] = useState('2026-09-15');
+  const [formStartDate, setFormStartDate] = useState(() => addDaysToDate(getDemoToday(), 1));
   const [formStartTime, setFormStartTime] = useState('09:00');
   const [formDurationMinutes, setFormDurationMinutes] = useState(60);
   const [formEndTime, setFormEndTime] = useState('10:00');
@@ -158,7 +159,7 @@ export default function StaffSchedulesScreen() {
 
   // Add Lesson Slot Modal (Trainer)
   const [slotModalVisible, setSlotModalVisible] = useState(false);
-  const [slotDate, setSlotDate] = useState('2026-09-17');
+  const [slotDate, setSlotDate] = useState(() => addDaysToDate(getDemoToday(), 3));
   const [slotStart, setSlotStart] = useState('14:00');
   const [slotDurationMinutes, setSlotDurationMinutes] = useState(60);
   const [slotEnd, setSlotEnd] = useState('15:00');
@@ -206,10 +207,10 @@ export default function StaffSchedulesScreen() {
       setRosterCounts(counts);
 
       // Load private lessons & slots if trainer or admin
-      const slots = await api.listLessonSlots(lessonStaffId, '2026-09-01', '2026-09-30').catch(() => []);
+      const slots = await api.listLessonSlots(lessonStaffId, addDaysToDate(mondayOf(getDemoToday()), -7), addDaysToDate(mondayOf(getDemoToday()), 28)).catch(() => []);
       setLessonSlots(slots);
 
-      const dayLessons = await api.listStaffLessons(lessonStaffId, '2026-09-15').catch(() => []);
+      const dayLessons = await api.listStaffLessons(lessonStaffId, addDaysToDate(getDemoToday(), 1)).catch(() => []);
       setPrivateLessons(dayLessons);
 
       const allMembers = await api.listAllMembers(BRANCH_ID).catch(() => []);
@@ -253,7 +254,7 @@ export default function StaffSchedulesScreen() {
     setFormInstructor(staffProfile?.name ?? 'YMCA Staff');
     setFormStaffId(staffProfile?.id ?? staffId);
     setFormLocation('Studio A');
-    setFormStartDate('2026-09-16');
+    setFormStartDate(addDaysToDate(getDemoToday(), 2));
     setFormStartTime('10:00');
     setFormDurationMinutes(60);
     setFormEndTime('11:00');
@@ -652,24 +653,31 @@ export default function StaffSchedulesScreen() {
                     <View style={styles.cardHeader}>
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <View style={[styles.catBadge, { backgroundColor: item.isSpecialEvent ? '#FEF3C7' : '#EFF6FF' }]}>
+                          <View
+                            style={[
+                              styles.catBadge,
+                              {
+                                backgroundColor: item.isSpecialEvent ? colors.goldBg : colors.paidBadgeBg,
+                              },
+                            ]}
+                          >
                             <Text
                               style={[
                                 styles.catBadgeText,
-                                { color: item.isSpecialEvent ? '#B45309' : colors.primary },
+                                { color: item.isSpecialEvent ? colors.gold : colors.paidBadge },
                               ]}
                             >
                               {item.isSpecialEvent ? 'Special Event' : item.category.toUpperCase()}
                             </Text>
                           </View>
                           {item.seniorFriendly ? (
-                            <View style={[styles.catBadge, { backgroundColor: '#F0FDF4' }]}>
-                              <Text style={[styles.catBadgeText, { color: '#15803D' }]}>Senior Friendly</Text>
+                            <View style={[styles.catBadge, { backgroundColor: colors.successBg }]}>
+                              <Text style={[styles.catBadgeText, { color: colors.success }]}>Senior Friendly</Text>
                             </View>
                           ) : null}
                           {item.priceCents && item.priceCents > 0 ? (
-                            <View style={[styles.catBadge, { backgroundColor: '#FDF2F8' }]}>
-                              <Text style={[styles.catBadgeText, { color: '#BE185D' }]}>
+                            <View style={[styles.catBadge, { backgroundColor: colors.goldBg }]}>
+                              <Text style={[styles.catBadgeText, { color: colors.gold }]}>
                                 ${(item.priceCents / 100).toFixed(2)}
                               </Text>
                             </View>
@@ -841,13 +849,15 @@ export default function StaffSchedulesScreen() {
                       <View
                         style={[
                           styles.catBadge,
-                          { backgroundColor: l.status === 'booked' ? '#F0FDF4' : '#FEE2E2' },
+                          {
+                            backgroundColor: l.status === 'booked' ? colors.successBg : colors.dangerBg,
+                          },
                         ]}
                       >
                         <Text
                           style={[
                             styles.catBadgeText,
-                            { color: l.status === 'booked' ? '#15803D' : colors.scarlet },
+                            { color: l.status === 'booked' ? colors.success : colors.scarlet },
                           ]}
                         >
                           {l.status.toUpperCase()}
@@ -871,11 +881,18 @@ export default function StaffSchedulesScreen() {
                               dialog.alert('Error', 'Could not complete lesson.');
                             }
                           }}
-                          style={[styles.actionBtnOutline, { borderColor: '#15803D', backgroundColor: '#F0FDF4', flex: 1.5 }]}
+                          style={[
+                            styles.actionBtnOutline,
+                            {
+                              borderColor: colors.success,
+                              backgroundColor: colors.successBg,
+                              flex: 1.5,
+                            },
+                          ]}
                           accessibilityRole="button"
                         >
-                          <Ionicons name="checkmark-circle-outline" size={16} color="#15803D" />
-                          <Text style={[styles.actionBtnText, { color: '#15803D' }]}>Complete & Log</Text>
+                          <Ionicons name="checkmark-circle-outline" size={16} color={colors.success} />
+                          <Text style={[styles.actionBtnText, { color: colors.success }]}>Complete & Log</Text>
                         </Pressable>
 
                         <Pressable
@@ -1176,7 +1193,16 @@ export default function StaffSchedulesScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalAlertBox}>
             <View style={{ alignItems: 'center', marginBottom: 12 }}>
-              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
+              <View
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 24,
+                  backgroundColor: colors.dangerBg,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
                 <Ionicons name="alert-circle" size={32} color={colors.scarlet} />
               </View>
               <Text style={[styles.modalTitle, { marginTop: 8, textAlign: 'center' }]}>Cancel Session & Alert Members</Text>
@@ -1286,7 +1312,7 @@ export default function StaffSchedulesScreen() {
                     setSelectedForumClass(rosterItem);
                     setForumModalVisible(true);
                   }}
-                  style={[styles.primaryActionBtn, { backgroundColor: '#7C3AED', marginTop: 12 }]}
+                  style={[styles.primaryActionBtn, { backgroundColor: colors.accentBlue, marginTop: 12 }]}
                   accessibilityRole="button"
                 >
                   <Ionicons name="chatbubbles" size={18} color="#FFFFFF" />
@@ -1392,6 +1418,7 @@ export default function StaffSchedulesScreen() {
 }
 
 function makeStyles(colors: ThemeColors) {
+  const cardStyle = makeCardStyle(colors);
   return StyleSheet.create({
   screen: {
     flex: 1,
@@ -1532,7 +1559,7 @@ function makeStyles(colors: ThemeColors) {
     padding: 10,
     borderRadius: radii.sm,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
   timeText: {
     flexShrink: 1,
@@ -1544,7 +1571,7 @@ function makeStyles(colors: ThemeColors) {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: colors.primaryLight,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -1556,7 +1583,7 @@ function makeStyles(colors: ThemeColors) {
   },
   classDesc: {
     fontSize: 13,
-    color: '#475569',
+    color: colors.textMuted,
     lineHeight: 18,
   },
   cardActions: {
@@ -1619,8 +1646,8 @@ function makeStyles(colors: ThemeColors) {
     paddingVertical: 9,
     borderRadius: radii.sm,
     borderWidth: 1,
-    borderColor: '#FCA5A5',
-    backgroundColor: '#FEF2F2',
+    borderColor: colors.danger,
+    backgroundColor: colors.dangerBg,
   },
   actionBtnText: {
     fontSize: 13,
@@ -1670,7 +1697,7 @@ function makeStyles(colors: ThemeColors) {
   slotDeleteBtn: {
     padding: 8,
     borderRadius: 6,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: colors.dangerBg,
   },
   modalOverlay: {
     flex: 1,
@@ -1728,7 +1755,7 @@ function makeStyles(colors: ThemeColors) {
     borderRadius: 6,
     backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: colors.border,
   },
   miniChipActive: {
     backgroundColor: colors.primary,
@@ -1765,7 +1792,7 @@ function makeStyles(colors: ThemeColors) {
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 6,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.dangerBg,
   },
 });
 }

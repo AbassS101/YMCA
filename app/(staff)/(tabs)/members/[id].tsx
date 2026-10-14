@@ -28,7 +28,7 @@ import { callPhone } from '@/components/desk/BillingIssueCard';
 import { DeskAlertPills } from '@/components/desk/DeskAlertPills';
 import { LogContactSheet } from '@/components/desk/LogContactSheet';
 import { UpdateCardSheet } from '@/components/desk/UpdateCardSheet';
-import { getDemoToday } from '@/domain/demoClock';
+import { addDaysToDate, getDemoToday } from '@/domain/demoClock';
 import { deskAlertsFor } from '@/domain/deskAlerts';
 import { cancelRequestedCopy, formatShortDate } from '@/domain/displayDates';
 import { accessSummary, ageBand, ageOn, bandLabel, facilityAccess } from '@/domain/householdAccess';
@@ -52,7 +52,7 @@ import {
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { messageRepo } from '@/repositories/messageRepo';
 import { trainerRepo } from '@/repositories/trainerRepo';
-import { cardStyle } from '@/theme/card';
+import { makeCardStyle } from '@/theme/card';
 import { type ThemeColors } from '@/theme/colors';
 import { radii, typography } from '@/theme/typography';
 
@@ -100,7 +100,7 @@ export default function StaffMemberDetailScreen() {
 
   // Book Lesson Direct State
   const [bookLessonModalVisible, setBookLessonModalVisible] = useState(false);
-  const [bookDate, setBookDate] = useState('2026-09-17');
+  const [bookDate, setBookDate] = useState(() => addDaysToDate(getDemoToday(), 3));
   const [bookStart, setBookStart] = useState('14:00');
   const [bookEnd, setBookEnd] = useState('15:00');
   const [bookLocation, setBookLocation] = useState('Wellness Studio B');
@@ -963,14 +963,14 @@ export default function StaffMemberDetailScreen() {
                 {/* Coach notes */}
                 {log.notes ? (
                   <Text style={{ fontSize: 12, color: colors.muted, fontStyle: 'italic', marginTop: 2 }}>
-                    💡 <Text style={{ fontWeight: '600' }}>Coach:</Text> {log.notes}
+                    <Text style={{ fontWeight: '600' }}>Coach:</Text> {log.notes}
                   </Text>
                 ) : null}
 
                 {/* Client feedback */}
                 {log.clientFeedback ? (
                   <Text style={{ fontSize: 12, color: '#15803D', fontStyle: 'italic' }}>
-                    💬 <Text style={{ fontWeight: '600' }}>Client:</Text> {log.clientFeedback}
+                    <Text style={{ fontWeight: '600' }}>Client:</Text> {log.clientFeedback}
                   </Text>
                 ) : null}
               </View>
@@ -1480,7 +1480,7 @@ export default function StaffMemberDetailScreen() {
                 label="Session Date (YYYY-MM-DD)"
                 value={bookDate}
                 onChangeText={setBookDate}
-                placeholder="2026-09-17"
+                placeholder="YYYY-MM-DD"
               />
 
               <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -1525,6 +1525,7 @@ export default function StaffMemberDetailScreen() {
 }
 
 function makeStyles(colors: ThemeColors) {
+  const cardStyle = makeCardStyle(colors);
   return StyleSheet.create({
   screen: {
     flex: 1,

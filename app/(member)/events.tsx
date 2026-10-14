@@ -81,7 +81,7 @@ export default function EventsScreen() {
       const to = nextMonth.toISOString().slice(0, 10);
 
       const [allSchedules, myRegs] = await Promise.all([
-        scheduleRepo.list(api, { branchId: BRANCH_ID, from: '2026-09-14', to }),
+        scheduleRepo.list(api, { branchId: BRANCH_ID, from: getDemoToday(), to }),
         memberId ? registrationRepo.listMine(api, memberId) : Promise.resolve([]),
       ]);
 
@@ -346,7 +346,7 @@ export default function EventsScreen() {
                       {isRegistered ? (
                         <View style={[styles.categoryBadge, { backgroundColor: '#DCFCE7' }]}>
                           <AppText style={[styles.categoryBadgeText, { color: '#166534' }]}>
-                            ✓ REGISTERED
+                            REGISTERED
                           </AppText>
                         </View>
                       ) : null}

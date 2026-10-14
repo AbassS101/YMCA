@@ -151,7 +151,26 @@ export class LiveProtivityAdapter implements ProtivityPort {
     threadId: string;
     fromId: string;
     body: string;
+    replyToId?: string;
+    replyToAuthorName?: string;
+    replyToExcerpt?: string;
   }): Promise<Message> {
+    throw new ProtivityNotConnected();
+  }
+
+  async editMessage(_messageId: string, _userId: string, _body: string): Promise<Message> {
+    throw new ProtivityNotConnected();
+  }
+
+  async toggleMessageReaction(
+    _messageId: string,
+    _userId: string,
+    _emoji: string
+  ): Promise<Message> {
+    throw new ProtivityNotConnected();
+  }
+
+  async deleteMessage(_messageId: string, _userId: string): Promise<void> {
     throw new ProtivityNotConnected();
   }
 

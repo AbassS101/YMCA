@@ -254,12 +254,12 @@ export default function StaffAnnouncementsScreen() {
                     </View>
                     {item.pinned ? (
                       <View style={[styles.badge, { backgroundColor: '#FEF9C3' }]}>
-                        <Text style={[styles.badgeText, { color: '#854D0E' }]}>📌 PINNED</Text>
+                        <Text style={[styles.badgeText, { color: '#854D0E' }]}>PINNED</Text>
                       </View>
                     ) : null}
                     {item.popupNotice ? (
                       <View style={[styles.badge, { backgroundColor: '#FEE2E2' }]}>
-                        <Text style={[styles.badgeText, { color: colors.scarlet }]}>🚨 APP POP-UP</Text>
+                        <Text style={[styles.badgeText, { color: colors.scarlet }]}>POP-UP NOTICE</Text>
                       </View>
                     ) : null}
                   </View>

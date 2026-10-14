@@ -44,7 +44,7 @@ export type AttendanceStreakModalProps = {
 const GOAL_OPTIONS = [
   { days: 1, title: '1 day / week', tag: 'Gentle Start' },
   { days: 2, title: '2 days / week', tag: 'Balanced Routine' },
-  { days: 3, title: '3 days / week', tag: 'Most Popular ⭐' },
+  { days: 3, title: '3 days / week', tag: 'Most Popular' },
   { days: 4, title: '4 days / week', tag: 'Fitness Builder' },
   { days: 5, title: '5 days / week', tag: 'Dedicated Athlete' },
   { days: 6, title: '6 days / week', tag: 'Peak Performance' },
@@ -127,19 +127,20 @@ export function AttendanceStreakModal({
         void arrivalRepo.notifyArrival(api, memberId, 'manual');
         if (result.justHitMilestone) {
           setCheckInFeedback(
-            `🎉 Milestone Unlocked: ${result.justHitMilestone.tierName} (${result.justHitMilestone.threshold}+ weeks)!`
+            `You reached ${result.justHitMilestone.tierName} (${result.justHitMilestone.threshold}+ weeks).`
           );
         } else if (result.goalMetThisWeek) {
-          setCheckInFeedback('🔥 Goal reached for this week! Streak count updated.');
+          setCheckInFeedback('Weekly goal met. Your streak is now a week longer.');
         } else {
-          setCheckInFeedback('✅ Check-in recorded for today!');
+          setCheckInFeedback('Check-in recorded for today.');
         }
       } else {
-        setCheckInFeedback('Already checked in today! Great job.');
+        setCheckInFeedback('You have already checked in today.');
       }
       setTimeout(() => setCheckInFeedback(null), 4000);
     } catch (e) {
-      console.warn('Check-in error:', e);
+      // Check-in is best effort; the card refreshes on the next visit.
+      void e;
     }
   };
 
@@ -154,7 +155,7 @@ export function AttendanceStreakModal({
         startDate: today,
       });
       onProfileUpdated(updated);
-      setHoldFeedback('🛡️ Streak Hold activated. Your streak is now safe from breaking!');
+      setHoldFeedback('Streak hold started. Your streak will not break while you are away.');
       setTimeout(() => setHoldFeedback(null), 4000);
     } catch {
       setHoldFeedback('Failed to activate hold.');
@@ -170,24 +171,13 @@ export function AttendanceStreakModal({
     try {
       const updated = await streakRepo.resumeStreakHold(memberId);
       onProfileUpdated(updated);
-      setHoldFeedback('🔥 Streak resumed! Welcome back to the Y!');
+      setHoldFeedback('Streak resumed. Welcome back.');
       setTimeout(() => setHoldFeedback(null), 4000);
     } catch {
       setHoldFeedback('Failed to resume streak.');
     } finally {
       setIsUpdatingHold(false);
     }
-  };
-
-  // Quick Demo Simulator
-  const handleQuickSetMilestone = async (weeks: number) => {
-    const { profile: updated, milestone } = await streakRepo.setStreakCountForDemo(
-      memberId,
-      weeks
-    );
-    onProfileUpdated(updated);
-    setCheckInFeedback(`🚀 Streak set to ${weeks} weeks: ${milestone.tierName} fire tier active!`);
-    setTimeout(() => setCheckInFeedback(null), 4000);
   };
 
   const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -429,7 +419,7 @@ export function AttendanceStreakModal({
 
                   <View style={styles.heroTierBadge}>
                     <Text style={[styles.heroTierBadgeText, { color: currentTier.textColor }]}>
-                      {currentTier.emoji} {currentTier.badgeName.toUpperCase()}
+                      {currentTier.badgeName.toUpperCase()}
                     </Text>
                   </View>
 
@@ -849,7 +839,7 @@ export function AttendanceStreakModal({
                     Fire Milestone Progression
                   </Text>
                   <Text style={[styles.sectionSub, { color: colors.textMuted }]}>
-                    Unlock special animated flame colors at milestone intervals: 10, 30, 50, 70, and 100 weeks!
+                    Your flame changes color at 10, 30, 50, 70 and 100 weeks of meeting your weekly goal.
                   </Text>
                 </View>
 
@@ -879,7 +869,7 @@ export function AttendanceStreakModal({
                           <View style={{ flex: 1 }}>
                             <View style={styles.milestoneHeaderRow}>
                               <Text style={[styles.milestoneTierTitle, { color: tier.textColor }]}>
-                                {tier.emoji} {tier.tierName}
+                                {tier.tierName}
                               </Text>
                               <View
                                 style={[
@@ -913,29 +903,17 @@ export function AttendanceStreakModal({
                             <View style={styles.unlockedIndicator}>
                               <Ionicons name="checkmark-circle" size={14} color={colors.success} />
                               <Text style={[styles.unlockedText, { color: colors.success }]}>
-                                UNLOCKED
+                                REACHED
                               </Text>
                             </View>
                           ) : (
                             <View style={styles.lockedIndicator}>
                               <Ionicons name="lock-closed" size={12} color={colors.textMuted} />
                               <Text style={[styles.lockedText, { color: colors.textMuted }]}>
-                                {tier.threshold - profile.currentStreakWeeks} weeks to unlock
+                                {tier.threshold - profile.currentStreakWeeks} weeks to go
                               </Text>
                             </View>
                           )}
-
-                          {/* Demo simulation shortcut */}
-                          <Pressable
-                            onPress={() => void handleQuickSetMilestone(tier.threshold)}
-                            style={[styles.testFlameBtn, { borderColor: tier.fireColor }]}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Test ${tier.tierName} flame color`}
-                          >
-                            <Text style={[styles.testFlameBtnText, { color: tier.textColor }]}>
-                              Preview {tier.threshold}w Flame
-                            </Text>
-                          </Pressable>
                         </View>
                       </View>
                     );

@@ -409,10 +409,12 @@ export default function StaffManagementScreen() {
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
                 {[
                   { label: 'Clean Silhouette', url: '' },
+                  { label: 'Guest (Taylor Smith)', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80' },
                   { label: 'Trainer (Doc)', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80' },
-                  { label: 'Swim Instructor (Jane)', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&q=80' },
-                  { label: 'Director (Jane)', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&q=80' },
-                  { label: 'IT Admin (David)', url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=80' },
+                  { label: 'Swim Instructor (Jane Doe)', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&q=80' },
+                  { label: 'Wellness Director (Celine)', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&q=80' },
+                  { label: 'Staff Admin (David)', url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=80' },
+                  { label: 'Aquatics (Emily Wilson)', url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=256&q=80' },
                 ].map((preset) => {
                   const isMatch = formAvatarUrl === preset.url;
                   return (

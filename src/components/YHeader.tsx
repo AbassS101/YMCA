@@ -143,11 +143,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingHorizontal: 104,
     minHeight: 64,
   },
   logo: {
-    width: 180,
+    width: '100%',
+    maxWidth: 170,
     height: 48,
   },
   actionsRow: {

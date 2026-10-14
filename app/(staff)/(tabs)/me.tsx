@@ -59,6 +59,13 @@ const DEMO_ACCOUNTS = [
     color: '#0284C7',
   },
   {
+    name: 'Alek',
+    email: 'aquatics@silverspring.ymca',
+    role: 'Aquatics Director',
+    icon: 'water',
+    color: '#0EA5E9',
+  },
+  {
     name: 'Celine',
     email: 'celine@silverspring.ymca',
     role: 'Wellness Director',
@@ -67,10 +74,17 @@ const DEMO_ACCOUNTS = [
   },
   {
     name: 'Billy Deveaux',
-    email: 'wellness@silverspring.ymca',
-    role: 'Membership Director · 301 585 2120 ext 2506',
+    email: 'membership@silverspring.ymca',
+    role: 'Membership Director',
     icon: 'business',
     color: '#4338CA',
+  },
+  {
+    name: 'Maya Brooks',
+    email: 'frontdesk@silverspring.ymca',
+    role: 'Front Desk Membership Representative',
+    icon: 'headset',
+    color: '#0891B2',
   },
   {
     name: 'John Doe',
@@ -365,7 +379,7 @@ export default function StaffMeScreen() {
         <View style={[styles.switcherCard, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
           <Text style={[styles.switcherTitle, { color: tc.text }]}>Quick Switch Role (Testing)</Text>
           <Text style={[styles.switcherSubtitle, { color: tc.textMuted }]}>
-            Switch instantly between IT Admin, Staff Admin, Trainers, the Wellness and Membership Directors, and Members without signing out.
+            Switch instantly between IT Admin, Staff Admin, trainers, swim staff, directors, front desk reps, and members without signing out.
           </Text>
 
           <View style={{ gap: 8, marginTop: 10 }}>

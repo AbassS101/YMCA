@@ -128,7 +128,13 @@ export interface ProtivityPort {
     threadId: string;
     fromId: string;
     body: string;
+    replyToId?: string;
+    replyToAuthorName?: string;
+    replyToExcerpt?: string;
   }): Promise<Message>;
+  editMessage(messageId: string, userId: string, body: string): Promise<Message>;
+  toggleMessageReaction(messageId: string, userId: string, emoji: string): Promise<Message>;
+  deleteMessage(messageId: string, userId: string): Promise<void>;
 
   registerForClass(memberId: string, scheduleItemId: string): Promise<ClassRegistration>;
   cancelClassRegistration(memberId: string, scheduleItemId: string): Promise<ClassRegistration>;

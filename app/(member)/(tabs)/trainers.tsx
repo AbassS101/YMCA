@@ -3,7 +3,6 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { ChatModal } from '@/components/ChatModal';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
@@ -19,7 +18,6 @@ import type {
   ClientFitnessGoal,
   ClientWorkoutLog,
   Member,
-  Message,
   PrivateLesson,
   Staff,
 } from '@/domain/types';
@@ -63,12 +61,6 @@ export default function MemberTrainersScreen() {
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [assignedTrainer, setAssignedTrainer] = useState<Staff | null>(null);
   const [selectedTrainerId, setSelectedTrainerId] = useState<string>('staff-alex');
-
-  // Chat state
-  const [chatModalVisible, setChatModalVisible] = useState(false);
-  const [chatRecipient, setChatRecipient] = useState<Staff | null>(null);
-  const [chatThreadId, setChatThreadId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
 
   const [lessons, setLessons] = useState<PrivateLesson[]>([]);
   const [clientGoal, setClientGoal] = useState<ClientFitnessGoal | null>(null);
@@ -139,38 +131,16 @@ export default function MemberTrainersScreen() {
     [personalTrainers, selectedTrainerId, assignedTrainer]
   );
 
-  // Open Chat in its dedicated pop-up modal
+  // Open the forum-style direct conversation with this staff member
   const openChatWith = async (recipient: Staff) => {
-    setChatRecipient(recipient);
-    setChatModalVisible(true);
     if (memberId === '') return;
-
     try {
       const thread = await messageRepo.getOrCreateThread(api, memberId, recipient.id);
-      setChatThreadId(thread.id);
-      const list = await messageRepo.listMessages(api, thread.id);
-      list.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-      setMessages(list);
+      router.push(`/(member)/messages/${thread.id}` as never);
     } catch {
-      // Keep existing
+      dialog.alert('Error', 'Could not open the conversation. Please try again.', [{ text: 'OK' }], 'alert');
     }
   };
-
-  const onSend = useCallback(
-    async (body: string) => {
-      if (memberId === '' || !chatThreadId) {
-        return;
-      }
-      const sent = await messageRepo.sendMessage(api, {
-        threadId: chatThreadId,
-        fromId: memberId,
-        body,
-      });
-      setMessages((prev) => [...prev, sent]);
-    },
-    [api, memberId, chatThreadId]
-  );
-
   const handleMakePrimary = async (staffId: string) => {
     if (memberId === '') return;
     try {
@@ -244,6 +214,25 @@ export default function MemberTrainersScreen() {
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <Pressable
+          onPress={() => router.push('/(member)/messages' as never)}
+          style={({ pressed }) => [
+            styles.chatActionButton,
+            {
+              backgroundColor: pressed || !isDark ? colors.primaryLight : colors.card,
+              borderColor: colors.primary,
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Open my messages with YMCA staff"
+        >
+          <Ionicons name="mail-outline" size={20} color={colors.primary} />
+          <Text style={[styles.chatActionText, { color: colors.primary }]} allowFontScaling>
+            My Messages with Staff
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+        </Pressable>
+
         {/* Category Selector: Separate Options for Trainers vs Staff Desk */}
         <View style={styles.categorySection}>
           <Text style={[styles.sectionLabel, { color: colors.textMuted }]} allowFontScaling>
@@ -526,7 +515,7 @@ export default function MemberTrainersScreen() {
                       style={[styles.makePrimaryText, { color: colors.primary }]}
                       allowFontScaling
                     >
-                      ★ Set as My Primary Trainer
+                      Set as My Primary Trainer
                     </Text>
                   </Pressable>
                 ) : null}
@@ -960,13 +949,13 @@ export default function MemberTrainersScreen() {
 
                         {log.notes ? (
                           <Text style={{ fontSize: 12, color: colors.textMuted, fontStyle: 'italic' }}>
-                            {`💡 Coach Notes: "${log.notes}"`}
+                            {`Coach notes: "${log.notes}"`}
                           </Text>
                         ) : null}
 
                         {log.clientFeedback ? (
                           <Text style={{ fontSize: 12, color: '#15803D', fontStyle: 'italic' }}>
-                            {`💬 Member Reflection: "${log.clientFeedback}"`}
+                            {`Your reflection: "${log.clientFeedback}"`}
                           </Text>
                         ) : null}
 
@@ -1118,17 +1107,6 @@ export default function MemberTrainersScreen() {
           </View>
         )}
       </ScrollView>
-
-      {/* Dedicated Chat Pop-up Modal */}
-      <ChatModal
-        visible={chatModalVisible}
-        onClose={() => setChatModalVisible(false)}
-        recipient={chatRecipient}
-        messages={messages}
-        currentUserId={memberId}
-        onSend={(body) => void onSend(body)}
-        isAssignedTrainer={chatRecipient?.id === assignedTrainer?.id}
-      />
 
       {/* Fitness Goals Customization Modal */}
       <TrainerGoalModal

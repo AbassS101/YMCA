@@ -511,6 +511,11 @@ export type Message = {
   fromId: string;
   body: string;
   createdAt: string;
+  editedAt?: string;
+  reactions?: Record<string, string[]>;
+  replyToId?: string;
+  replyToAuthorName?: string;
+  replyToExcerpt?: string;
 };
 
 export type CancelRequest = {

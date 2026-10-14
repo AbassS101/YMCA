@@ -42,6 +42,10 @@ import type {
   UserRole,
 } from '@/domain/types';
 
+import { currentWeekMonday, easternNowMinutes, getDemoToday, weeksSinceAnchor } from '@/domain/demoClock';
+import { generateActivity } from '@/protivity/liveActivity';
+import { shiftSeedDates } from '@/domain/seedDateShift';
+
 const STORAGE_KEY = '@ymca/demo-state';
 
 /** Directors were seeded as a plain trainer / front desk account before they had their own roles. */
@@ -89,9 +93,11 @@ export type DemoState = {
   leads: Lead[];
   enrollmentCampaigns: EnrollmentCampaign[];
   schemaVersion?: number;
+  /** Monday of the week the stored dates are aligned to (see seedDateShift.ts). */
+  seedWeekAnchor?: string;
 };
 
-const CURRENT_SCHEMA_VERSION = 8;
+const CURRENT_SCHEMA_VERSION = 9;
 
 type LegacyChildProfile = {
   id: string;
@@ -186,9 +192,48 @@ function migrateHouseholds(
   return { members: nextMembers, memberships: nextMemberships, credentials: nextCreds };
 }
 
+/**
+ * The seed authors one week of classes; copy the recurring ones to the following week so the
+ * seven-day views (which start on today) never run out of schedule.
+ */
+function extendToNextWeek(state: DemoState): void {
+  const recurring = state.schedules.filter((s) => s.category !== 'event' && !s.id.endsWith('-w2'));
+  const nextWeek = shiftSeedDates(recurring, 1).map((s) => ({ ...s, id: `${s.id}-w2` }));
+  const taken = new Set(state.schedules.map((s) => s.id));
+  state.schedules = [...state.schedules, ...nextWeek.filter((s) => !taken.has(s.id))];
+
+  const slots = state.lessonSlots.filter((s) => !s.id.endsWith('-w2'));
+  const nextSlots = shiftSeedDates(slots, 1).map((s) => ({ ...s, id: `${s.id}-w2` }));
+  const takenSlots = new Set(state.lessonSlots.map((s) => s.id));
+  state.lessonSlots = [...state.lessonSlots, ...nextSlots.filter((s) => !takenSlots.has(s.id))];
+}
+
+/** Fills in recent gym check-ins and Child Watch visits so the branch looks busy and live. */
+function topUpActivity(state: DemoState): DemoState {
+  const { arrivals, visits } = generateActivity({
+    today: getDemoToday(),
+    nowMinutes: easternNowMinutes(),
+    members: state.members,
+  });
+  const arrivalIds = new Set(state.arrivals.map((a) => a.id));
+  const arrivedKeys = new Set(state.arrivals.map((a) => `${a.memberId}|${a.date}`));
+  const addArrivals = arrivals.filter((a) => !arrivalIds.has(a.id) && !arrivedKeys.has(`${a.memberId}|${a.date}`));
+  const visitIds = new Set(state.childWatchVisits.map((v) => v.id));
+  const visitKeys = new Set(state.childWatchVisits.map((v) => `${v.childId}|${v.signedInAt.slice(0, 10)}`));
+  const addVisits = visits.filter((v) => !visitIds.has(v.id) && !visitKeys.has(`${v.childId}|${v.signedInAt.slice(0, 10)}`));
+  if (addArrivals.length === 0 && addVisits.length === 0) return state;
+  return {
+    ...state,
+    arrivals: [...state.arrivals, ...addArrivals],
+    childWatchVisits: [...state.childWatchVisits, ...addVisits],
+  };
+}
+
 function cloneSeed(): DemoState {
-  const cloned = JSON.parse(JSON.stringify(SEED)) as DemoState;
+  const cloned = shiftSeedDates(JSON.parse(JSON.stringify(SEED)) as DemoState, weeksSinceAnchor());
   cloned.schemaVersion = CURRENT_SCHEMA_VERSION;
+  cloned.seedWeekAnchor = currentWeekMonday();
+  extendToNextWeek(cloned);
   return cloned;
 }
 
@@ -268,7 +313,7 @@ function migrateState(raw: DemoState): DemoState {
   }
 
   // Replace legacy persisted names/labels with the current seed values.
-  const LEGACY_NAMES = new Set(['Marcus Taylor', 'Marcus Vance']);
+  const LEGACY_NAMES = new Set<string>();
   mergedStaff = mergedStaff.map((s) => {
     const seeded = seed.staff.find((x) => x.id === s.id);
     if (!seeded) return s;
@@ -469,7 +514,7 @@ function migrateState(raw: DemoState): DemoState {
 }
 
 export async function resetStore(): Promise<DemoState> {
-  const state = cloneSeed();
+  const state = topUpActivity(cloneSeed());
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   return state;
 }
@@ -484,5 +529,15 @@ export async function loadStore(): Promise<DemoState> {
     return resetStore();
   }
   const parsed = JSON.parse(raw) as DemoState;
-  return migrateState(parsed);
+  // Older installs hold the previous, much smaller sample data set: replace it once.
+  if ((parsed.schemaVersion ?? 0) < CURRENT_SCHEMA_VERSION) {
+    return resetStore();
+  }
+  // Keep stored dates aligned with the current calendar week.
+  const weeks = Math.round(
+    (Date.parse(currentWeekMonday()) - Date.parse(parsed.seedWeekAnchor ?? currentWeekMonday())) / (7 * 86_400_000)
+  );
+  const aligned = weeks > 0 ? shiftSeedDates(parsed, weeks) : parsed;
+  aligned.seedWeekAnchor = currentWeekMonday();
+  return topUpActivity(migrateState(aligned));
 }

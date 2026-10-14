@@ -267,7 +267,7 @@ export default function MemberComplaintsSuggestionsScreen() {
                         { color: type === 'suggestion' ? '#15803D' : tc.text },
                       ]}
                     >
-                      Suggestion 💡
+                      Suggestion
                     </AppText>
                     <AppText style={[styles.typeSub, { color: tc.textMuted }]}>
                       An idea or improvement for the branch
@@ -295,7 +295,7 @@ export default function MemberComplaintsSuggestionsScreen() {
                         { color: type === 'complaint' ? colors.scarlet : tc.text },
                       ]}
                     >
-                      Complaint ⚠️
+                      Complaint
                     </AppText>
                     <AppText style={[styles.typeSub, { color: tc.textMuted }]}>
                       Report a problem or service concern
