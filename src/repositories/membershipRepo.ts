@@ -1,4 +1,4 @@
-import type { CancelRequest, Member, Membership } from '@/domain/types';
+import type { CancelRequest, HouseholdMemberInput, Member, Membership } from '@/domain/types';
 import type { ProtivityPort } from '@/protivity/ProtivityPort';
 
 export const membershipRepo = {
@@ -50,6 +50,9 @@ export const membershipRepo = {
       donationCents?: number;
       password?: string;
       waiveEnrollmentFee?: boolean;
+      campaignId?: string;
+      birthDate?: string;
+      householdMembers?: HouseholdMemberInput[];
     }
   ): Promise<{ member: Member; membership: Membership }> {
     return api.buyMembership(input);

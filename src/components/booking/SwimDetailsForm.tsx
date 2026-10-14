@@ -14,6 +14,7 @@ export function SwimDetailsForm({
   notes,
   onNotes,
   memberName,
+  household,
   onOpenGuide,
 }: {
   swimmerName: string;
@@ -23,6 +24,8 @@ export function SwimDetailsForm({
   notes: string;
   onNotes: (v: string) => void;
   memberName: string;
+  /** Family members on the member's plan (excluding the member), offered as one-tap choices. */
+  household?: { id: string; name: string }[];
   onOpenGuide: () => void;
 }) {
   const { colors } = useTheme();
@@ -58,6 +61,30 @@ export function SwimDetailsForm({
           accessibilityLabel="Swimmer name"
         />
       </View>
+      {household && household.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+          {household.map((h) => {
+            const active = swimmerName === h.name;
+            return (
+              <Pressable
+                key={h.id}
+                onPress={() => onSwimmerName(h.name)}
+                style={[
+                  styles.pill,
+                  {
+                    backgroundColor: active ? colors.primary : colors.cardBg,
+                    borderColor: active ? colors.primary : colors.border,
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+              >
+                <Text style={{ color: active ? '#FFFFFF' : colors.text, fontWeight: '700' }}>{h.name}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
 
       <View style={styles.stageHeader}>
         <Text style={[styles.label, { color: colors.text }]} allowFontScaling>

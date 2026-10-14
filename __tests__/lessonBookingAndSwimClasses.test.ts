@@ -104,7 +104,7 @@ test('migration from schema v4 fills in pricing, enrollments, staff types and sl
   await AsyncStorage.setItem('@ymca/demo-state', JSON.stringify(legacy));
 
   const migrated = await loadStore();
-  expect(migrated.schemaVersion).toBe(5);
+  expect(migrated.schemaVersion).toBe(8);
   expect(migrated.lessonPricing.training[60]).toBe(6000);
   expect(migrated.swimEnrollments).toEqual([]);
   expect(migrated.staff.find((s) => s.id === 'staff-elena')?.lessonTypes).toEqual(['swim']);

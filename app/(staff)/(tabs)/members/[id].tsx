@@ -8,6 +8,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from 'react-native';
@@ -23,8 +24,17 @@ import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
-import { PersonaBanner } from '@/components/staff/PersonaBanner';
+import { callPhone } from '@/components/desk/BillingIssueCard';
+import { DeskAlertPills } from '@/components/desk/DeskAlertPills';
+import { LogContactSheet } from '@/components/desk/LogContactSheet';
+import { UpdateCardSheet } from '@/components/desk/UpdateCardSheet';
+import { getDemoToday } from '@/domain/demoClock';
+import { deskAlertsFor } from '@/domain/deskAlerts';
 import { cancelRequestedCopy, formatShortDate } from '@/domain/displayDates';
+import { accessSummary, ageBand, ageOn, bandLabel, facilityAccess } from '@/domain/householdAccess';
+import type { HouseholdView } from '@/domain/types';
+import { deskRepo } from '@/repositories/deskRepo';
+import { householdRepo } from '@/repositories/householdRepo';
 import {
   YMCA_MEMBERSHIP_PLANS,
   type ClassRegistration,
@@ -33,6 +43,7 @@ import {
   type Member,
   type Membership,
   type MembershipPlan,
+  type MemberContact,
   type PrivateLesson,
   type ScheduleItem,
   type Staff,
@@ -57,14 +68,15 @@ export default function StaffMemberDetailScreen() {
   const staffId = session?.userId ?? '';
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { can, isAdmin, isITAdmin, isMembershipDirector, isWellnessDirector, theme } = useStaffCapabilities();
+  const { can, isAdmin, isITAdmin, isMembershipDirector, isWellnessDirector } = useStaffCapabilities();
   const canEditProfiles = can('editMemberProfiles');
   const canChangePlans = can('changePlans');
   const canApproveCancellations = can('approveCancellations');
   const canDeleteMembers = can('deleteMembers');
   const canAssignClients = can('assignClients');
   const canCoach = can('logWorkouts');
-
+  const canLogContacts = can('logMemberContacts');
+  const canHandleBilling = can('handleBillingIssues');
   const [member, setMember] = useState<Member | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -73,6 +85,11 @@ export default function StaffMemberDetailScreen() {
   const [assignedTrainer, setAssignedTrainer] = useState<Staff | null>(null);
   const [allStaff, setAllStaff] = useState<Staff[]>([]);
   const [error, setError] = useState(false);
+
+  // Front desk: contact history, billing
+  const [contacts, setContacts] = useState<MemberContact[]>([]);
+  const [logContactVisible, setLogContactVisible] = useState(false);
+  const [updateCardVisible, setUpdateCardVisible] = useState(false);
 
   // Client Fitness & Coaching Hub State
   const [fitnessGoal, setFitnessGoal] = useState<ClientFitnessGoal | null>(null);
@@ -116,6 +133,44 @@ export default function StaffMemberDetailScreen() {
   // Delete Confirm Modal
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [household, setHousehold] = useState<HouseholdView | null>(null);
+  const [orientingId, setOrientingId] = useState<string | null>(null);
+  const canOrient = canCoach || isAdmin;
+
+  const [instantOn, setInstantOn] = useState(false);
+  useEffect(() => {
+    if (!canCoach || staffId === '' || memberId === '') return;
+    void api
+      .getStaff(staffId)
+      .then((s) => setInstantOn((s.instantBookMemberIds ?? []).includes(memberId)))
+      .catch(() => undefined);
+  }, [api, canCoach, staffId, memberId]);
+
+  const toggleInstantBooking = async (enabled: boolean) => {
+    setInstantOn(enabled);
+    try {
+      await api.setInstantBooking(staffId, memberId, enabled, staffId);
+    } catch (e) {
+      setInstantOn(!enabled);
+      dialog.alert('Error', e instanceof Error ? e.message : 'Could not update instant booking.');
+    }
+  };
+
+  const markOrientation = async (teenId: string) => {
+    setOrientingId(teenId);
+    try {
+      await householdRepo.recordGymOrientation(api, teenId, staffId);
+      dialog.alert('Orientation recorded', 'The gym is now unlocked on their card.', [{ text: 'OK' }], 'checkmark');
+      await load();
+    } catch (err: any) {
+      dialog.alert('Could not record orientation', err?.message || 'Please try again.');
+    } finally {
+      setOrientingId(null);
+    }
+  };
+
+  const deskAlerts = member ? deskAlertsFor(member, membership, getDemoToday()) : [];
+  const billingBroken = membership?.billingStatus === 'declined' || membership?.billingStatus === 'past_due';
 
   const load = useCallback(async () => {
     if (memberId === '' || staffId === '') {
@@ -145,6 +200,8 @@ export default function StaffMemberDetailScreen() {
       setAllStaff(staffList);
       setWorkoutLogs(logs);
       setFitnessGoal(goal);
+      setHousehold(await householdRepo.get(api, memberId).catch(() => null));
+      setContacts(await deskRepo.listContacts(api, { memberId }).catch(() => []));
       if (currentTrainer) {
         setSelectedTrainerId(currentTrainer.id);
       }
@@ -421,7 +478,7 @@ export default function StaffMemberDetailScreen() {
       : null;
 
   const assignableTrainers = allStaff.filter(
-    (st) => st.staffRole === 'trainer' || st.staffRole === 'wellness_director'
+    (st) => st.staffRole === 'trainer' || st.staffRole === 'swim_instructor' || st.staffRole === 'wellness_director'
   );
 
   return (
@@ -445,21 +502,6 @@ export default function StaffMemberDetailScreen() {
         <Pressable onPress={() => router.back()} accessibilityRole="button">
           <Text style={[styles.back, { color: colors.primary }]}>← Back to Members</Text>
         </Pressable>
-
-        <PersonaBanner
-          theme={theme}
-          text={
-            isAdmin
-              ? 'Admin override: every account, plan and coaching tool is available'
-              : isMembershipDirector
-                ? 'Account, plan and cancellation tools. Coaching tools are hidden.'
-                : isWellnessDirector
-                  ? 'Coaching tools plus trainer assignment'
-                  : canCoach
-                    ? 'Coaching tools for this client'
-                    : 'Read-only member lookup'
-          }
-        />
 
         {/* Member Profile Card */}
         {member ? (
@@ -526,6 +568,133 @@ export default function StaffMemberDetailScreen() {
                 </Pressable>
               </View>
             ) : null}
+          </View>
+        ) : null}
+
+        {/* Household: everyone on this family plan, access, and gym orientation */}
+        {household && household.members.length > 1 ? (
+          <View style={styles.card}>
+            <Text style={[styles.name, { fontSize: 17 }]}>
+              Household · {household.primary.type} · paid by {household.primary.name}
+            </Text>
+            {household.members.map((p) => {
+              const access = facilityAccess(p, getDemoToday());
+              const band = p.birthDate ? ageBand(p.birthDate, getDemoToday()) : 'adult';
+              const awaiting = access.gym.status === 'needs_orientation';
+              return (
+                <View key={p.id} style={{ gap: 4, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+                  <Pressable
+                    onPress={() => (p.id === memberId ? undefined : router.push(`/(staff)/members/${p.id}` as never))}
+                    accessibilityRole="link"
+                  >
+                    <Text style={{ fontWeight: '800', color: p.id === memberId ? colors.nearBlack : colors.primary }}>
+                      {p.name}
+                      {p.id === memberId ? ' (viewing)' : ''}
+                    </Text>
+                  </Pressable>
+                  <Text style={styles.meta}>
+                    {p.birthDate ? `${ageOn(p.birthDate, getDemoToday())} yrs · ` : ''}
+                    {bandLabel(band)} · ID {p.membershipId}
+                  </Text>
+                  <Text style={styles.meta}>{accessSummary(p, getDemoToday())}</Text>
+                  {band === 'teen' && canOrient ? (
+                    p.gymOrientation ? (
+                      <Text style={[styles.meta, { color: '#15803D' }]}>
+                        Orientation done {p.gymOrientation.completedAt.slice(0, 10)} by {p.gymOrientation.staffName}
+                      </Text>
+                    ) : awaiting ? (
+                      <PrimaryButton
+                        title={orientingId === p.id ? 'Saving...' : 'Mark gym orientation complete'}
+                        loading={orientingId === p.id}
+                        onPress={() => void markOrientation(p.id)}
+                      />
+                    ) : null
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
+
+        {/* Front desk: alerts, billing, contact history */}
+        {member && deskAlerts.length > 0 && (canLogContacts || canHandleBilling) ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Desk Alerts</Text>
+            <DeskAlertPills alerts={deskAlerts} max={6} />
+            {deskAlerts.map((a) => (
+              <Text key={a.kind} style={styles.meta}>
+                {a.label}: {a.detail}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+
+        {billingBroken && membership ? (
+          <View style={styles.cancelAlertCard}>
+            <Ionicons name="card" size={20} color={colors.scarlet} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cancelAlertTitle}>
+                {membership.billingStatus === 'declined' ? 'Card Declined' : 'Payment Past Due'}
+              </Text>
+              <Text style={styles.cancelAlertBody}>
+                {membership.billingIssue?.reason ?? 'Payment problem'} · $
+                {((membership.billingIssue?.amountDueCents ?? 0) / 100).toFixed(2)} due ·{' '}
+                {membership.billingIssue?.attempts ?? 0} attempts. Card on file: {membership.paymentBrand} ••••{' '}
+                {membership.paymentLast4}
+              </Text>
+              {canHandleBilling ? (
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                  <Pressable
+                    onPress={() => setUpdateCardVisible(true)}
+                    style={[styles.smallActionBtn, { backgroundColor: colors.scarlet }]}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.smallActionText}>Update Card</Text>
+                  </Pressable>
+                  {member?.phone ? (
+                    <Pressable
+                      onPress={() => callPhone(member.phone)}
+                      style={[styles.smallActionBtn, { backgroundColor: '#15803D' }]}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.smallActionText}>Call Member</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
+        {canLogContacts ? (
+          <View style={styles.card}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="call" size={18} color={colors.primary} />
+                <Text style={styles.sectionTitle}>Contact History ({contacts.length})</Text>
+              </View>
+              <Pressable onPress={() => setLogContactVisible(true)} style={styles.badgeBtn} accessibilityRole="button">
+                <Text style={styles.badgeBtnText}>+ Log Contact ›</Text>
+              </Pressable>
+            </View>
+            {contacts.length === 0 ? (
+              <Text style={styles.muted}>No calls or conversations logged yet.</Text>
+            ) : (
+              contacts.map((c) => (
+                <View key={c.id} style={styles.bookingRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.bookingTitle}>
+                      {c.purpose.replace('_', ' ')} · {c.channel.replace('_', ' ')} · {c.outcome.replace('_', ' ')}
+                    </Text>
+                    {c.notes ? <Text style={styles.bookingMeta}>{c.notes}</Text> : null}
+                    <Text style={styles.bookingMeta}>
+                      {c.staffName} · {formatShortDate(c.createdAt)}
+                      {c.followUpDate ? ` · follow up ${formatShortDate(c.followUpDate)}` : ''}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            )}
           </View>
         ) : null}
 
@@ -830,6 +999,22 @@ export default function StaffMemberDetailScreen() {
             Schedule an upcoming private coaching session with {member?.name} and send calendar confirmation.
           </Text>
         </View>
+
+        <View style={styles.card}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sectionTitle}>Allow instant booking with me</Text>
+              <Text style={styles.muted}>
+                Off by default. When on, {member?.name ?? 'this member'} books your open times without waiting for you to accept.
+              </Text>
+            </View>
+            <Switch
+              value={instantOn}
+              onValueChange={(v) => void toggleInstantBooking(v)}
+              accessibilityLabel="Allow instant booking with me"
+            />
+          </View>
+        </View>
         </>
         ) : null}
 
@@ -1001,6 +1186,31 @@ export default function StaffMemberDetailScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      <LogContactSheet
+        visible={logContactVisible}
+        title={`Log contact: ${member?.name ?? ''}`}
+        memberId={memberId}
+        defaultPurpose={billingBroken ? 'billing' : 'general'}
+        onClose={() => setLogContactVisible(false)}
+        onSave={async (input) => {
+          await deskRepo.logContact(api, input, staffId);
+          setLogContactVisible(false);
+          await load();
+        }}
+      />
+      <UpdateCardSheet
+        visible={updateCardVisible}
+        memberName={member?.name ?? ''}
+        currentLast4={membership?.paymentLast4}
+        onClose={() => setUpdateCardVisible(false)}
+        onSubmit={async (payment) => {
+          await deskRepo.resolveBillingIssue(api, memberId, payment, staffId);
+          setUpdateCardVisible(false);
+          dialog.alert('Card Updated', 'The billing issue is cleared.', [{ text: 'OK' }], 'checkmark');
+          await load();
+        }}
+      />
 
       {/* ========================================== */}
       {/* MODAL: EDIT MEMBER PROFILE (ADMIN) */}

@@ -1,7 +1,9 @@
 import { AdminDashboard } from '@/components/staff/dashboards/AdminDashboard';
+import { AquaticsDirectorDashboard } from '@/components/staff/dashboards/AquaticsDirectorDashboard';
+import { FrontDeskRepDashboard } from '@/components/staff/dashboards/FrontDeskRepDashboard';
 import { MembershipDirectorDashboard } from '@/components/staff/dashboards/MembershipDirectorDashboard';
+import { SwimInstructorDashboard } from '@/components/staff/dashboards/SwimInstructorDashboard';
 import { TrainerDashboard } from '@/components/staff/dashboards/TrainerDashboard';
-import { WellnessDirectorDashboard } from '@/components/staff/dashboards/WellnessDirectorDashboard';
 import { useSession } from '@/context/SessionContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 
@@ -13,12 +15,16 @@ export default function StaffTodayScreen() {
   switch (persona) {
     case 'admin':
     case 'it':
-      return <AdminDashboard staffId={staffId} />;
     case 'wellnessDirector':
-      return <WellnessDirectorDashboard staffId={staffId} />;
+      return <AdminDashboard staffId={staffId} />;
+    case 'swimInstructor':
+      return <SwimInstructorDashboard staffId={staffId} />;
+    case 'aquaticsDirector':
+      return <AquaticsDirectorDashboard staffId={staffId} />;
     case 'membershipDirector':
-    case 'frontDesk':
       return <MembershipDirectorDashboard staffId={staffId} />;
+    case 'frontDesk':
+      return <FrontDeskRepDashboard staffId={staffId} />;
     default:
       return <TrainerDashboard staffId={staffId} />;
   }

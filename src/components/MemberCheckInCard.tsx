@@ -11,6 +11,10 @@ import { colors } from '@/theme/colors';
 import { radii, spacing, typography } from '@/theme/typography';
 import type { Member, MemberStreakProfile } from '@/domain/types';
 import { getFlameTier } from '@/domain/attendanceStreak';
+import { getDemoToday } from '@/domain/demoClock';
+import { accessSummary, facilityAccess } from '@/domain/householdAccess';
+import { useSession } from '@/context/SessionContext';
+import { arrivalRepo } from '@/repositories/arrivalRepo';
 import { streakRepo } from '@/repositories/streakRepo';
 import {
   boostBrightnessForScanner,
@@ -24,6 +28,10 @@ import {
 
 export type MemberCheckInCardProps = {
   member: Member;
+  /** Name of the person paying for the family plan, shown on household cards. */
+  primaryName?: string;
+  /** When set, teens who still need a gym orientation get a button that calls this. */
+  onBookOrientation?: () => void;
   initialExpanded?: boolean;
   onClose?: () => void;
   showInlineCard?: boolean;
@@ -31,10 +39,13 @@ export type MemberCheckInCardProps = {
 
 export function MemberCheckInCard({
   member,
+  primaryName,
+  onBookOrientation,
   initialExpanded = false,
   onClose,
   showInlineCard = true,
 }: MemberCheckInCardProps) {
+  const { api } = useSession();
   const [isScanModalOpen, setIsScanModalOpen] = useState(initialExpanded);
   const [isBrightnessBoosted, setIsBrightnessBoosted] = useState(false);
   const [streakProfile, setStreakProfile] = useState<MemberStreakProfile | null>(null);
@@ -49,6 +60,7 @@ export function MemberCheckInCard({
   // Generate barcode bars from member ID
   const barcodeBars = generateBarcodeBars(member.membershipId, member.homeBranchId);
   const barcodeLabel = formatBarcodeLabel(member.membershipId, member.homeBranchId);
+  const gymNeedsOrientation = facilityAccess(member, getDemoToday()).gym.status === 'needs_orientation';
 
   // Handle opening Full-Screen Scan Focus Mode
   const handleOpenScanMode = async () => {
@@ -76,6 +88,7 @@ export function MemberCheckInCard({
       try {
         const res = await streakRepo.recordCheckIn(member.id, { source: 'optical_scanner' });
         setStreakProfile(res.profile);
+        if (res.isNewCheckIn) void arrivalRepo.notifyArrival(api, member.id, 'scanner');
       } catch {
         // ignore
       }
@@ -188,6 +201,27 @@ export function MemberCheckInCard({
               </AppText>
             </View>
           </View>
+
+          {member.householdId ? (
+            <View style={{ gap: 4 }}>
+              <AppText style={styles.hint}>
+                Family plan{primaryName ? ` · ${primaryName}` : ''} · {accessSummary(member, getDemoToday())}
+              </AppText>
+              {gymNeedsOrientation ? (
+                <View style={styles.orientationBadge}>
+                  <Ionicons name="alert-circle" size={14} color="#92400E" />
+                  <AppText style={styles.orientationText}>
+                    Gym: orientation required. Book one with a trainer to unlock the fitness center.
+                  </AppText>
+                </View>
+              ) : null}
+              {gymNeedsOrientation && onBookOrientation ? (
+                <Pressable onPress={onBookOrientation} accessibilityRole="button" accessibilityLabel="Book your gym orientation">
+                  <AppText style={{ color: colors.primary, fontWeight: '800', fontSize: 13 }}>Book your gym orientation ›</AppText>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
 
           {/* Digital Member Barcode (Interactive - Tap to Enlarge) */}
           <Pressable
@@ -640,6 +674,23 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
   },
   brightnessButtonTextActive: {
+    color: '#92400E',
+  },
+  orientationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  orientationText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
     color: '#92400E',
   },
   hint: {

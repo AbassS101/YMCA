@@ -19,6 +19,7 @@ import { getDemoToday } from '@/domain/demoClock';
 import { cancelRequestedCopy, formatShortDate } from '@/domain/displayDates';
 import type { Member, Membership } from '@/domain/types';
 import { useSession } from '@/context/SessionContext';
+import { PrimaryOnlyNotice, usePrimaryGuard } from '@/context/usePrimaryGuard';
 import { useTheme } from '@/context/ThemeContext';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { colors } from '@/theme/colors';
@@ -29,6 +30,7 @@ type Step = 'form' | 'confirm';
 export default function CancelMembershipScreen() {
   const router = useRouter();
   const { session, api } = useSession();
+  const { primaryName: billingOwner } = usePrimaryGuard();
   const { colors: themeColors, isDark } = useTheme();
   const memberId = session?.userId ?? '';
 
@@ -126,6 +128,8 @@ export default function CancelMembershipScreen() {
     }
     setStep('confirm');
   }
+
+  if (billingOwner) return <PrimaryOnlyNotice primaryName={billingOwner} action="cancel the membership" />;
 
   return (
     <View style={[styles.screen, { backgroundColor: themeColors.background }]}>

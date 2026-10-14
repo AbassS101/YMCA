@@ -40,7 +40,7 @@ const DEMO_ACCOUNTS = [
   {
     name: 'David',
     email: 'admin@silverspring.ymca',
-    role: 'Staff Admin · Branch Director',
+    role: 'Staff Admin',
     icon: 'shield',
     color: colors.primary,
   },
@@ -54,14 +54,14 @@ const DEMO_ACCOUNTS = [
   {
     name: 'Jane Doe',
     email: 'sarah@silverspring.ymca',
-    role: 'Trainer · Senior Mobility',
-    icon: 'heart',
+    role: 'Swim Instructor · Aquatics',
+    icon: 'water',
     color: '#0284C7',
   },
   {
     name: 'Celine',
     email: 'celine@silverspring.ymca',
-    role: 'Wellness Director (Incharge of Personal training)',
+    role: 'Wellness Director',
     icon: 'fitness',
     color: '#9D174D',
   },
@@ -268,7 +268,7 @@ export default function StaffMeScreen() {
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
                 <Ionicons name="people" size={20} color={colors.primary} />
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={[styles.adminActionTitle, { color: tc.text }]}>
                     {can('manageStaff') ? 'Manage Staff Accounts' : 'Trainer Team Directory'}
                   </Text>
@@ -291,7 +291,7 @@ export default function StaffMeScreen() {
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
                 <Ionicons name="pricetags" size={20} color={colors.primary} />
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={[styles.adminActionTitle, { color: tc.text }]}>Lesson & Swim Pricing</Text>
                   <Text style={[styles.adminActionSub, { color: tc.textMuted }]}>
                     Edit private lesson and swim class prices
@@ -310,7 +310,7 @@ export default function StaffMeScreen() {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
               <Ionicons name="stats-chart" size={20} color="#16A34A" />
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={[styles.adminActionTitle, { color: tc.text }]}>Member Surveys & Polls</Text>
                 <Text style={[styles.adminActionSub, { color: tc.textMuted }]}>
                   Create branch polls, review member responses, and inspect live analytics
@@ -329,7 +329,7 @@ export default function StaffMeScreen() {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
               <Ionicons name="megaphone" size={20} color={colors.primary} />
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={[styles.adminActionTitle, { color: tc.text }]}>Announcements & Pop-up Notices</Text>
                 <Text style={[styles.adminActionSub, { color: tc.textMuted }]}>
                   Broadcast bulletins, pin alerts, and configure app-opening member pop-ups
@@ -348,7 +348,7 @@ export default function StaffMeScreen() {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
               <Ionicons name="chatbubbles" size={20} color="#0284C7" />
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={[styles.adminActionTitle, { color: tc.text }]}>Complaints & Suggestions</Text>
                 <Text style={[styles.adminActionSub, { color: tc.textMuted }]}>
                   Review, filter, and respond to member feedback & ideas
@@ -532,6 +532,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
     padding: 12,
     borderRadius: radii.sm,
     borderWidth: 1,

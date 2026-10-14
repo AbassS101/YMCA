@@ -53,6 +53,10 @@ function iconForType(type: NotificationType): keyof typeof Ionicons.glyphMap {
       return 'card-outline';
     case 'donation':
       return 'heart-outline';
+    case 'client_arrival':
+      return 'walk';
+    case 'billing':
+      return 'card';
     default:
       return 'notifications-outline';
   }
@@ -76,6 +80,10 @@ function badgeForType(type: NotificationType): { label: string; bg: string; text
       return { label: 'MEMBERSHIP', bg: '#F1F5F9', text: '#475569' };
     case 'donation':
       return { label: 'DONATION', bg: '#FEE2E2', text: '#DC2626' };
+    case 'client_arrival':
+      return { label: 'CLIENT ARRIVED', bg: '#DCFCE7', text: '#15803D' };
+    case 'billing':
+      return { label: 'BILLING', bg: '#FEF3C7', text: '#B45309' };
     default:
       return { label: 'NOTIFICATION', bg: '#F1F5F9', text: '#64748B' };
   }
@@ -189,7 +197,13 @@ export default function NotificationsScreen() {
 
           <View style={styles.topActions}>
             <Pressable
-              onPress={() => router.push('/(member)/notification-settings')}
+              onPress={() =>
+                router.push(
+                  (session?.role === 'member' || session?.role === 'guest'
+                    ? '/(member)/notification-settings'
+                    : '/(staff)/settings') as any,
+                )
+              }
               style={[styles.settingsBtn, { backgroundColor: colors.primaryLight }]}
               accessibilityRole="button"
               accessibilityLabel="Notification Settings"

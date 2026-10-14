@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@/context/ThemeContext';
-import type { LessonSlot } from '@/domain/types';
 import { radii, spacing } from '@/theme/typography';
 
 function localDayKey(iso: string): string {
@@ -18,22 +17,30 @@ function dayKeyFromDate(d: Date): string {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
+export type PickerTime = {
+  key: string;
+  start: string;
+  end: string;
+  location: string;
+  /** Shown as a small tag, e.g. the instructor name for "any instructor". */
+  label?: string;
+  instant?: boolean;
+};
+
 export function DaySlotPicker({
   today,
-  slots,
+  times,
   selectedDay,
   onSelectDay,
-  selectedSlotId,
-  onSelectSlot,
-  durationMin,
+  selectedKey,
+  onSelect,
 }: {
   today: string;
-  slots: LessonSlot[];
+  times: PickerTime[];
   selectedDay: string;
   onSelectDay: (day: string) => void;
-  selectedSlotId: string | null;
-  onSelectSlot: (slotId: string) => void;
-  durationMin: number;
+  selectedKey: string | null;
+  onSelect: (key: string) => void;
 }) {
   const { colors } = useTheme();
 
@@ -47,13 +54,13 @@ export function DaySlotPicker({
   }, [today]);
 
   const byDay = useMemo(() => {
-    const map = new Map<string, LessonSlot[]>();
-    for (const s of slots) {
+    const map = new Map<string, PickerTime[]>();
+    for (const s of times) {
       const k = localDayKey(s.start);
       map.set(k, [...(map.get(k) ?? []), s]);
     }
     return map;
-  }, [slots]);
+  }, [times]);
 
   const daySlots = byDay.get(selectedDay) ?? [];
 
@@ -107,15 +114,15 @@ export function DaySlotPicker({
       ) : (
         <View style={styles.chips}>
           {daySlots.map((s) => {
-            const active = s.id === selectedSlotId;
+            const active = s.key === selectedKey;
             const start = new Date(s.start);
-            const end = new Date(start.getTime() + durationMin * 60000);
+            const end = new Date(s.end);
             const fmt = (d: Date) =>
               d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
             return (
               <Pressable
-                key={s.id}
-                onPress={() => onSelectSlot(s.id)}
+                key={s.key}
+                onPress={() => onSelect(s.key)}
                 style={[
                   styles.chip,
                   {
@@ -132,7 +139,9 @@ export function DaySlotPicker({
                   {fmt(start)} - {fmt(end)}
                 </Text>
                 <Text style={[styles.chipLoc, { color: colors.textMuted }]} numberOfLines={1}>
+                  {s.label ? `${s.label} · ` : ''}
                   {s.location}
+                  {s.instant ? ' · Instant' : ''}
                 </Text>
               </Pressable>
             );

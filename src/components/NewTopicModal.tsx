@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -37,10 +37,10 @@ type StaffTagOption = {
 const AVAILABLE_STAFF_TAGS: StaffTagOption[] = [
   { id: 'staff-all', name: 'All Staff Desk', roleLabel: 'Operations & Welcome Desk', icon: 'business' },
   { id: 'staff-alex', name: 'Doc', roleLabel: 'Personal Wellness Trainer', icon: 'barbell' },
-  { id: 'staff-sarah', name: 'Jane Doe', roleLabel: 'Senior Mobility & Aqua Coach', icon: 'water' },
-  { id: 'staff-celine', name: 'Celine', roleLabel: 'Wellness Director (Incharge of PT)', icon: 'fitness' },
+  { id: 'staff-sarah', name: 'Jane Doe', roleLabel: 'Swim Instructor', icon: 'water' },
+  { id: 'staff-celine', name: 'Celine', roleLabel: 'Wellness Director', icon: 'fitness' },
   { id: 'staff-desk', name: 'Billy Deveaux', roleLabel: 'Membership Director', icon: 'people' },
-  { id: 'staff-admin', name: 'David', roleLabel: 'Staff Admin & Branch Director', icon: 'shield-checkmark' },
+  { id: 'staff-admin', name: 'David', roleLabel: 'Staff Admin', icon: 'shield-checkmark' },
 ];
 
 type TopicTemplate = {
@@ -69,8 +69,8 @@ const TOPIC_TEMPLATES: TopicTemplate[] = [
     icon: 'barbell-outline',
     category: 'fitness',
     defaultStaffId: 'staff-alex',
-    titleSuggestion: '@Alex Rivera Form advice on ',
-    bodySuggestion: 'Hey Alex, looking for suggestions or warm-up routines for ',
+    titleSuggestion: '@Doc Form advice on ',
+    bodySuggestion: 'Hey Doc, looking for suggestions or warm-up routines for ',
   },
   {
     id: 'pool_question',

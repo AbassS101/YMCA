@@ -15,6 +15,7 @@ import { TextField } from '@/components/TextField';
 import { YHeader } from '@/components/YHeader';
 import { tokenizePayment } from '@/domain/paymentTokenizer';
 import { useSession } from '@/context/SessionContext';
+import { PrimaryOnlyNotice, usePrimaryGuard } from '@/context/usePrimaryGuard';
 import { useTheme } from '@/context/ThemeContext';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { colors } from '@/theme/colors';
@@ -37,6 +38,7 @@ function cvcOk(raw: string): boolean {
 export default function UpdatePaymentScreen() {
   const router = useRouter();
   const { session, api } = useSession();
+  const { primaryName: billingOwner } = usePrimaryGuard();
   const { colors: themeColors } = useTheme();
   const memberId = session?.userId ?? '';
 
@@ -83,6 +85,8 @@ export default function UpdatePaymentScreen() {
       setLoading(false);
     }
   }
+
+  if (billingOwner) return <PrimaryOnlyNotice primaryName={billingOwner} action="update the payment method" />;
 
   return (
     <View style={[styles.screen, { backgroundColor: themeColors.background }]}>

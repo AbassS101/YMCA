@@ -352,8 +352,8 @@ export default function StaffComplaintsSuggestionsScreen() {
                 style={[styles.itemCard, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}
               >
                 {/* Header Row */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', flexShrink: 1 }}>
                     <View
                       style={[
                         styles.typeBadge,
@@ -401,7 +401,7 @@ export default function StaffComplaintsSuggestionsScreen() {
                       </Text>
                     </View>
                   ) : (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', flexShrink: 1, gap: 5 }}>
                       <Ionicons name="person-circle" size={16} color={colors.primary} />
                       <Text style={[styles.submitterName, { color: tc.text }]}>
                         {item.memberName || 'YMCA Member'}
@@ -437,7 +437,7 @@ export default function StaffComplaintsSuggestionsScreen() {
                       },
                     ]}
                   >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 2 }}>
                       <Ionicons name="checkmark-circle" size={16} color="#10B981" />
                       <Text style={{ fontSize: 13, fontWeight: '700', color: '#047857' }}>
                         Staff Response
@@ -486,10 +486,11 @@ export default function StaffComplaintsSuggestionsScreen() {
                     onPress={() => openResponseModal(item)}
                     style={[styles.actionBtnPrimary, { backgroundColor: colors.primary }]}
                     accessibilityRole="button"
+                    accessibilityLabel={item.staffResponse ? 'Edit response' : 'Reply to member'}
                   >
                     <Ionicons name="chatbubble-ellipses" size={14} color="#FFFFFF" />
                     <Text style={styles.actionBtnPrimaryText}>
-                      {item.staffResponse ? 'Edit Response' : 'Reply to Member'}
+                      {item.staffResponse ? 'Edit' : 'Reply'}
                     </Text>
                   </Pressable>
                 </View>
@@ -744,6 +745,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 4,
     paddingVertical: 2,
   },
   submitterName: {
@@ -773,6 +776,7 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 8,
     marginTop: 4,
     paddingTop: 6,

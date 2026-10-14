@@ -86,16 +86,16 @@ const AMENITIES: AmenityItem[] = [
     category: 'Family',
     icon: 'happy-outline',
     badge: 'Free with Family Membership',
-    description: 'Safe, fun, supervised drop-in childcare for children ages 6 weeks to 10 years while parents work out in the facility.',
+    description: 'Positive and fun on-site childcare during your visit, for children 6 weeks and up. Maximum of 2 hours per day; parents must remain in the building.',
     details: [
-      'Up to 2 hours of care per visit per child',
-      'Staffed by background-checked, CPR-certified youth care professionals',
-      'Engaging activities, art projects, story time, and play areas',
-      'Hours: Mon–Fri 4:00 PM – 8:00 PM · Sat 8:00 AM – 1:00 PM',
+      'Monday – Friday: 9 am-12 pm, 4 pm-8 pm',
+      'Saturday – 9 am-12 pm · Closed Sunday',
+      'Sign in cut off is 30 minutes prior to closing time',
+      'Check in at the Y Membership Desk before dropping children off',
     ],
     scheduleAction: {
-      label: 'View Child Watch Times',
-      route: '/(member)/(tabs)/schedules',
+      label: 'View Child Watch Info',
+      route: '/(member)/child-watch',
     },
   },
   {

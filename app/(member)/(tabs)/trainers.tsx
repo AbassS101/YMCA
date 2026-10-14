@@ -1156,7 +1156,7 @@ export default function MemberTrainersScreen() {
         initialLog={editingWorkoutLog}
         mode="member"
         trainerId={assignedTrainer?.id ?? 'staff-alex'}
-        trainerName={assignedTrainer?.name ?? 'Alex Rivera'}
+        trainerName={assignedTrainer?.name ?? 'Doc'}
         onSaved={(saved) => {
           setWorkoutLogs((prev) => {
             const idx = prev.findIndex((p) => p.id === saved.id);

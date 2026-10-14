@@ -14,11 +14,11 @@ A cross-platform mobile application for **YMCA Silver Spring** (YMCA of Metropol
 
 ### Member Experience
 - **Digital Facility Pass**: Instant optical-ready barcode card for swift check-in at YMCA welcome desks with active status indicator.
-- **Interactive Schedules**: Real-time browsing and filtering across Group Exercise, Aquatics & Lap Swim, Senior / AOA Friendly, Child Watch, and Branch Events with one-tap class bookmarking.
+- **Interactive Schedules**: Real-time browsing and filtering across Group Exercise, Aquatics & Lap Swim, Senior / AOA Friendly, and Branch Events with one-tap class bookmarking.
 - **Trainer & Staff Hub**: Meet certified wellness coaches, view specialties and credentials, book 1-on-1 private training sessions, and chat directly with trainers or the front desk.
 - **Branch Amenities**: Hours of operation, outdoor & heated indoor pool schedules, JOOLA-partnered pickleball court details, sauna & wellness floor info.
 - **Account & Billing Management**: Next billing date summary, tokenized card-on-file updates (no raw card data stored), membership tier upgrades, and cancellation notice requests adhering to the 30-day YMCA policy.
-- **Programs & Youth Care**: Information on YMCA Swim Academy, summer camps, drop-in Child Watch, and evidence-based community health programs (Diabetes Prevention, Blood Pressure Self-Monitoring).
+- **Programs & Youth Care**: Information on YMCA Swim Academy, summer camps, the free Child Watch babysitting service (Mon–Fri 9–12 & 4–8, Sat 9–12, closed Sunday, with child profiles and sign-in/out for members and staff), and evidence-based community health programs (Diabetes Prevention, Blood Pressure Self-Monitoring).
 - **Accessibility & Customization**: Dynamic text scaling (Standard, Larger, Largest) with responsive layouts and full Light / Dark theme support.
 
 ### Staff & Coach Experience
@@ -35,9 +35,9 @@ Pre-configured credentials for quick testing:
 
 | Role | Email | Password | Details |
 | :--- | :--- | :--- | :--- |
-| **Member** | `jordan@silverspring.ymca` | `ymca-demo` | Jordan Hale · Adult Membership · ID #448291 |
-| **Staff (Trainer)** | `alex@silverspring.ymca` | `ymca-demo` | Alex Rivera · Certified Personal Wellness Coach |
-| **Staff (Senior Specialist)** | `sarah@silverspring.ymca` | `ymca-demo` | Sarah Jenkins · Senior Mobility & Aquatics Coach |
+| **Member** | `jordan@silverspring.ymca` | `ymca-demo` | John Doe · Adult Membership · ID #448291 |
+| **Staff (Trainer)** | `alex@silverspring.ymca` | `ymca-demo` | Doc · Certified Personal Wellness Coach |
+| **Staff (Senior Specialist)** | `sarah@silverspring.ymca` | `ymca-demo` | Jane Doe · Swim Instructor |
 
 > *Quick-fill buttons are provided on the login screen for rapid switching between roles.*
 

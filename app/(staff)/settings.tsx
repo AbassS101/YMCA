@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChatModal } from '@/components/ChatModal';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SupportTicketModal } from '@/components/SupportTicketModal';
@@ -41,6 +42,7 @@ const SCALE_OPTIONS: { key: TextScale; label: string; sub: string }[] = [
 
 export default function StaffSettingsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { session, api, logout } = useSession();
   const { themeMode, setThemeMode, colors: tc, isDark } = useTheme();
   const { textScale, setTextScale } = useAccessibility();
@@ -110,7 +112,7 @@ export default function StaffSettingsScreen() {
 
   const handleTogglePref = async (key: keyof NotificationPreferences) => {
     if (!preferences || !staffId || !api) return;
-    const nextVal = !preferences[key];
+    const nextVal = !(preferences[key] ?? true);
     const updated = { ...preferences, [key]: nextVal };
     setPreferences(updated);
     try {
@@ -129,6 +131,25 @@ export default function StaffSettingsScreen() {
       dialog.alert('Avatar Updated', 'Your profile picture and silhouette have been updated.', [{ text: 'OK' }], 'checkmark');
     } catch {
       dialog.alert('Error', 'Could not update profile avatar.');
+    }
+  };
+
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const [savingName, setSavingName] = useState(false);
+
+  const handleSaveName = async () => {
+    const next = (nameDraft ?? '').trim();
+    if (!next || !staffId || !api) return;
+    setSavingName(true);
+    try {
+      const updated = await api.updateStaff(staffId, { name: next });
+      setStaff(updated);
+      setNameDraft(null);
+      dialog.alert('Name Updated', 'Your display name has been saved.', [{ text: 'OK' }], 'checkmark');
+    } catch {
+      dialog.alert('Error', 'Could not update your name.');
+    } finally {
+      setSavingName(false);
     }
   };
 
@@ -168,7 +189,11 @@ export default function StaffSettingsScreen() {
       ? 'IT Administrator'
       : persona === 'admin'
         ? 'Staff Administrator'
-        : persona === 'trainer'
+        : persona === 'swimInstructor'
+          ? 'Swim Instructor / Aquatics Coach'
+          : persona === 'aquaticsDirector'
+          ? 'Aquatics Director · Swim Team Lead'
+          : persona === 'trainer'
           ? 'Personal Trainer / Coach'
           : persona === 'wellnessDirector'
             ? 'Wellness Director · Trainer Team Lead'
@@ -184,7 +209,12 @@ export default function StaffSettingsScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: tc.background }]}>
       {/* HEADER */}
-      <View style={[styles.header, { backgroundColor: tc.cardBg, borderColor: tc.border }]}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: tc.cardBg, borderColor: tc.border, paddingTop: insets.top + 12 },
+        ]}
+      >
         <Pressable
           onPress={() => router.back()}
           style={styles.backBtn}
@@ -234,6 +264,25 @@ export default function StaffSettingsScreen() {
                 </Text>
               </View>
             </View>
+          </View>
+        ) : null}
+
+        {/* EDIT NAME */}
+        {staff ? (
+          <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="person-circle-outline" size={22} color={colors.primary} />
+              <Text style={[styles.sectionTitle, { color: tc.text }]}>Display Name</Text>
+            </View>
+            <TextField
+              label="Your name"
+              value={nameDraft ?? staff.name}
+              onChangeText={setNameDraft}
+              placeholder="Full name"
+            />
+            {nameDraft !== null && nameDraft.trim() !== '' && nameDraft.trim() !== staff.name ? (
+              <PrimaryButton title="Save Name" onPress={() => void handleSaveName()} loading={savingName} />
+            ) : null}
           </View>
         ) : null}
 
@@ -357,6 +406,21 @@ export default function StaffSettingsScreen() {
           <Text style={[styles.sectionDesc, { color: tc.textMuted }]}>
             Control when and how you are alerted for desk inquiries, forum tags, and branch activity.
           </Text>
+
+          <View style={[styles.prefItem, { borderBottomColor: tc.border, borderBottomWidth: 1 }]}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={[styles.prefTitle, { color: tc.text }]}>Client Arrival Alerts</Text>
+              <Text style={[styles.prefSub, { color: tc.textMuted }]}>
+                Get notified when one of your clients, or a client with a session today, checks in.
+              </Text>
+            </View>
+            <Switch
+              value={preferences?.clientArrivals ?? true}
+              onValueChange={() => void handleTogglePref('clientArrivals')}
+              trackColor={{ false: '#CBD5E1', true: colors.primary }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
 
           <View style={[styles.prefItem, { borderBottomColor: tc.border, borderBottomWidth: 1 }]}>
             <View style={{ flex: 1, paddingRight: 12 }}>

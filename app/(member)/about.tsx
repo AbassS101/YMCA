@@ -93,7 +93,7 @@ const DEMO_ROLES = [
   {
     name: 'David',
     email: 'admin@silverspring.ymca',
-    role: 'Staff Admin · Branch Director',
+    role: 'Staff Admin',
     color: '#D97706',
     icon: 'star' as const,
   },
@@ -114,7 +114,7 @@ const DEMO_ROLES = [
   {
     name: 'Celine',
     email: 'celine@silverspring.ymca',
-    role: 'Wellness Director (Incharge of PT)',
+    role: 'Wellness Director',
     color: '#EC4899',
     icon: 'fitness' as const,
   },

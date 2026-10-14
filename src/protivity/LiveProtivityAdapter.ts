@@ -1,4 +1,13 @@
 import type {
+  ArrivalRecord,
+  ArrivalResult,
+  ArrivalSource,
+  BillingIssueRow,
+  EnrollmentCampaign,
+  Lead,
+  MemberContact,
+  HouseholdMemberInput,
+  HouseholdView,
   Announcement,
   AppNotification,
   AttendanceStatus,
@@ -15,6 +24,12 @@ import type {
   ForumTopic,
   ForumTopicCategory,
   BookLessonOptions,
+  BookableTime,
+  CreateSessionRequestInput,
+  LessonType,
+  SessionRequest,
+  SessionRequestFilter,
+  SessionRequestResponse,
   LessonPricing,
   SwimClassEnrollment,
   LessonSlot,
@@ -178,6 +193,50 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
+  async listBookableTimes(
+    _memberId: string,
+    _q: { lessonType: LessonType; durationMin: 30 | 60; from: string; to: string; staffId?: string }
+  ): Promise<BookableTime[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async createSessionRequest(_memberId: string, _input: CreateSessionRequestInput): Promise<SessionRequest> {
+    throw new ProtivityNotConnected();
+  }
+
+  async respondToSessionRequest(
+    _requestId: string,
+    _staffId: string,
+    _response: SessionRequestResponse
+  ): Promise<SessionRequest> {
+    throw new ProtivityNotConnected();
+  }
+
+  async respondToCounterOffer(
+    _requestId: string,
+    _memberId: string,
+    _decision: 'accept' | 'decline'
+  ): Promise<SessionRequest> {
+    throw new ProtivityNotConnected();
+  }
+
+  async cancelSessionRequest(_requestId: string, _userId: string): Promise<SessionRequest> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listSessionRequests(_filter?: SessionRequestFilter): Promise<SessionRequest[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async setInstantBooking(
+    _staffId: string,
+    _memberId: string,
+    _enabled: boolean,
+    _requesterUserId?: string
+  ): Promise<Staff> {
+    throw new ProtivityNotConnected();
+  }
+
   async getLessonPricing(): Promise<LessonPricing> {
     throw new ProtivityNotConnected();
   }
@@ -241,7 +300,33 @@ export class LiveProtivityAdapter implements ProtivityPort {
     donationCents?: number;
     password?: string;
     waiveEnrollmentFee?: boolean;
+    birthDate?: string;
+    householdMembers?: HouseholdMemberInput[];
   }): Promise<{ member: Member; membership: Membership }> {
+    throw new ProtivityNotConnected();
+  }
+
+  async getHousehold(_memberId: string): Promise<HouseholdView> {
+    throw new ProtivityNotConnected();
+  }
+
+  async addHouseholdMember(_primaryId: string, _input: HouseholdMemberInput): Promise<Member> {
+    throw new ProtivityNotConnected();
+  }
+
+  async updateHouseholdMember(
+    _primaryId: string,
+    _memberId: string,
+    _updates: Partial<Pick<HouseholdMemberInput, 'name' | 'birthDate' | 'allergies' | 'notes'>>
+  ): Promise<Member> {
+    throw new ProtivityNotConnected();
+  }
+
+  async removeHouseholdMember(_primaryId: string, _memberId: string): Promise<void> {
+    throw new ProtivityNotConnected();
+  }
+
+  async recordGymOrientation(_memberId: string, _staffId: string): Promise<Member> {
     throw new ProtivityNotConnected();
   }
 
@@ -730,5 +815,79 @@ export class LiveProtivityAdapter implements ProtivityPort {
   async getMemberSurveyResponses(_memberId: string): Promise<SurveyResponse[]> {
     throw new ProtivityNotConnected();
   }
-}
+  async recordArrival(
+    _memberId: string,
+    _options?: { source?: ArrivalSource; staffId?: string; date?: string }
+  ): Promise<ArrivalResult> {
+    throw new ProtivityNotConnected();
+  }
 
+  async listArrivals(_branchId: string, _date: string): Promise<ArrivalRecord[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listBillingIssues(_branchId: string, _requesterUserId?: string): Promise<BillingIssueRow[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async resolveBillingIssue(
+    _memberId: string,
+    _payment: { brand: string; last4: string },
+    _requesterUserId: string
+  ): Promise<Membership> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listMemberContacts(_filter?: { memberId?: string; leadId?: string; staffId?: string }): Promise<MemberContact[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async logMemberContact(
+    _input: Omit<MemberContact, 'id' | 'createdAt' | 'staffId' | 'staffName'>,
+    _requesterUserId: string
+  ): Promise<MemberContact> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listLeads(_requesterUserId?: string): Promise<Lead[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async createLead(
+    _input: Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'status'> & { status?: Lead['status'] },
+    _requesterUserId: string
+  ): Promise<Lead> {
+    throw new ProtivityNotConnected();
+  }
+
+  async updateLead(_id: string, _updates: Partial<Lead>, _requesterUserId: string): Promise<Lead> {
+    throw new ProtivityNotConnected();
+  }
+
+  async convertLeadToMember(
+    _leadId: string,
+    _input: { planId: string; payment: { brand: string; last4: string }; password?: string },
+    _requesterUserId: string
+  ): Promise<{ member: Member; membership: Membership; enrollmentFeeCents: number; campaign: EnrollmentCampaign | null }> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listCampaigns(): Promise<EnrollmentCampaign[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async getActiveCampaign(_date: string, _planId?: string): Promise<EnrollmentCampaign | null> {
+    throw new ProtivityNotConnected();
+  }
+
+  async saveCampaign(
+    _input: Omit<EnrollmentCampaign, 'id' | 'createdByStaffId'> & { id?: string },
+    _requesterUserId: string
+  ): Promise<EnrollmentCampaign> {
+    throw new ProtivityNotConnected();
+  }
+
+  async deleteCampaign(_id: string, _requesterUserId: string): Promise<void> {
+    throw new ProtivityNotConnected();
+  }
+}

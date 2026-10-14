@@ -13,12 +13,15 @@ export function SwimEnrollSheet({
   offering,
   priceCents,
   defaultName,
+  household,
   onContinue,
   onClose,
 }: {
   offering: AquaticsClassOffering | null;
   priceCents: number;
   defaultName: string;
+  /** Family members on the member's plan, offered as one-tap choices. */
+  household?: { id: string; name: string }[];
   onContinue: (participantName: string) => void;
   onClose: () => void;
 }) {
@@ -71,6 +74,29 @@ export function SwimEnrollSheet({
             ) : null}
 
             <Text style={[styles.label, { color: colors.text }]}>Participant name</Text>
+            {household && household.length > 1 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {household.map((h) => (
+                  <Pressable
+                    key={h.id}
+                    onPress={() => setName(h.name)}
+                    style={{
+                      borderWidth: 1.5,
+                      borderRadius: 999,
+                      paddingHorizontal: 14,
+                      minHeight: 40,
+                      justifyContent: 'center',
+                      backgroundColor: name === h.name ? colors.primary : colors.cardBg,
+                      borderColor: name === h.name ? colors.primary : colors.border,
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={"Participant ${h.name}"}
+                  >
+                    <Text style={{ color: name === h.name ? '#FFFFFF' : colors.text, fontWeight: '700' }}>{h.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : null}
             <TextInput
               value={name}
               onChangeText={setName}

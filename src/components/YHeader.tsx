@@ -90,6 +90,8 @@ export function YHeader({ subtitle, showActions = true }: YHeaderProps) {
               onPress={() => {
                 if (session.role === 'member') {
                   router.push('/(member)/notifications');
+                } else if (session.role !== 'guest') {
+                  router.push('/(staff)/notifications' as any);
                 }
               }}
               style={({ pressed }) => [

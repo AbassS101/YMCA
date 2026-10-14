@@ -4,20 +4,47 @@ export type UserRole =
   | 'staff'
   | 'admin'
   | 'trainer'
+  | 'swim_instructor'
   | 'it_admin'
   | 'staff_admin'
   | 'wellness_director'
+  | 'aquatics_director'
   | 'membership_director';
 export type MemberStatus = 'active' | 'paused' | 'cancel_pending' | 'cancelled';
 export type StaffRole =
   | 'it_admin'
   | 'staff_admin'
   | 'trainer'
+  | 'swim_instructor'
   | 'desk'
   | 'admin'
   | 'wellness_director'
+  | 'aquatics_director'
   | 'membership_director';
-export type ScheduleCategory = 'groupEx' | 'swim' | 'childWatch' | 'event' | 'seniors';
+export type ScheduleCategory = 'groupEx' | 'swim' | 'event' | 'seniors';
+
+export type ChildProfile = {
+  id: string;
+  memberId: string;
+  firstName: string;
+  lastName: string;
+  /** ISO date YYYY-MM-DD */
+  birthDate: string;
+  allergies?: string;
+  notes?: string;
+};
+
+export type ChildWatchVisit = {
+  id: string;
+  childId: string;
+  memberId: string;
+  signedInAt: string; // ISO
+  signedOutAt?: string; // ISO
+  /** 'member' or a staff id */
+  signedInBy: string;
+  signedOutBy?: string;
+  pickupCode: string;
+};
 export type RegistrationStatus = 'registered' | 'cancelled';
 export type AttendanceStatus = 'unmarked' | 'attended' | 'no_show';
 export type LessonStatus = 'booked' | 'cancelled' | 'completed' | 'no_show';
@@ -42,6 +69,8 @@ export type SwimClassEnrollment = {
   pricingTier: PricingTier;
   status: 'enrolled' | 'cancelled';
   enrolledAt: string;
+  /** Household member taking the class, when chosen from the family list. */
+  participantMemberId?: string;
 };
 
 export type BookLessonOptions = {
@@ -69,7 +98,20 @@ export type GuestPassInfo = {
 };
 
 export function isAdminRole(role?: string | null): boolean {
-  return role === 'admin' || role === 'it_admin' || role === 'staff_admin';
+  // Wellness Directors share Staff Admin powers (minus complaints and top-level staff creation).
+  return role === 'admin' || role === 'it_admin' || role === 'staff_admin' || role === 'wellness_director';
+}
+
+/** Roles a Wellness Director may NOT create, edit, or delete. */
+export function isTopLevelStaffRole(role?: string | null): boolean {
+  return (
+    role === 'admin' ||
+    role === 'it_admin' ||
+    role === 'staff_admin' ||
+    role === 'wellness_director' ||
+    role === 'aquatics_director' ||
+    role === 'membership_director'
+  );
 }
 
 export type Member = {
@@ -83,7 +125,38 @@ export type Member = {
   type: string;
   status: MemberStatus;
   avatarUrl?: string;
+  /** ISO date YYYY-MM-DD */
+  birthDate?: string;
+  /** Id of the primary (paying) member of the household. Undefined = standalone member. */
+  householdId?: string;
+  householdRole?: HouseholdRole;
+  /** True when this person can sign in with their own email + password. */
+  hasLogin?: boolean;
+  allergies?: string;
+  notes?: string;
+  gymOrientation?: GymOrientation;
 };
+
+export type HouseholdRole = 'primary' | 'adult' | 'dependent';
+
+export type HouseholdMemberInput = {
+  name: string;
+  /** ISO date YYYY-MM-DD */
+  birthDate: string;
+  /** Only used for people 13 and older; gives them their own login. */
+  email?: string;
+  allergies?: string;
+  notes?: string;
+};
+
+export type HouseholdView = {
+  primary: Member;
+  /** Primary first, then everyone else on the plan. */
+  members: Member[];
+  membership: Membership;
+};
+
+export type GymOrientation = { completedAt: string; staffId: string; staffName: string };
 
 export type Staff = {
   id: string;
@@ -95,6 +168,10 @@ export type Staff = {
   avatarUrl?: string;
   /** Private lesson types this staff member offers. Undefined = training. */
   lessonTypes?: LessonType[];
+  /** Session lengths (minutes) this staff member offers. Undefined = [30, 60]. */
+  sessionLengths?: (30 | 60)[];
+  /** Members who may book this staff member instantly. Undefined/empty = every booking is a request. */
+  instantBookMemberIds?: string[];
 };
 
 export type PendingMembershipChange = {
@@ -117,6 +194,102 @@ export type Membership = {
   status?: 'active' | 'paused' | 'cancel_pending' | 'cancelled';
   renewalCount?: number;
   joinedDate?: string;
+  billingStatus?: BillingStatus;
+  billingIssue?: BillingIssue;
+  /** Enrollment campaign applied when this member joined. */
+  campaignId?: string;
+};
+
+export type BillingStatus = 'current' | 'declined' | 'past_due';
+
+export type BillingIssue = {
+  reason: string;
+  failedAt: string; // ISO
+  amountDueCents: number;
+  attempts: number;
+};
+
+export type ArrivalSource = 'desk' | 'scanner' | 'child_watch' | 'class' | 'manual';
+
+export type ArrivalRecord = {
+  id: string;
+  memberId: string;
+  /** ISO date YYYY-MM-DD */
+  date: string;
+  at: string; // ISO
+  source: ArrivalSource;
+  checkedInByStaffId?: string;
+  notifiedStaffIds: string[];
+};
+
+export type ContactChannel = 'call' | 'in_person' | 'email' | 'sms';
+export type ContactPurpose = 'billing' | 'question' | 'sales' | 'welcome' | 'retention' | 'general';
+export type ContactOutcome =
+  | 'resolved'
+  | 'voicemail'
+  | 'no_answer'
+  | 'callback'
+  | 'card_updated'
+  | 'sold'
+  | 'not_interested';
+
+export type MemberContact = {
+  id: string;
+  memberId?: string;
+  leadId?: string;
+  staffId: string;
+  staffName: string;
+  channel: ContactChannel;
+  purpose: ContactPurpose;
+  outcome: ContactOutcome;
+  notes: string;
+  followUpDate?: string; // YYYY-MM-DD
+  createdAt: string; // ISO
+};
+
+export type LeadSource = 'walk_in' | 'guest_pass' | 'lapsed_member' | 'referral' | 'phone' | 'web';
+export type LeadStatus = 'new' | 'contacted' | 'tour_scheduled' | 'follow_up' | 'won' | 'lost';
+
+export type Lead = {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  source: LeadSource;
+  status: LeadStatus;
+  interestPlanId?: string;
+  assignedStaffId?: string;
+  campaignId?: string;
+  nextFollowUpDate?: string;
+  notes: string;
+  convertedMemberId?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BillingIssueRow = { member: Member; membership: Membership };
+
+export type ArrivalResult = {
+  arrival: ArrivalRecord;
+  /** True when this is the first arrival logged for the member today. */
+  isNew: boolean;
+  /** Staff who received a client_arrival notification from this call. */
+  notifiedStaff: Staff[];
+};
+
+export type EnrollmentCampaign = {
+  id: string;
+  name: string;
+  description: string;
+  startDate: string; // YYYY-MM-DD inclusive
+  endDate: string; // YYYY-MM-DD inclusive
+  waiveEnrollmentFee: boolean;
+  /** 1-100; used when the fee is not fully waived. */
+  enrollmentFeeDiscountPct?: number;
+  /** Undefined or empty = all plans. */
+  eligiblePlanIds?: string[];
+  active: boolean;
+  createdByStaffId: string;
 };
 
 export type ScheduleItem = {
@@ -130,6 +303,12 @@ export type ScheduleItem = {
   instructorName: string;
   staffId?: string;
   capacity: number;
+  /** First come, first served: capacity undisclosed and no attendance/check-in taken */
+  openAccess?: boolean;
+  /** Human-readable repeat pattern, e.g. "Mon, Wed, Fri · weekly" */
+  recurrenceLabel?: string;
+  /** Shared id for all sessions created from one repeating series */
+  seriesId?: string;
   /** 0 or undefined = included with membership; > 0 = extra-cost booking */
   priceCents?: number;
   isSpecialEvent?: boolean;
@@ -188,7 +367,89 @@ export type PrivateLesson = {
   paymentLast4?: string;
   swimmerName?: string;
   stageCode?: string;
+  participantMemberId?: string;
+  paymentTiming?: PaymentTiming;
+  paymentStatus?: 'paid' | 'due';
+  /** Session request this lesson was created from, if any. */
+  requestId?: string;
 };
+
+export type PaymentTiming = 'before' | 'after';
+export type SessionRequestStatus = 'pending' | 'countered' | 'accepted' | 'declined' | 'cancelled';
+export type SessionRequestAction =
+  | 'requested'
+  | 'auto_accepted'
+  | 'accepted'
+  | 'declined'
+  | 'countered'
+  | 'counter_accepted'
+  | 'counter_declined'
+  | 'cancelled';
+
+export type SessionRequestEvent = {
+  at: string;
+  byId: string;
+  byName: string;
+  byRole: string;
+  action: SessionRequestAction;
+  start?: string;
+  end?: string;
+  note?: string;
+};
+
+export type SessionRequest = {
+  id: string;
+  memberId: string;
+  memberName?: string;
+  staffId: string;
+  staffName?: string;
+  lessonType: LessonType;
+  durationMin: 30 | 60;
+  start: string;
+  end: string;
+  location: string;
+  paymentTiming: PaymentTiming;
+  status: SessionRequestStatus;
+  swimmerName?: string;
+  stageCode?: string;
+  participantMemberId?: string;
+  notes?: string;
+  lessonId?: string;
+  replacesLessonId?: string;
+  createdAt: string;
+  history: SessionRequestEvent[];
+};
+
+export type CreateSessionRequestInput = {
+  staffId: string;
+  lessonType: LessonType;
+  durationMin: 30 | 60;
+  start: string;
+  paymentTiming: PaymentTiming;
+  swimmerName?: string;
+  stageCode?: string;
+  participantMemberId?: string;
+  notes?: string;
+  /** When rescheduling: the booked lesson this request replaces once confirmed (payment carries over). */
+  replacesLessonId?: string;
+};
+
+export type SessionRequestResponse = {
+  action: 'accept' | 'decline' | 'counter';
+  start?: string;
+  durationMin?: 30 | 60;
+  note?: string;
+};
+
+export type SessionRequestFilter = {
+  memberId?: string;
+  staffId?: string;
+  /** Applies role-based visibility for this user. */
+  viewerId?: string;
+  status?: SessionRequestStatus[];
+};
+
+export type BookableTime = { staffId: string; start: string; end: string; location: string; instant: boolean };
 
 export type WorkoutExercise = {
   name: string;
@@ -278,6 +539,10 @@ export type MembershipPlan = {
   description: string;
   features: string[];
   recommended?: boolean;
+  /** Adults allowed on the plan (default 1). */
+  maxAdults?: number;
+  /** Whether dependent children (under 18) can be added. */
+  allowsDependents?: boolean;
 };
 
 const STANDARD_FEATURES = [
@@ -298,13 +563,13 @@ const ONE_Y_FEATURES = [
 ];
 const FAMILY_I_FEATURES = [
   '1 adult on the membership plus all dependent children in the same household',
-  'FREE drop-off Child Watch (up to 2 hours daily)',
+  'FREE drop-off Child Watch (maximum of 2 hours per day)',
   'Discounts & priority registration for camps and youth sports',
   ...STANDARD_FEATURES,
 ];
 const FAMILY_II_FEATURES = [
   '2 adults on the membership plus all dependent children in the same household',
-  'FREE drop-off Child Watch (up to 2 hours daily)',
+  'FREE drop-off Child Watch (maximum of 2 hours per day)',
   'Discounts & priority registration for camps and youth sports',
   ...STANDARD_FEATURES,
 ];
@@ -312,9 +577,17 @@ const FAMILY_II_FEATURES = [
 /** One-time enrollment due at signup (guest pass conversions are waived in the app). */
 export function effectiveEnrollmentFeeCents(
   plan: MembershipPlan,
-  options?: { waiveEnrollmentFee?: boolean }
+  options?: { waiveEnrollmentFee?: boolean; campaign?: EnrollmentCampaign | null }
 ): number {
-  return options?.waiveEnrollmentFee ? 0 : plan.enrollmentFeeCents;
+  if (options?.waiveEnrollmentFee) return 0;
+  const c = options?.campaign;
+  if (!c) return plan.enrollmentFeeCents;
+  if (c.eligiblePlanIds && c.eligiblePlanIds.length > 0 && !c.eligiblePlanIds.includes(plan.id)) {
+    return plan.enrollmentFeeCents;
+  }
+  if (c.waiveEnrollmentFee) return 0;
+  const pct = Math.max(0, Math.min(100, c.enrollmentFeeDiscountPct ?? 0));
+  return Math.round(plan.enrollmentFeeCents * (1 - pct / 100));
 }
 
 export const YMCA_MEMBERSHIP_PLANS: MembershipPlan[] = [
@@ -360,6 +633,8 @@ export const YMCA_MEMBERSHIP_PLANS: MembershipPlan[] = [
   },
   {
     id: 'senior-family',
+    maxAdults: 2,
+    allowsDependents: false,
     name: 'Senior Family',
     monthlyAmountCents: 9500,
     enrollmentFeeCents: 8400,
@@ -370,6 +645,8 @@ export const YMCA_MEMBERSHIP_PLANS: MembershipPlan[] = [
   },
   {
     id: 'family-1',
+    maxAdults: 1,
+    allowsDependents: true,
     name: 'Family I',
     monthlyAmountCents: 9900,
     enrollmentFeeCents: 9900,
@@ -380,6 +657,8 @@ export const YMCA_MEMBERSHIP_PLANS: MembershipPlan[] = [
   },
   {
     id: 'family-2',
+    maxAdults: 2,
+    allowsDependents: true,
     name: 'Family II',
     monthlyAmountCents: 11900,
     enrollmentFeeCents: 13500,
@@ -462,6 +741,8 @@ export const YMCA_MEMBERSHIP_PLANS: MembershipPlan[] = [
   },
   {
     id: 'senior-family-oney',
+    maxAdults: 2,
+    allowsDependents: false,
     name: 'Senior Family ONE Y (New 2026)',
     monthlyAmountCents: 14500,
     enrollmentFeeCents: 8400,
@@ -472,6 +753,8 @@ export const YMCA_MEMBERSHIP_PLANS: MembershipPlan[] = [
   },
   {
     id: 'family-1-oney',
+    maxAdults: 1,
+    allowsDependents: true,
     name: 'Family I ONE Y (New 2026)',
     monthlyAmountCents: 12500,
     enrollmentFeeCents: 9900,
@@ -482,6 +765,8 @@ export const YMCA_MEMBERSHIP_PLANS: MembershipPlan[] = [
   },
   {
     id: 'family-2-oney',
+    maxAdults: 2,
+    allowsDependents: true,
     name: 'Family II ONE Y (New 2026)',
     monthlyAmountCents: 19500,
     enrollmentFeeCents: 13500,
@@ -520,6 +805,8 @@ export type NotificationType =
   | 'event'
   | 'membership'
   | 'donation'
+  | 'client_arrival'
+  | 'billing'
   | 'general';
 
 export type AppNotification = {
@@ -547,6 +834,8 @@ export type NotificationPreferences = {
   announcements: boolean;
   events: boolean;
   directMessages: boolean;
+  /** Staff only: alert when an assigned client or today's lesson client arrives. Default on. */
+  clientArrivals?: boolean;
   emailDigest: NotificationDigestFrequency;
   pushEnabled: boolean;
   inAppBannerEnabled: boolean;

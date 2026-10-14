@@ -1,10 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SEED } from '@/protivity/seed';
 import { normalizePricing } from '@/domain/lessonPricing';
+import { personaForRole } from '@/domain/staffCapabilities';
+import { generateMembershipId } from '@/domain/householdAccess';
 import type {
+  ArrivalRecord,
+  EnrollmentCampaign,
+  Lead,
+  MemberContact,
   Announcement,
   AppNotification,
   CancelRequest,
+  ChildWatchVisit,
   ClassForumPost,
   ClassRegistration,
   ComplaintSuggestion,
@@ -21,6 +28,7 @@ import type {
   PrivateLesson,
   SavedClass,
   ScheduleItem,
+  SessionRequest,
   Staff,
   SupportTicket,
   Survey,
@@ -39,6 +47,8 @@ const STORAGE_KEY = '@ymca/demo-state';
 /** Directors were seeded as a plain trainer / front desk account before they had their own roles. */
 const DIRECTOR_ROLE_UPGRADES: Record<string, { legacyStaffRole: StaffRole; legacyRole: UserRole; role: StaffRole & UserRole }> = {
   'staff-celine': { legacyStaffRole: 'trainer', legacyRole: 'trainer', role: 'wellness_director' },
+  'staff-sarah': { legacyStaffRole: 'trainer', legacyRole: 'trainer', role: 'swim_instructor' },
+  'staff-elena': { legacyStaffRole: 'trainer', legacyRole: 'trainer', role: 'swim_instructor' },
   'staff-desk': { legacyStaffRole: 'desk', legacyRole: 'staff', role: 'membership_director' },
 };
 
@@ -50,6 +60,7 @@ export type DemoState = {
   savedClasses: SavedClass[];
   classRegistrations: ClassRegistration[];
   lessonSlots: LessonSlot[];
+  sessionRequests: SessionRequest[];
   privateLessons: PrivateLesson[];
   assignments: TrainerAssignment[];
   threads: Thread[];
@@ -72,10 +83,108 @@ export type DemoState = {
   surveyResponses: SurveyResponse[];
   lessonPricing: LessonPricing;
   swimEnrollments: SwimClassEnrollment[];
+  childWatchVisits: ChildWatchVisit[];
+  arrivals: ArrivalRecord[];
+  memberContacts: MemberContact[];
+  leads: Lead[];
+  enrollmentCampaigns: EnrollmentCampaign[];
   schemaVersion?: number;
 };
 
-const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 8;
+
+type LegacyChildProfile = {
+  id: string;
+  memberId: string;
+  firstName: string;
+  lastName: string;
+  birthDate: string;
+  allergies?: string;
+  notes?: string;
+};
+
+/**
+ * Households. Legacy Child Watch profiles (persisted `childProfiles`) become dependent Members
+ * (same id, so past visits stay valid) and the demo family's extra adults are restored from the
+ * seed. Runs once: the legacy array is dropped from the returned state.
+ */
+function migrateHouseholds(
+  raw: DemoState & { childProfiles?: LegacyChildProfile[] },
+  seed: DemoState,
+  members: Member[],
+  memberships: Membership[],
+  credentials: DemoState['credentials']
+): { members: Member[]; memberships: Membership[]; credentials: DemoState['credentials'] } {
+  if (!Array.isArray(raw.childProfiles)) return { members, memberships, credentials };
+  const nextMembers = members.map((m) => ({ ...m }));
+  let nextMemberships = memberships;
+  const taken = new Set(nextMembers.map((m) => m.membershipId));
+  const legacy = raw.childProfiles;
+  const parentIds = new Set(legacy.map((c) => c.memberId));
+
+  for (const parentId of parentIds) {
+    const parent = nextMembers.find((m) => m.id === parentId);
+    if (!parent) continue;
+    const seedParent = seed.members.find((m) => m.id === parentId);
+    const seedMembership = seed.memberships.find((m) => m.memberId === parentId);
+    // Demo family: a plain Adult plan can't hold children, so move it to the seeded Family plan.
+    if (seedParent && seedParent.householdRole === 'primary' && !parent.householdId) {
+      parent.type = seedParent.type;
+      parent.birthDate = parent.birthDate ?? seedParent.birthDate;
+      if (seedMembership) {
+        nextMemberships = nextMemberships.map((m) =>
+          m.memberId === parentId
+            ? { ...m, rateName: seedMembership.rateName, monthlyAmountCents: seedMembership.monthlyAmountCents }
+            : m
+        );
+      }
+    }
+    parent.householdId = parentId;
+    parent.householdRole = 'primary';
+    parent.hasLogin = true;
+  }
+
+  for (const c of legacy) {
+    if (nextMembers.some((m) => m.id === c.id)) continue;
+    const parent = nextMembers.find((m) => m.id === c.memberId);
+    if (!parent) continue;
+    const seeded = seed.members.find((m) => m.id === c.id);
+    const membershipId =
+      seeded?.membershipId && !taken.has(seeded.membershipId) ? seeded.membershipId : generateMembershipId(taken);
+    taken.add(membershipId);
+    nextMembers.push({
+      id: c.id,
+      name: `${c.firstName} ${c.lastName}`.trim(),
+      email: '',
+      phone: parent.phone,
+      address: parent.address,
+      membershipId,
+      homeBranchId: parent.homeBranchId,
+      type: parent.type,
+      status: parent.status,
+      birthDate: c.birthDate,
+      allergies: c.allergies,
+      notes: c.notes,
+      householdId: parent.id,
+      householdRole: 'dependent',
+      hasLogin: false,
+    });
+  }
+
+  // Restore the seeded demo household members (second adult, teen) when their primary exists.
+  const nextCreds = [...credentials];
+  for (const s of seed.members) {
+    if (!s.householdId || s.householdRole === 'primary') continue;
+    if (nextMembers.some((m) => m.id === s.id)) continue;
+    if (!nextMembers.some((m) => m.id === s.householdId)) continue;
+    if (taken.has(s.membershipId)) continue;
+    taken.add(s.membershipId);
+    nextMembers.push({ ...s });
+    const cred = seed.credentials.find((c) => c.userId === s.id);
+    if (cred && !nextCreds.some((c) => c.email === cred.email)) nextCreds.push(cred);
+  }
+  return { members: nextMembers, memberships: nextMemberships, credentials: nextCreds };
+}
 
 function cloneSeed(): DemoState {
   const cloned = JSON.parse(JSON.stringify(SEED)) as DemoState;
@@ -87,7 +196,8 @@ function migrateState(raw: DemoState): DemoState {
   const seed = cloneSeed();
   const seedScheduleMap = new Map(seed.schedules.map((s) => [s.id, s]));
 
-  let schedules = raw.schedules;
+  // Child Watch is no longer a class; drop legacy persisted entries.
+  let schedules = raw.schedules?.filter((s) => (s.category as string) !== 'childWatch');
   if (!schedules || schedules.length === 0) {
     schedules = seed.schedules;
   } else {
@@ -124,6 +234,12 @@ function migrateState(raw: DemoState): DemoState {
       mergedStaff = [itStaff, ...mergedStaff];
     }
   }
+  if (!mergedStaff.some((s) => s.id === 'staff-alek')) {
+    const alekStaff = seed.staff.find((s) => s.id === 'staff-alek');
+    if (alekStaff) {
+      mergedStaff = [...mergedStaff, alekStaff];
+    }
+  }
   if (!mergedStaff.some((s) => s.id === 'staff-celine')) {
     const celineStaff = seed.staff.find((s) => s.id === 'staff-celine');
     if (celineStaff) {
@@ -135,6 +251,39 @@ function migrateState(raw: DemoState): DemoState {
     return upgrade && s.staffRole === upgrade.legacyStaffRole ? { ...s, staffRole: upgrade.role } : s;
   });
 
+  // Repair persisted staff: restore any missing trainers / instructors / directors from the seed,
+  // and fix records whose role is missing or no longer valid (they would vanish from team lists).
+  const COACH_ROLES = new Set<StaffRole>(['trainer', 'swim_instructor', 'wellness_director', 'aquatics_director']);
+  mergedStaff = mergedStaff.map((s) => {
+    const seeded = seed.staff.find((x) => x.id === s.id);
+    if (seeded && (!s.staffRole || personaForRole(s.staffRole) === null)) {
+      return { ...s, staffRole: seeded.staffRole };
+    }
+    return s;
+  });
+  for (const seeded of seed.staff) {
+    if (seeded.staffRole && COACH_ROLES.has(seeded.staffRole) && !mergedStaff.some((s) => s.id === seeded.id)) {
+      mergedStaff = [...mergedStaff, seeded];
+    }
+  }
+
+  // Replace legacy persisted names/labels with the current seed values.
+  const LEGACY_NAMES = new Set(['Marcus Taylor', 'Marcus Vance']);
+  mergedStaff = mergedStaff.map((s) => {
+    const seeded = seed.staff.find((x) => x.id === s.id);
+    if (!seeded) return s;
+    const next = { ...s };
+    if (LEGACY_NAMES.has(s.name)) next.name = seeded.name;
+    // One-time sync so persisted demo accounts match the names shown in the role switcher.
+    if ((raw.schemaVersion ?? 0) < 7) {
+      next.name = seeded.name;
+      next.roleLabel = seeded.roleLabel;
+    }
+    if (s.roleLabel.includes('Incharge of') || s.roleLabel.includes('Senior Mobility')) next.roleLabel = seeded.roleLabel;
+    if (seeded.staffRole === 'swim_instructor') next.lessonTypes = seeded.lessonTypes;
+    return next;
+  });
+
   mergedStaff = mergedStaff.map((s) => ({
     ...s,
     lessonTypes: s.lessonTypes ?? seed.staff.find((x) => x.id === s.id)?.lessonTypes,
@@ -144,7 +293,25 @@ function migrateState(raw: DemoState): DemoState {
   const slotIds = new Set(rawSlots.map((s) => s.id));
   const mergedSlots = [...rawSlots, ...seed.lessonSlots.filter((s) => !slotIds.has(s.id))];
 
+  // Add the Front Desk Membership Rep demo account to persisted state.
+  if (!mergedStaff.some((s) => s.id === 'staff-frontdesk')) {
+    const rep = seed.staff.find((s) => s.id === 'staff-frontdesk');
+    if (rep) mergedStaff = [...mergedStaff, rep];
+  }
+
   let mergedMembers = raw.members ?? seed.members;
+  if ((raw.schemaVersion ?? 0) < 8) {
+    for (const id of ['member-riley', 'member-sam', 'member-nora']) {
+      const m = seed.members.find((x) => x.id === id);
+      if (m && !mergedMembers.some((x) => x.id === id)) mergedMembers = [...mergedMembers, m];
+    }
+  }
+  if ((raw.schemaVersion ?? 0) < 7) {
+    mergedMembers = mergedMembers.map((m) => {
+      const seeded = seed.members.find((x) => x.id === m.id);
+      return seeded ? { ...m, name: seeded.name } : m;
+    });
+  }
   if (!mergedMembers.some((m) => m.id === 'guest-taylor')) {
     const guestMember = seed.members.find((m) => m.id === 'guest-taylor');
     if (guestMember) {
@@ -157,6 +324,13 @@ function migrateState(raw: DemoState): DemoState {
     const guestMembership = seed.memberships.find((m) => m.memberId === 'guest-taylor');
     if (guestMembership) {
       mergedMemberships = [...mergedMemberships, guestMembership];
+    }
+  }
+
+  if ((raw.schemaVersion ?? 0) < 8) {
+    for (const id of ['member-riley', 'member-sam', 'member-nora']) {
+      const ms = seed.memberships.find((x) => x.memberId === id);
+      if (ms && !mergedMemberships.some((x) => x.memberId === id)) mergedMemberships = [...mergedMemberships, ms];
     }
   }
 
@@ -180,11 +354,19 @@ function migrateState(raw: DemoState): DemoState {
       mergedCreds = [itCred, ...mergedCreds];
     }
   }
+  if (!mergedCreds.some((c) => c.email === 'aquatics@silverspring.ymca')) {
+    const alekCred = seed.credentials.find((c) => c.email === 'aquatics@silverspring.ymca');
+    if (alekCred) mergedCreds = [...mergedCreds, alekCred];
+  }
   if (!mergedCreds.some((c) => c.email === 'celine@silverspring.ymca')) {
     const celineCred = seed.credentials.find((c) => c.email === 'celine@silverspring.ymca');
     if (celineCred) {
       mergedCreds = [...mergedCreds, celineCred];
     }
+  }
+  if (!mergedCreds.some((c) => c.email === 'frontdesk@silverspring.ymca')) {
+    const repCred = seed.credentials.find((c) => c.email === 'frontdesk@silverspring.ymca');
+    if (repCred) mergedCreds = [...mergedCreds, repCred];
   }
   if (!mergedCreds.some((c) => c.email === 'guest@silverspring.ymca')) {
     const guestCred = seed.credentials.find((c) => c.email === 'guest@silverspring.ymca');
@@ -242,7 +424,12 @@ function migrateState(raw: DemoState): DemoState {
     });
   }
 
-  return {
+  const households = migrateHouseholds(raw, seed, mergedMembers, mergedMemberships, mergedCreds);
+  mergedMembers = households.members;
+  mergedMemberships = households.memberships;
+  mergedCreds = households.credentials;
+
+  const migrated: DemoState & { childProfiles?: unknown } = {
     ...seed,
     ...raw,
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -252,6 +439,7 @@ function migrateState(raw: DemoState): DemoState {
     schedules,
     classRegistrations: cleanedRegistrations,
     lessonSlots: mergedSlots,
+    sessionRequests: raw.sessionRequests ?? seed.sessionRequests,
     privateLessons: raw.privateLessons ?? [],
     announcements: raw.announcements ?? seed.announcements,
     notifications: raw.notifications ?? seed.notifications,
@@ -270,7 +458,14 @@ function migrateState(raw: DemoState): DemoState {
     surveyResponses: raw.surveyResponses ?? seed.surveyResponses ?? [],
     lessonPricing: normalizePricing(raw.lessonPricing),
     swimEnrollments: raw.swimEnrollments ?? [],
+    childWatchVisits: raw.childWatchVisits ?? [],
+    arrivals: raw.arrivals ?? [],
+    memberContacts: raw.memberContacts ?? seed.memberContacts,
+    leads: raw.leads ?? seed.leads,
+    enrollmentCampaigns: raw.enrollmentCampaigns ?? seed.enrollmentCampaigns,
   };
+  delete migrated.childProfiles;
+  return migrated;
 }
 
 export async function resetStore(): Promise<DemoState> {

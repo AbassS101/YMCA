@@ -1,5 +1,5 @@
 import { computeCancelDates } from '@/domain/cancelDates';
-import { getDemoToday } from '@/domain/demoClock';
+import { demoNowIso, getDemoToday } from '@/domain/demoClock';
 import { AQUATICS_CLASSES } from '@/domain/aquaticsGuideData';
 import {
   lessonPriceCents,
@@ -8,11 +8,38 @@ import {
   SWIM_CLASS_CAPACITY,
   swimClassPriceCents,
 } from '@/domain/lessonPricing';
+import { activeCampaignFor } from '@/domain/enrollmentCampaigns';
+import {
+  availableAt,
+  busyIntervals,
+  overlaps,
+  sessionLengthsFor,
+  type Interval,
+} from '@/domain/sessionAvailability';
+import { canInstantBook, canTransition, canViewSessionRequest } from '@/domain/sessionRequests';
 import { hasCapability, isStaffRole, type StaffCapability } from '@/domain/staffCapabilities';
 import {
+  ageOn,
+  canHoldSoloMembership,
+  findPlan,
+  generateMembershipId,
+  isFamilyPlan,
+  validateHousehold,
+} from '@/domain/householdAccess';
+import {
+  effectiveEnrollmentFeeCents,
   filterProfanity,
   isAdminRole,
   YMCA_MEMBERSHIP_PLANS,
+  type ArrivalRecord,
+  type ArrivalResult,
+  type BillingIssueRow,
+  type ArrivalSource,
+  type EnrollmentCampaign,
+  type HouseholdMemberInput,
+  type HouseholdView,
+  type Lead,
+  type MemberContact,
   type Announcement,
   type AppNotification,
   type AttendanceStatus,
@@ -29,6 +56,13 @@ import {
   type ForumTopic,
   type ForumTopicCategory,
   type BookLessonOptions,
+  type BookableTime,
+  type CreateSessionRequestInput,
+  type LessonType,
+  type SessionRequest,
+  type SessionRequestAction,
+  type SessionRequestFilter,
+  type SessionRequestResponse,
   type LessonPricing,
   type SwimClassEnrollment,
   type LessonSlot,
@@ -60,6 +94,111 @@ function scheduleCalendarDay(isoStart: string): string {
   return isoStart.slice(0, 10);
 }
 
+function resolveCampaign(state: DemoState, planId: string, campaignId?: string): EnrollmentCampaign | null {
+  const campaigns = state.enrollmentCampaigns ?? [];
+  if (campaignId) {
+    const picked = campaigns.find((c) => c.id === campaignId);
+    if (picked && picked.active) return picked;
+  }
+  return activeCampaignFor(getDemoToday(), planId, campaigns);
+}
+
+function buildHouseholdMember(state: DemoState, primary: Member, input: HouseholdMemberInput): Member {
+  const name = input.name.trim();
+  if (!name) throw new Error('Enter a name for the family member.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.birthDate) || Number.isNaN(Date.parse(input.birthDate))) {
+    throw new Error('Enter a valid birth date (YYYY-MM-DD).');
+  }
+  const today = getDemoToday();
+  if (input.birthDate > today) throw new Error('Birth date cannot be in the future.');
+  const age = ageOn(input.birthDate, today);
+  const email = (input.email ?? '').trim().toLowerCase();
+  const wantsLogin = age >= 13 && email.length > 0;
+  if (wantsLogin) {
+    if (!email.includes('@') || !email.includes('.')) throw new Error(`Enter a valid email for ${name}.`);
+    if (
+      state.members.some((m) => m.email.toLowerCase() === email) ||
+      state.credentials.some((c) => c.email.toLowerCase() === email)
+    ) {
+      throw new Error(`${email} already has an account.`);
+    }
+  }
+  const id = `member-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  const member: Member = {
+    id,
+    name,
+    email: wantsLogin ? email : '',
+    phone: primary.phone,
+    address: primary.address,
+    membershipId: generateMembershipId(new Set(state.members.map((m) => m.membershipId))),
+    homeBranchId: primary.homeBranchId,
+    type: primary.type,
+    status: primary.status,
+    birthDate: input.birthDate,
+    allergies: input.allergies?.trim() || undefined,
+    notes: input.notes?.trim() || undefined,
+    householdId: primary.id,
+    householdRole: age >= 18 ? 'adult' : 'dependent',
+    hasLogin: wantsLogin,
+  };
+  state.members.push(member);
+  if (wantsLogin) {
+    state.credentials.push({ email, password: 'ymca-demo', userId: id, role: 'member' });
+    state.notifications.unshift({
+      id: `notif-household-${id}`,
+      userId: id,
+      title: `Welcome to the ${primary.type} plan, ${name.split(' ')[0]}!`,
+      body: `${primary.name} added you to their family membership. Sign in with ${email} (temporary password: ymca-demo) and use your own barcode #${member.membershipId} at the desk.`,
+      type: 'membership',
+      createdAt: new Date().toISOString(),
+      read: false,
+      link: '/(member)/home',
+    });
+  }
+  return member;
+}
+
+/** Match a typed/picked participant name to someone on the member's household. */
+function participantIdFor(state: DemoState, memberId: string, name?: string): string | undefined {
+  const wanted = name?.trim().toLowerCase();
+  if (!wanted) return undefined;
+  const primaryId = state.members.find((m) => m.id === memberId)?.householdId ?? memberId;
+  return householdMembersOf(state, primaryId).find((m) => m.name.toLowerCase() === wanted)?.id;
+}
+
+/** The paying (primary) member id for any member of a household; standalone members are their own primary. */
+function householdPrimaryId(state: DemoState, memberId: string): string {
+  return state.members.find((m) => m.id === memberId)?.householdId ?? memberId;
+}
+
+/** Primary first, then everyone else in the household. Standalone members return just themselves. */
+function householdMembersOf(state: DemoState, primaryId: string): Member[] {
+  const primary = state.members.find((m) => m.id === primaryId);
+  const others = state.members.filter((m) => m.householdId === primaryId && m.id !== primaryId);
+  return primary ? [primary, ...others] : others;
+}
+
+function assertPrimary(state: DemoState, memberId: string, action: string): void {
+  const primaryId = householdPrimaryId(state, memberId);
+  if (primaryId !== memberId) {
+    const primary = state.members.find((m) => m.id === primaryId);
+    throw new Error(`Only the primary member${primary ? ` (${primary.name})` : ''} can ${action}.`);
+  }
+}
+
+function setHouseholdStatus(state: DemoState, primaryId: string, status: Member['status']): void {
+  for (const m of householdMembersOf(state, primaryId)) m.status = status;
+}
+
+function formatClock(iso: string): string {
+  const d = new Date(iso);
+  let h = d.getHours();
+  const m = String(d.getMinutes()).padStart(2, '0');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m} ${ampm}`;
+}
+
 function defaultNotificationPreferences(userId: string): NotificationPreferences {
   const isStaff = userId.startsWith('staff') || userId.startsWith('trainer');
   return {
@@ -73,6 +212,7 @@ function defaultNotificationPreferences(userId: string): NotificationPreferences
     announcements: true,
     events: true,
     directMessages: true,
+    clientArrivals: true,
     emailDigest: isStaff ? 'instant' : 'daily',
     pushEnabled: true,
     inAppBannerEnabled: true,
@@ -206,7 +346,9 @@ function credentialRoleForStaffRole(staffRole?: StaffRole): UserRole {
     case 'staff_admin':
     case 'admin':
     case 'trainer':
+    case 'swim_instructor':
     case 'wellness_director':
+    case 'aquatics_director':
     case 'membership_director':
       return staffRole;
     default:
@@ -232,6 +374,136 @@ function assertStaffCapability(
   if (!hasCapability(requesterRole(state, requesterUserId), capability)) {
     throw new Error(`Your staff role is not permitted to ${action}.`);
   }
+}
+
+const COACH_STAFF_ROLES = new Set<string>(['trainer', 'swim_instructor', 'wellness_director', 'aquatics_director']);
+
+function offersLessonType(s: Staff, t: LessonType): boolean {
+  return COACH_STAFF_ROLES.has(s.staffRole ?? '') && (s.lessonTypes ?? ['training']).includes(t);
+}
+
+function staffBusy(state: DemoState, staffId: string, excludeRequestId?: string): Interval[] {
+  return busyIntervals(
+    state.privateLessons.filter((l) => l.staffId === staffId),
+    (state.sessionRequests ?? []).filter((r) => r.staffId === staffId && r.id !== excludeRequestId)
+  );
+}
+
+function memberBusy(state: DemoState, memberId: string, excludeRequestId?: string): Interval[] {
+  const regs = state.classRegistrations
+    .filter((r) => r.memberId === memberId && r.status === 'registered')
+    .map((r) => state.schedules.find((s) => s.id === r.scheduleItemId))
+    .filter((s): s is ScheduleItem => Boolean(s))
+    .map((s) => ({ start: s.start, end: s.end }));
+  return [
+    ...regs,
+    ...busyIntervals(
+      state.privateLessons.filter((l) => l.memberId === memberId),
+      (state.sessionRequests ?? []).filter((r) => r.memberId === memberId && r.id !== excludeRequestId)
+    ),
+  ];
+}
+
+function addMinutesIso(iso: string, minutes: number): string {
+  return new Date(new Date(iso).getTime() + minutes * 60000).toISOString();
+}
+
+function isInsideWindow(state: DemoState, staffId: string, iv: Interval): boolean {
+  const s = new Date(iv.start).getTime();
+  const e = new Date(iv.end).getTime();
+  return state.lessonSlots.some(
+    (w) => w.staffId === staffId && new Date(w.start).getTime() <= s && new Date(w.end).getTime() >= e
+  );
+}
+
+function assertTimeFree(state: DemoState, req: SessionRequest, iv: Interval): void {
+  if (staffBusy(state, req.staffId, req.id).some((b) => overlaps(iv, b))) {
+    throw new Error('That time is no longer available with this instructor.');
+  }
+  if (memberBusy(state, req.memberId, req.id).some((b) => overlaps(iv, b))) {
+    throw new Error('The member already has something scheduled at that time.');
+  }
+}
+
+function notifyUser(state: DemoState, userId: string, title: string, body: string, link?: string): void {
+  state.notifications.unshift({
+    id: `notif-sreq-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    userId,
+    title,
+    body,
+    type: 'general',
+    createdAt: new Date().toISOString(),
+    read: false,
+    link,
+  });
+}
+
+function pushRequestEvent(
+  state: DemoState,
+  req: SessionRequest,
+  byId: string,
+  action: SessionRequestAction,
+  extra: { start?: string; end?: string; note?: string } = {}
+): void {
+  const staff = state.staff.find((s) => s.id === byId);
+  const member = state.members.find((m) => m.id === byId);
+  req.history.push({
+    at: new Date().toISOString(),
+    byId,
+    byName: staff?.name ?? member?.name ?? byId,
+    byRole: staff?.staffRole ?? 'member',
+    action,
+    ...extra,
+  });
+}
+
+function describeWhen(iso: string): string {
+  return `${new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} at ${new Date(
+    iso
+  ).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+}
+
+/** Turns a request into a booked lesson. "Pay before" charges now; "pay after" leaves the balance due. */
+function confirmSessionRequest(state: DemoState, req: SessionRequest): PrivateLesson {
+  const priceCents = lessonPriceCents(state.lessonPricing, req.lessonType, req.durationMin);
+  const membership = state.memberships.find((m) => m.memberId === req.memberId);
+  const payNow = req.paymentTiming === 'before';
+  const lesson: PrivateLesson = {
+    id: `lesson-req-${req.id}`,
+    memberId: req.memberId,
+    staffId: req.staffId,
+    slotId: `req-${req.id}`,
+    start: req.start,
+    end: req.end,
+    location: req.location,
+    status: 'booked',
+    lessonType: req.lessonType,
+    durationMin: req.durationMin,
+    paidAmountCents: payNow ? priceCents : 0,
+    paymentLast4: payNow && priceCents > 0 ? membership?.paymentLast4 : undefined,
+    paymentTiming: req.paymentTiming,
+    paymentStatus: payNow ? 'paid' : 'due',
+    swimmerName: req.swimmerName,
+    stageCode: req.stageCode,
+    participantMemberId: req.participantMemberId,
+    notes: req.notes,
+    requestId: req.id,
+  };
+  const old = req.replacesLessonId
+    ? state.privateLessons.find((l) => l.id === req.replacesLessonId && l.status === 'booked')
+    : undefined;
+  if (old) {
+    old.status = 'cancelled';
+    lesson.paidAmountCents = old.paidAmountCents;
+    lesson.paymentLast4 = old.paymentLast4;
+    lesson.paymentTiming = old.paymentTiming ?? lesson.paymentTiming;
+    lesson.paymentStatus = old.paymentStatus ?? (old.paidAmountCents ? 'paid' : lesson.paymentStatus);
+  }
+  state.privateLessons = state.privateLessons.filter((l) => l.id !== lesson.id);
+  state.privateLessons.push(lesson);
+  req.status = 'accepted';
+  req.lessonId = lesson.id;
+  return lesson;
 }
 
 function toggleReactionMap(
@@ -305,7 +577,8 @@ export class MockProtivityAdapter implements ProtivityPort {
 
   async getMembership(memberId: string): Promise<Membership> {
     const state = await loadStore();
-    const membership = state.memberships.find((m) => m.memberId === memberId);
+    const billingId = householdPrimaryId(state, memberId);
+    const membership = state.memberships.find((m) => m.memberId === billingId);
     if (!membership) {
       throw new Error(`Membership not found: ${memberId}`);
     }
@@ -388,6 +661,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     payment: { brand: string; last4: string }
   ): Promise<Membership> {
     const state = await loadStore();
+    assertPrimary(state, memberId, 'update the payment method');
     const idx = state.memberships.findIndex((m) => m.memberId === memberId);
     if (idx === -1) {
       throw new Error(`Membership not found: ${memberId}`);
@@ -410,6 +684,7 @@ export class MockProtivityAdapter implements ProtivityPort {
   ): Promise<Membership> {
     const state = await loadStore();
     assertStaffCapability(state, requesterUserId, 'changePlans', 'change membership plans');
+    assertPrimary(state, memberId, 'change the membership plan');
     const membershipIdx = state.memberships.findIndex((m) => m.memberId === memberId);
     if (membershipIdx === -1) {
       throw new Error(`Membership not found: ${memberId}`);
@@ -417,6 +692,18 @@ export class MockProtivityAdapter implements ProtivityPort {
     const memberIdx = state.members.findIndex((m) => m.id === memberId);
     if (memberIdx === -1) {
       throw new Error(`Member not found: ${memberId}`);
+    }
+    {
+      const people = householdMembersOf(state, memberId);
+      // Unknown / custom plan names set by staff are allowed; known plans must fit the household.
+      if (people.length > 1 && findPlan(planName)) {
+        const check = validateHousehold(
+          planName,
+          people.map((p) => ({ birthDate: p.birthDate ?? '1980-01-01' })),
+          getDemoToday()
+        );
+        if (!check.ok) throw new Error(check.reason);
+      }
     }
 
     const updatedMembership: Membership = {
@@ -429,6 +716,7 @@ export class MockProtivityAdapter implements ProtivityPort {
       ...state.members[memberIdx],
       type: planName,
     };
+    for (const dep of householdMembersOf(state, memberId)) dep.type = planName;
 
     await saveStore(state);
     return updatedMembership;
@@ -439,6 +727,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     input: { reason: string; requestedAt: string }
   ): Promise<CancelRequest> {
     const state = await loadStore();
+    assertPrimary(state, memberId, 'cancel the membership');
     const memberIdx = state.members.findIndex((m) => m.id === memberId);
     if (memberIdx === -1) {
       throw new Error(`Member not found: ${memberId}`);
@@ -472,6 +761,7 @@ export class MockProtivityAdapter implements ProtivityPort {
 
     state.cancelRequests.push(cancelRequest);
     state.members[memberIdx] = { ...member, status: 'cancel_pending' };
+    setHouseholdStatus(state, memberId, 'cancel_pending');
     state.memberships[membershipIdx] = {
       ...membership,
       lastBillDate: dates.lastBillDate,
@@ -743,6 +1033,7 @@ export class MockProtivityAdapter implements ProtivityPort {
           ? options?.carryOverPaymentLast4 ?? membership?.paymentLast4
           : undefined,
       swimmerName: options?.swimmerName?.trim() || undefined,
+      participantMemberId: participantIdFor(state, memberId, options?.swimmerName),
       stageCode: options?.stageCode,
       notes: options?.notes?.trim() || undefined,
     };
@@ -753,6 +1044,218 @@ export class MockProtivityAdapter implements ProtivityPort {
     }
     await saveStore(state);
     return lesson;
+  }
+
+  async listBookableTimes(
+    memberId: string,
+    q: { lessonType: LessonType; durationMin: 30 | 60; from: string; to: string; staffId?: string }
+  ): Promise<BookableTime[]> {
+    const state = await loadStore();
+    const staff = state.staff.filter(
+      (s) =>
+        offersLessonType(s, q.lessonType) &&
+        (q.staffId === undefined || s.id === q.staffId) &&
+        sessionLengthsFor(s).includes(q.durationMin)
+    );
+    const ids = new Set(staff.map((s) => s.id));
+    const windows = state.lessonSlots.filter((w) => {
+      const day = scheduleCalendarDay(w.start);
+      return ids.has(w.staffId) && day >= q.from && day <= q.to;
+    });
+    const busyByStaff: Record<string, Interval[]> = {};
+    for (const s of staff) busyByStaff[s.id] = staffBusy(state, s.id);
+    const times = availableAt(windows, busyByStaff, memberBusy(state, memberId), q.durationMin, {
+      after: demoNowIso(),
+      instantStaffIds: new Set(staff.filter((s) => canInstantBook(s, memberId)).map((s) => s.id)),
+    });
+    return times;
+  }
+
+  async createSessionRequest(memberId: string, input: CreateSessionRequestInput): Promise<SessionRequest> {
+    const state = await loadStore();
+    state.sessionRequests = state.sessionRequests ?? [];
+    const staff = state.staff.find((s) => s.id === input.staffId);
+    const member = state.members.find((m) => m.id === memberId);
+    if (!staff || !offersLessonType(staff, input.lessonType)) {
+      throw new Error('That instructor does not offer this lesson type.');
+    }
+    if (!sessionLengthsFor(staff).includes(input.durationMin)) {
+      throw new Error(`${staff.name} does not offer ${input.durationMin} minute sessions.`);
+    }
+    const iv: Interval = { start: new Date(input.start).toISOString(), end: addMinutesIso(input.start, input.durationMin) };
+    if (!isInsideWindow(state, staff.id, iv)) {
+      throw new Error('That time is outside the instructor\u2019s availability.');
+    }
+    const req: SessionRequest = {
+      id: `sreq-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      memberId,
+      memberName: member?.name,
+      staffId: staff.id,
+      staffName: staff.name,
+      lessonType: input.lessonType,
+      durationMin: input.durationMin,
+      start: iv.start,
+      end: iv.end,
+      location:
+        state.lessonSlots.find(
+          (w) => w.staffId === staff.id && new Date(w.start).getTime() <= new Date(iv.start).getTime() && new Date(w.end).getTime() >= new Date(iv.end).getTime()
+        )?.location ?? 'Facility',
+      paymentTiming: input.paymentTiming,
+      status: 'pending',
+      swimmerName: input.swimmerName?.trim() || undefined,
+      stageCode: input.stageCode,
+      participantMemberId: input.participantMemberId,
+      notes: input.notes?.trim() || undefined,
+      replacesLessonId: input.replacesLessonId,
+      createdAt: new Date().toISOString(),
+      history: [],
+    };
+    assertTimeFree(state, req, iv);
+    pushRequestEvent(state, req, memberId, 'requested', { start: req.start, end: req.end });
+    if (canInstantBook(staff, memberId)) {
+      confirmSessionRequest(state, req);
+      pushRequestEvent(state, req, staff.id, 'auto_accepted', { start: req.start, end: req.end });
+      notifyUser(
+        state,
+        staff.id,
+        'Session booked',
+        `${req.memberName ?? 'A member'} booked ${describeWhen(req.start)} (instant booking).`,
+        '/(staff)/(tabs)/today'
+      );
+    } else {
+      notifyUser(
+        state,
+        staff.id,
+        'New session request',
+        `${req.memberName ?? 'A member'} requested ${req.durationMin} min on ${describeWhen(req.start)}.`,
+        '/(staff)/(tabs)/today'
+      );
+    }
+    state.sessionRequests.unshift(req);
+    await saveStore(state);
+    return req;
+  }
+
+  async respondToSessionRequest(
+    requestId: string,
+    staffId: string,
+    response: SessionRequestResponse
+  ): Promise<SessionRequest> {
+    const state = await loadStore();
+    const req = (state.sessionRequests ?? []).find((r) => r.id === requestId);
+    if (!req) throw new Error('Request not found');
+    if (req.staffId !== staffId) throw new Error('Only the requested instructor can respond.');
+    if (!canTransition(req.status, response.action, 'staff')) {
+      throw new Error('This request has already been answered.');
+    }
+    const link = '/(member)/(tabs)/schedules';
+    if (response.action === 'accept') {
+      assertTimeFree(state, req, req);
+      confirmSessionRequest(state, req);
+      pushRequestEvent(state, req, staffId, 'accepted', { note: response.note });
+      notifyUser(state, req.memberId, 'Session confirmed', `${req.staffName ?? 'Your instructor'} accepted ${describeWhen(req.start)}.`, link);
+    } else if (response.action === 'decline') {
+      req.status = 'declined';
+      pushRequestEvent(state, req, staffId, 'declined', { note: response.note });
+      notifyUser(state, req.memberId, 'Session declined', `${req.staffName ?? 'Your instructor'} could not do ${describeWhen(req.start)}.${response.note ? ` "${response.note}"` : ''}`, link);
+    } else {
+      if (!response.start) throw new Error('Pick a new time to offer.');
+      const duration = response.durationMin ?? req.durationMin;
+      const iv: Interval = { start: new Date(response.start).toISOString(), end: addMinutesIso(response.start, duration) };
+      assertTimeFree(state, req, iv);
+      req.start = iv.start;
+      req.end = iv.end;
+      req.durationMin = duration;
+      req.status = 'countered';
+      pushRequestEvent(state, req, staffId, 'countered', { start: iv.start, end: iv.end, note: response.note });
+      notifyUser(state, req.memberId, 'New time offered', `${req.staffName ?? 'Your instructor'} offered ${describeWhen(req.start)}. Open My Schedule to accept.`, link);
+    }
+    await saveStore(state);
+    return req;
+  }
+
+  async respondToCounterOffer(
+    requestId: string,
+    memberId: string,
+    decision: 'accept' | 'decline'
+  ): Promise<SessionRequest> {
+    const state = await loadStore();
+    const req = (state.sessionRequests ?? []).find((r) => r.id === requestId);
+    if (!req) throw new Error('Request not found');
+    if (req.memberId !== memberId) throw new Error('This request belongs to another member.');
+    const action = decision === 'accept' ? 'accept_counter' : 'decline_counter';
+    if (!canTransition(req.status, action, 'member')) throw new Error('There is no offer to answer.');
+    if (decision === 'accept') {
+      assertTimeFree(state, req, req);
+      confirmSessionRequest(state, req);
+      pushRequestEvent(state, req, memberId, 'counter_accepted', { start: req.start, end: req.end });
+      notifyUser(state, req.staffId, 'Offer accepted', `${req.memberName ?? 'A member'} accepted ${describeWhen(req.start)}.`, '/(staff)/(tabs)/today');
+    } else {
+      req.status = 'declined';
+      pushRequestEvent(state, req, memberId, 'counter_declined');
+      notifyUser(state, req.staffId, 'Offer declined', `${req.memberName ?? 'A member'} declined the new time.`, '/(staff)/(tabs)/today');
+    }
+    await saveStore(state);
+    return req;
+  }
+
+  async cancelSessionRequest(requestId: string, userId: string): Promise<SessionRequest> {
+    const state = await loadStore();
+    const req = (state.sessionRequests ?? []).find((r) => r.id === requestId);
+    if (!req) throw new Error('Request not found');
+    if (req.memberId !== userId && req.staffId !== userId) throw new Error('Not your request.');
+    if (!canTransition(req.status, 'cancel', 'member')) throw new Error('This request can no longer be cancelled.');
+    if (req.lessonId) {
+      const lesson = state.privateLessons.find((l) => l.id === req.lessonId);
+      if (lesson) lesson.status = 'cancelled';
+    }
+    req.status = 'cancelled';
+    pushRequestEvent(state, req, userId, 'cancelled');
+    const other = userId === req.memberId ? req.staffId : req.memberId;
+    notifyUser(state, other, 'Session cancelled', `The session on ${describeWhen(req.start)} was cancelled.`);
+    await saveStore(state);
+    return req;
+  }
+
+  async listSessionRequests(filter: SessionRequestFilter = {}): Promise<SessionRequest[]> {
+    const state = await loadStore();
+    const role = filter.viewerId ? requesterRole(state, filter.viewerId) : undefined;
+    return (state.sessionRequests ?? [])
+      .filter((r) => (filter.memberId ? r.memberId === filter.memberId : true))
+      .filter((r) => (filter.staffId ? r.staffId === filter.staffId : true))
+      .filter((r) => (filter.status ? filter.status.includes(r.status) : true))
+      .filter((r) =>
+        filter.viewerId ? canViewSessionRequest(role, filter.viewerId, r) : true
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async setInstantBooking(
+    staffId: string,
+    memberId: string,
+    enabled: boolean,
+    requesterUserId?: string
+  ): Promise<Staff> {
+    const state = await loadStore();
+    const idx = state.staff.findIndex((s) => s.id === staffId);
+    if (idx === -1) throw new Error(`Staff member not found: ${staffId}`);
+    const target = state.staff[idx];
+    if (requesterUserId !== undefined && requesterUserId !== staffId) {
+      const role = requesterRole(state, requesterUserId);
+      const types = target.lessonTypes ?? ['training'];
+      const allowed =
+        isAdminRole(role) ||
+        (role === 'wellness_director' && types.includes('training')) ||
+        (role === 'aquatics_director' && types.includes('swim'));
+      if (!allowed) throw new Error('Your staff role is not permitted to change instant booking.');
+    }
+    const current = new Set(target.instantBookMemberIds ?? []);
+    if (enabled) current.add(memberId);
+    else current.delete(memberId);
+    const updated: Staff = { ...target, instantBookMemberIds: Array.from(current) };
+    state.staff[idx] = updated;
+    await saveStore(state);
+    return updated;
   }
 
   async getLessonPricing(): Promise<LessonPricing> {
@@ -804,6 +1307,7 @@ export class MockProtivityAdapter implements ProtivityPort {
       memberId,
       classId,
       participantName: participantName?.trim() || member?.name || 'Member',
+      participantMemberId: participantIdFor(state, memberId, participantName),
       paidAmountCents,
       paymentLast4: paidAmountCents > 0 ? membership?.paymentLast4 : undefined,
       pricingTier: tier,
@@ -852,6 +1356,13 @@ export class MockProtivityAdapter implements ProtivityPort {
       status: 'cancelled',
     };
     state.privateLessons[idx] = updated;
+    const linked = updated.requestId
+      ? (state.sessionRequests ?? []).find((r) => r.id === updated.requestId)
+      : undefined;
+    if (linked && linked.status === 'accepted') {
+      linked.status = 'cancelled';
+      pushRequestEvent(state, linked, memberId, 'cancelled');
+    }
     await saveStore(state);
     return updated;
   }
@@ -880,6 +1391,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     effectiveDate: string
   ): Promise<Membership> {
     const state = await loadStore();
+    assertPrimary(state, memberId, 'schedule a plan change');
     const idx = state.memberships.findIndex((m) => m.memberId === memberId);
     if (idx === -1) {
       throw new Error(`Membership not found: ${memberId}`);
@@ -914,6 +1426,7 @@ export class MockProtivityAdapter implements ProtivityPort {
 
   async cancelScheduledChange(memberId: string): Promise<Membership> {
     const state = await loadStore();
+    assertPrimary(state, memberId, 'cancel a scheduled plan change');
     const idx = state.memberships.findIndex((m) => m.memberId === memberId);
     if (idx === -1) {
       throw new Error(`Membership not found: ${memberId}`);
@@ -950,12 +1463,31 @@ export class MockProtivityAdapter implements ProtivityPort {
     donationCents?: number;
     password?: string;
     waiveEnrollmentFee?: boolean;
+    campaignId?: string;
+    birthDate?: string;
+    householdMembers?: HouseholdMemberInput[];
   }): Promise<{ member: Member; membership: Membership }> {
     const state = await loadStore();
     const plan =
       YMCA_MEMBERSHIP_PLANS.find((p) => p.id === input.planId) ??
       YMCA_MEMBERSHIP_PLANS.find((p) => p.name.toLowerCase() === input.planId.toLowerCase()) ??
       YMCA_MEMBERSHIP_PLANS[0];
+    const campaign = resolveCampaign(state, plan.id, input.campaignId);
+
+    const todayStr = getDemoToday();
+    if (input.birthDate) {
+      const solo = canHoldSoloMembership(input.birthDate, plan.id, todayStr);
+      if (!solo.ok) throw new Error(solo.reason);
+    }
+    const extras = input.householdMembers ?? [];
+    if (extras.length > 0) {
+      const check = validateHousehold(
+        plan.id,
+        [{ birthDate: input.birthDate ?? '1980-01-01' }, ...extras.map((e) => ({ birthDate: e.birthDate }))],
+        todayStr
+      );
+      if (!check.ok) throw new Error(check.reason);
+    }
 
     const trimmedEmail = input.email.trim().toLowerCase();
     const existingMemberIdx = state.members.findIndex(
@@ -965,7 +1497,10 @@ export class MockProtivityAdapter implements ProtivityPort {
       existingMemberIdx !== -1 ? state.members[existingMemberIdx].type : undefined;
     const waiveEnrollment =
       input.waiveEnrollmentFee === true || priorMemberType === '1-Day Guest Pass';
-    const enrollmentChargedCents = waiveEnrollment ? 0 : plan.enrollmentFeeCents;
+    const enrollmentChargedCents = effectiveEnrollmentFeeCents(plan, {
+      waiveEnrollmentFee: waiveEnrollment,
+      campaign,
+    });
 
     let member: Member;
     let membership: Membership;
@@ -1001,6 +1536,9 @@ export class MockProtivityAdapter implements ProtivityPort {
         pendingChange: undefined,
         cancelEffectiveDate: undefined,
         lastBillDate: undefined,
+        billingStatus: 'current',
+        billingIssue: undefined,
+        campaignId: campaign?.id,
       };
       if (memIdx !== -1) {
         state.memberships[memIdx] = membership;
@@ -1031,6 +1569,7 @@ export class MockProtivityAdapter implements ProtivityPort {
         paymentLast4: input.payment.last4,
         status: 'active',
         joinedDate: getDemoToday(),
+        campaignId: campaign?.id,
       };
       state.members.push(member);
       state.memberships.push(membership);
@@ -1042,6 +1581,19 @@ export class MockProtivityAdapter implements ProtivityPort {
         role: 'member',
       });
     }
+
+    if (input.birthDate) member.birthDate = input.birthDate;
+    if (isFamilyPlan(plan)) {
+      member.householdId = member.id;
+      member.householdRole = 'primary';
+      member.hasLogin = true;
+      // Keep any household members from a prior membership on the new plan.
+      for (const dep of householdMembersOf(state, member.id)) {
+        dep.type = plan.name;
+        dep.status = 'active';
+      }
+    }
+    for (const extra of extras) buildHouseholdMember(state, member, extra);
 
     if (input.donationCents && input.donationCents > 0) {
       state.donations.unshift({
@@ -1068,7 +1620,9 @@ export class MockProtivityAdapter implements ProtivityPort {
         enrollmentChargedCents > 0
           ? ` A one-time enrollment fee of $${(enrollmentChargedCents / 100).toFixed(2)} was included in your first charge.`
           : plan.enrollmentFeeCents > 0
-            ? ' Your one-time enrollment fee was waived (guest pass benefit).'
+            ? campaign
+              ? ` Your one-time enrollment fee was waived (${campaign.name}).`
+              : ' Your one-time enrollment fee was waived (guest pass benefit).'
             : ''
       } Use your digital scan barcode at the welcome desk to access the facilities, heated pools, and fitness center.`,
       type: 'membership',
@@ -1099,6 +1653,7 @@ export class MockProtivityAdapter implements ProtivityPort {
       status: 'active',
     };
     state.members[memberIdx] = updatedMember;
+    setHouseholdStatus(state, memberId, 'active');
 
     // Reset membership cancel dates
     const memIdx = state.memberships.findIndex((m) => m.memberId === memberId);
@@ -1124,6 +1679,135 @@ export class MockProtivityAdapter implements ProtivityPort {
 
     await saveStore(state);
     return updatedMember;
+  }
+
+  async getHousehold(memberId: string): Promise<HouseholdView> {
+    const state = await loadStore();
+    const primaryId = householdPrimaryId(state, memberId);
+    const primary = state.members.find((m) => m.id === primaryId);
+    if (!primary) throw new Error(`Member not found: ${memberId}`);
+    const membership = state.memberships.find((m) => m.memberId === primaryId);
+    if (!membership) throw new Error(`Membership not found: ${memberId}`);
+    return { primary, members: householdMembersOf(state, primaryId), membership };
+  }
+
+  async addHouseholdMember(primaryId: string, input: HouseholdMemberInput): Promise<Member> {
+    const state = await loadStore();
+    assertPrimary(state, primaryId, 'add family members');
+    const primary = state.members.find((m) => m.id === primaryId);
+    if (!primary) throw new Error(`Member not found: ${primaryId}`);
+    const plan = findPlan(primary.type);
+    if (!plan || !isFamilyPlan(plan)) {
+      throw new Error(`${primary.type} covers one person. Change to a Family plan to add others.`);
+    }
+    const today = getDemoToday();
+    const existing = householdMembersOf(state, primaryId);
+    const check = validateHousehold(
+      plan.id,
+      [
+        ...existing.map((m) => ({ birthDate: m.birthDate ?? '1980-01-01' })),
+        { birthDate: input.birthDate },
+      ],
+      today
+    );
+    if (!check.ok) throw new Error(check.reason);
+    if (!primary.householdId) {
+      primary.householdId = primary.id;
+      primary.householdRole = 'primary';
+    }
+    const created = buildHouseholdMember(state, primary, input);
+    await saveStore(state);
+    return created;
+  }
+
+  async updateHouseholdMember(
+    primaryId: string,
+    memberId: string,
+    updates: Partial<Pick<HouseholdMemberInput, 'name' | 'birthDate' | 'allergies' | 'notes'>>
+  ): Promise<Member> {
+    const state = await loadStore();
+    assertPrimary(state, primaryId, 'edit family members');
+    const target = state.members.find((m) => m.id === memberId && m.householdId === primaryId);
+    if (!target) throw new Error('That person is not on your plan.');
+    if (updates.name !== undefined && !updates.name.trim()) throw new Error('Enter a name.');
+    if (updates.birthDate !== undefined) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(updates.birthDate) || Number.isNaN(Date.parse(updates.birthDate))) {
+        throw new Error('Enter a valid birth date (YYYY-MM-DD).');
+      }
+      const plan = findPlan(target.type);
+      const people = householdMembersOf(state, primaryId).map((m) => ({
+        birthDate: m.id === memberId ? updates.birthDate! : m.birthDate ?? '1980-01-01',
+      }));
+      const check = plan ? validateHousehold(plan.id, people, getDemoToday()) : ({ ok: true } as const);
+      if (!check.ok) throw new Error(check.reason);
+    }
+    if (updates.name !== undefined) target.name = updates.name.trim();
+    if (updates.birthDate !== undefined) {
+      target.birthDate = updates.birthDate;
+      if (ageOn(updates.birthDate, getDemoToday()) < 13) target.householdRole = 'dependent';
+      // Age changes can invalidate a gym orientation (only meaningful for 13-17).
+    }
+    if (updates.allergies !== undefined) target.allergies = updates.allergies.trim() || undefined;
+    if (updates.notes !== undefined) target.notes = updates.notes.trim() || undefined;
+    await saveStore(state);
+    return target;
+  }
+
+  async removeHouseholdMember(primaryId: string, memberId: string): Promise<void> {
+    const state = await loadStore();
+    assertPrimary(state, primaryId, 'remove family members');
+    if (memberId === primaryId) throw new Error('The primary member cannot be removed from the plan.');
+    const target = state.members.find((m) => m.id === memberId && m.householdId === primaryId);
+    if (!target) throw new Error('That person is not on your plan.');
+    if (state.childWatchVisits.some((v) => v.childId === memberId && !v.signedOutAt)) {
+      throw new Error('Sign this child out of Child Watch before removing them.');
+    }
+    state.members = state.members.filter((m) => m.id !== memberId);
+    state.credentials = state.credentials.filter((c) => c.userId !== memberId);
+    state.assignments = state.assignments.filter((a) => a.memberId !== memberId);
+    await saveStore(state);
+  }
+
+  async recordGymOrientation(memberId: string, staffId: string): Promise<Member> {
+    const state = await loadStore();
+    const role = requesterRole(state, staffId);
+    const allowed = isAdminRole(role) || role === 'trainer' || role === 'wellness_director';
+    if (!allowed) throw new Error('Only trainers and admins can complete a gym orientation.');
+    const target = state.members.find((m) => m.id === memberId);
+    if (!target) throw new Error(`Member not found: ${memberId}`);
+    if (!target.birthDate) throw new Error('Add a birth date before recording an orientation.');
+    const age = ageOn(target.birthDate, getDemoToday());
+    if (age < 13 || age >= 18) throw new Error('Gym orientation is for members ages 13 to 17.');
+    const staff = state.staff.find((s) => s.id === staffId);
+    target.gymOrientation = {
+      completedAt: demoNowIso(),
+      staffId,
+      staffName: staff?.name ?? 'Staff',
+    };
+    state.notifications.unshift({
+      id: `notif-orientation-${memberId}-${Date.now()}`,
+      userId: target.id,
+      title: 'Gym orientation complete',
+      body: `${target.name.split(' ')[0]} can now use the fitness center. Scan your barcode at the desk.`,
+      type: 'membership',
+      createdAt: new Date().toISOString(),
+      read: false,
+      link: '/(member)/home',
+    });
+    if (target.householdId && target.householdId !== target.id) {
+      state.notifications.unshift({
+        id: `notif-orientation-p-${memberId}-${Date.now()}`,
+        userId: target.householdId,
+        title: `${target.name} finished gym orientation`,
+        body: `${target.name} can now use the fitness center with their own card.`,
+        type: 'membership',
+        createdAt: new Date().toISOString(),
+        read: false,
+        link: '/(member)/family',
+      });
+    }
+    await saveStore(state);
+    return target;
   }
 
   async listAnnouncements(branchId?: string): Promise<Announcement[]> {
@@ -1393,6 +2077,11 @@ export class MockProtivityAdapter implements ProtivityPort {
       if (updates.status) {
         state.members[memIdx].status = updates.status;
       }
+      for (const dep of householdMembersOf(state, memberId)) {
+        if (dep.id === memberId) continue;
+        if (updates.rateName) dep.type = updates.rateName;
+        if (updates.status) dep.status = updates.status;
+      }
     }
 
     await saveStore(state);
@@ -1424,7 +2113,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     const state = await loadStore();
     const newItem: ScheduleItem = {
       ...item,
-      id: `sched-${Date.now()}`,
+      id: `sched-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     };
     state.schedules.push(newItem);
     await saveStore(state);
@@ -1708,6 +2397,21 @@ export class MockProtivityAdapter implements ProtivityPort {
     lesson.status = status;
     if (status === 'completed') {
       lesson.completedAt = new Date().toISOString();
+      if (lesson.paymentStatus === 'due') {
+        const price = lessonPriceCents(state.lessonPricing, lesson.lessonType ?? 'training', (lesson.durationMin as 30 | 60) ?? 60);
+        const ms = state.memberships.find((m) => m.memberId === lesson.memberId);
+        lesson.paidAmountCents = price;
+        lesson.paymentLast4 = price > 0 ? ms?.paymentLast4 : undefined;
+        lesson.paymentStatus = 'paid';
+        notifyUser(
+          state,
+          lesson.memberId,
+          'Receipt',
+          price > 0
+            ? `$${(price / 100).toFixed(2)} was charged to your card ending ${ms?.paymentLast4 ?? '----'} for your session.`
+            : 'Your session was completed at no charge.'
+        );
+      }
     }
     if (notes !== undefined) {
       lesson.notes = notes;
@@ -1923,6 +2627,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     planId: string;
     password?: string;
     homeBranchId?: string;
+    campaignId?: string;
   }): Promise<{ member: Member; membership: Membership }> {
     const state = await loadStore();
     const existing = state.credentials.find(
@@ -1965,6 +2670,8 @@ export class MockProtivityAdapter implements ProtivityPort {
       paymentLast4: '4242',
       status: 'active',
       joinedDate: nowIso.slice(0, 10),
+      billingStatus: 'current',
+      campaignId: resolveCampaign(state, plan.id, input.campaignId)?.id,
     };
 
     state.members.push(newMember);
@@ -3270,6 +3977,338 @@ export class MockProtivityAdapter implements ProtivityPort {
   async getMemberSurveyResponses(memberId: string): Promise<SurveyResponse[]> {
     const state = await loadStore();
     return (state.surveyResponses ?? []).filter((r) => r.memberId === memberId);
+  }
+
+  // ==========================================
+  // Arrivals (trainer alerts)
+  // ==========================================
+  async recordArrival(
+    memberId: string,
+    options?: { source?: ArrivalSource; staffId?: string; date?: string }
+  ): Promise<ArrivalResult> {
+    const state = await loadStore();
+    assertStaffCapability(state, options?.staffId, 'checkIn', 'check members in');
+    const member = state.members.find((m) => m.id === memberId);
+    if (!member) throw new Error(`Member not found: ${memberId}`);
+
+    const date = options?.date ?? getDemoToday();
+    const arrivals = state.arrivals ?? (state.arrivals = []);
+    let arrival = arrivals.find((a) => a.memberId === memberId && a.date === date);
+    const isNew = !arrival;
+    if (!arrival) {
+      arrival = {
+        id: `arr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        memberId,
+        date,
+        at: demoNowIso(),
+        source: options?.source ?? 'desk',
+        checkedInByStaffId: options?.staffId,
+        notifiedStaffIds: [],
+      };
+      arrivals.push(arrival);
+    }
+
+    // Recipients: assigned trainer plus anyone with a booked lesson with this member today.
+    const lessons = state.privateLessons
+      .filter((l) => l.memberId === memberId && l.status === 'booked' && scheduleCalendarDay(l.start) === date)
+      .sort((a, b) => a.start.localeCompare(b.start));
+    const recipientIds = new Set<string>();
+    const assigned = state.assignments.find((a) => a.memberId === memberId);
+    if (assigned) recipientIds.add(assigned.staffId);
+    for (const l of lessons) recipientIds.add(l.staffId);
+
+    const notifiedStaff: Staff[] = [];
+    for (const staffId of recipientIds) {
+      if (arrival.notifiedStaffIds.includes(staffId)) continue;
+      const staff = state.staff.find((s) => s.id === staffId);
+      if (!staff) continue;
+      const prefs = state.notificationPreferences?.[staffId];
+      if (prefs && prefs.clientArrivals === false) continue;
+      const lesson = lessons.find((l) => l.staffId === staffId);
+      state.notifications.unshift({
+        id: `notif-arrival-${Date.now()}-${staffId}-${memberId}`,
+        userId: staffId,
+        title: `${member.name} has arrived`,
+        body: lesson
+          ? `Your ${formatClock(lesson.start)} session with ${member.name.split(' ')[0]} is today. They just checked in.`
+          : `${member.name} just checked in at the front desk.`,
+        type: 'client_arrival',
+        createdAt: demoNowIso(),
+        read: false,
+        relatedId: memberId,
+        link: `/(staff)/members/${memberId}`,
+      });
+      arrival.notifiedStaffIds.push(staffId);
+      notifiedStaff.push(staff);
+    }
+
+    await saveStore(state);
+    return { arrival: { ...arrival }, isNew, notifiedStaff };
+  }
+
+  async listArrivals(branchId: string, date: string): Promise<ArrivalRecord[]> {
+    const state = await loadStore();
+    const inBranch = new Set(state.members.filter((m) => m.homeBranchId === branchId).map((m) => m.id));
+    return (state.arrivals ?? [])
+      .filter((a) => a.date === date && inBranch.has(a.memberId))
+      .sort((a, b) => b.at.localeCompare(a.at));
+  }
+
+  // ==========================================
+  // Billing issues
+  // ==========================================
+  async listBillingIssues(branchId: string, requesterUserId?: string): Promise<BillingIssueRow[]> {
+    const state = await loadStore();
+    assertStaffCapability(state, requesterUserId, 'handleBillingIssues', 'view billing issues');
+    const rows: BillingIssueRow[] = [];
+    for (const membership of state.memberships) {
+      if (membership.billingStatus !== 'declined' && membership.billingStatus !== 'past_due') continue;
+      const member = state.members.find((m) => m.id === membership.memberId);
+      if (!member || member.homeBranchId !== branchId) continue;
+      rows.push({ member, membership });
+    }
+    return rows.sort((a, b) =>
+      (a.membership.billingIssue?.failedAt ?? '').localeCompare(b.membership.billingIssue?.failedAt ?? '')
+    );
+  }
+
+  async resolveBillingIssue(
+    memberId: string,
+    payment: { brand: string; last4: string },
+    requesterUserId: string
+  ): Promise<Membership> {
+    const state = await loadStore();
+    assertStaffCapability(state, requesterUserId, 'handleBillingIssues', 'resolve billing issues');
+    const idx = state.memberships.findIndex((m) => m.memberId === memberId);
+    if (idx === -1) throw new Error(`Membership not found: ${memberId}`);
+    const updated: Membership = {
+      ...state.memberships[idx],
+      paymentBrand: payment.brand,
+      paymentLast4: payment.last4,
+      billingStatus: 'current',
+      billingIssue: undefined,
+    };
+    state.memberships[idx] = updated;
+
+    const staff = state.staff.find((s) => s.id === requesterUserId);
+    (state.memberContacts ?? (state.memberContacts = [])).unshift({
+      id: `contact-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      memberId,
+      staffId: requesterUserId,
+      staffName: staff?.name ?? 'Staff',
+      channel: 'in_person',
+      purpose: 'billing',
+      outcome: 'card_updated',
+      notes: `Payment method updated to ${payment.brand} ending ${payment.last4}.`,
+      createdAt: demoNowIso(),
+    });
+    state.notifications.unshift({
+      id: `notif-billing-${Date.now()}`,
+      userId: memberId,
+      title: 'Payment method updated',
+      body: `Your ${payment.brand} ending ${payment.last4} is now on file. Thanks for taking care of your membership.`,
+      type: 'billing',
+      createdAt: demoNowIso(),
+      read: false,
+      link: '/(member)/manage-membership',
+    });
+    await saveStore(state);
+    return updated;
+  }
+
+  // ==========================================
+  // Member contact log
+  // ==========================================
+  async listMemberContacts(filter?: { memberId?: string; leadId?: string; staffId?: string }): Promise<MemberContact[]> {
+    const state = await loadStore();
+    return (state.memberContacts ?? [])
+      .filter(
+        (c) =>
+          (!filter?.memberId || c.memberId === filter.memberId) &&
+          (!filter?.leadId || c.leadId === filter.leadId) &&
+          (!filter?.staffId || c.staffId === filter.staffId)
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async logMemberContact(
+    input: Omit<MemberContact, 'id' | 'createdAt' | 'staffId' | 'staffName'>,
+    requesterUserId: string
+  ): Promise<MemberContact> {
+    const state = await loadStore();
+    assertStaffCapability(state, requesterUserId, 'logMemberContacts', 'log member contacts');
+    if (!input.memberId && !input.leadId) throw new Error('A contact must reference a member or a lead.');
+    const staff = state.staff.find((s) => s.id === requesterUserId);
+    const contact: MemberContact = {
+      ...input,
+      notes: input.notes.trim(),
+      id: `contact-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      staffId: requesterUserId,
+      staffName: staff?.name ?? 'Staff',
+      createdAt: demoNowIso(),
+    };
+    (state.memberContacts ?? (state.memberContacts = [])).unshift(contact);
+    if (input.leadId) {
+      const li = (state.leads ?? []).findIndex((l) => l.id === input.leadId);
+      if (li !== -1) {
+        const lead = state.leads[li];
+        state.leads[li] = {
+          ...lead,
+          status: lead.status === 'new' ? 'contacted' : lead.status,
+          nextFollowUpDate: input.followUpDate ?? lead.nextFollowUpDate,
+          updatedAt: contact.createdAt,
+        };
+      }
+    }
+    await saveStore(state);
+    return contact;
+  }
+
+  // ==========================================
+  // Leads / sales pipeline
+  // ==========================================
+  async listLeads(requesterUserId?: string): Promise<Lead[]> {
+    const state = await loadStore();
+    assertStaffCapability(state, requesterUserId, 'manageLeads', 'view leads');
+    return [...(state.leads ?? [])].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async createLead(
+    input: Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'status'> & { status?: Lead['status'] },
+    requesterUserId: string
+  ): Promise<Lead> {
+    const state = await loadStore();
+    assertStaffCapability(state, requesterUserId, 'manageLeads', 'manage leads');
+    if (!input.name.trim()) throw new Error('Lead name is required.');
+    const now = demoNowIso();
+    const lead: Lead = {
+      ...input,
+      name: input.name.trim(),
+      status: input.status ?? 'new',
+      assignedStaffId: input.assignedStaffId ?? requesterUserId,
+      campaignId:
+        input.campaignId ?? (input.interestPlanId ? resolveCampaign(state, input.interestPlanId)?.id : undefined),
+      id: `lead-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: now,
+      updatedAt: now,
+    };
+    (state.leads ?? (state.leads = [])).unshift(lead);
+    await saveStore(state);
+    return lead;
+  }
+
+  async updateLead(id: string, updates: Partial<Lead>, requesterUserId: string): Promise<Lead> {
+    const state = await loadStore();
+    assertStaffCapability(state, requesterUserId, 'manageLeads', 'manage leads');
+    const idx = (state.leads ?? []).findIndex((l) => l.id === id);
+    if (idx === -1) throw new Error(`Lead not found: ${id}`);
+    const next: Lead = { ...state.leads[idx], ...updates, id, updatedAt: demoNowIso() };
+    state.leads[idx] = next;
+    await saveStore(state);
+    return next;
+  }
+
+  async convertLeadToMember(
+    leadId: string,
+    input: { planId: string; payment: { brand: string; last4: string }; password?: string },
+    requesterUserId: string
+  ): Promise<{ member: Member; membership: Membership; enrollmentFeeCents: number; campaign: EnrollmentCampaign | null }> {
+    const pre = await loadStore();
+    assertStaffCapability(pre, requesterUserId, 'manageLeads', 'convert leads');
+    assertStaffCapability(pre, requesterUserId, 'sellMemberships', 'sell memberships');
+    const lead = (pre.leads ?? []).find((l) => l.id === leadId);
+    if (!lead) throw new Error(`Lead not found: ${leadId}`);
+    if (lead.status === 'won') throw new Error('This lead has already been converted.');
+    if (!lead.email.trim()) throw new Error('Add an email address to this lead before converting it to a member.');
+    const plan =
+      YMCA_MEMBERSHIP_PLANS.find((p) => p.id === input.planId) ?? YMCA_MEMBERSHIP_PLANS[0];
+    const campaign = resolveCampaign(pre, plan.id, lead.campaignId);
+    const enrollmentFeeCents = effectiveEnrollmentFeeCents(plan, { campaign });
+
+    const result = await this.buyMembership({
+      name: lead.name,
+      email: lead.email,
+      phone: lead.phone,
+      address: '',
+      planId: plan.id,
+      payment: input.payment,
+      password: input.password,
+      campaignId: campaign?.id,
+    });
+
+    const state = await loadStore();
+    const staff = state.staff.find((s) => s.id === requesterUserId);
+    const now = demoNowIso();
+    const li = state.leads.findIndex((l) => l.id === leadId);
+    state.leads[li] = {
+      ...state.leads[li],
+      status: 'won',
+      convertedMemberId: result.member.id,
+      campaignId: campaign?.id ?? state.leads[li].campaignId,
+      nextFollowUpDate: undefined,
+      updatedAt: now,
+    };
+    (state.memberContacts ?? (state.memberContacts = [])).unshift({
+      id: `contact-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      memberId: result.member.id,
+      leadId,
+      staffId: requesterUserId,
+      staffName: staff?.name ?? 'Staff',
+      channel: 'in_person',
+      purpose: 'sales',
+      outcome: 'sold',
+      notes: `Sold ${plan.name}. Enrollment fee $${(enrollmentFeeCents / 100).toFixed(2)}${
+        campaign ? ` (${campaign.name})` : ''
+      }.`,
+      createdAt: now,
+    });
+    await saveStore(state);
+    return { ...result, enrollmentFeeCents, campaign };
+  }
+
+  // ==========================================
+  // Enrollment campaigns
+  // ==========================================
+  async listCampaigns(): Promise<EnrollmentCampaign[]> {
+    const state = await loadStore();
+    return [...(state.enrollmentCampaigns ?? [])].sort((a, b) => b.startDate.localeCompare(a.startDate));
+  }
+
+  async getActiveCampaign(date: string, planId?: string): Promise<EnrollmentCampaign | null> {
+    const state = await loadStore();
+    return activeCampaignFor(date, planId, state.enrollmentCampaigns ?? []);
+  }
+
+  async saveCampaign(
+    input: Omit<EnrollmentCampaign, 'id' | 'createdByStaffId'> & { id?: string },
+    requesterUserId: string
+  ): Promise<EnrollmentCampaign> {
+    const state = await loadStore();
+    assertStaffCapability(state, requesterUserId, 'manageCampaigns', 'manage enrollment campaigns');
+    if (!input.name.trim()) throw new Error('Campaign name is required.');
+    if (input.endDate < input.startDate) throw new Error('End date must be on or after the start date.');
+    const list = state.enrollmentCampaigns ?? (state.enrollmentCampaigns = []);
+    const idx = input.id ? list.findIndex((c) => c.id === input.id) : -1;
+    if (idx !== -1) {
+      list[idx] = { ...list[idx], ...input, id: list[idx].id };
+      await saveStore(state);
+      return list[idx];
+    }
+    const created: EnrollmentCampaign = {
+      ...input,
+      id: `camp-${Date.now()}`,
+      createdByStaffId: requesterUserId,
+    };
+    list.unshift(created);
+    await saveStore(state);
+    return created;
+  }
+
+  async deleteCampaign(id: string, requesterUserId: string): Promise<void> {
+    const state = await loadStore();
+    assertStaffCapability(state, requesterUserId, 'manageCampaigns', 'manage enrollment campaigns');
+    state.enrollmentCampaigns = (state.enrollmentCampaigns ?? []).filter((c) => c.id !== id);
+    await saveStore(state);
   }
 }
 

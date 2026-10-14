@@ -2,8 +2,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { TextField } from '@/components/TextField';
 import { UserAvatar } from '@/components/UserAvatar';
+import { SignInConsole } from '@/components/desk/SignInConsole';
 import { BroadcastNoticeModal } from '@/components/staff/BroadcastNoticeModal';
 import { KpiRow } from '@/components/staff/KpiTile';
 import { PersonaHero } from '@/components/staff/PersonaHero';
@@ -15,7 +15,8 @@ import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import { getDemoToday } from '@/domain/demoClock';
 import { formatShortDate } from '@/domain/displayDates';
-import type { CancelRequest, ComplaintSuggestion, Member, Membership, Staff } from '@/domain/types';
+import { campaignHeadline } from '@/domain/enrollmentCampaigns';
+import type { CancelRequest, ComplaintSuggestion, EnrollmentCampaign, Member, Membership, Staff } from '@/domain/types';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { streakRepo } from '@/repositories/streakRepo';
 import { colors } from '@/theme/colors';
@@ -59,7 +60,8 @@ export function MembershipDirectorDashboard({ staffId }: { staffId: string }) {
   const [cancels, setCancels] = useState<CancelRequest[]>([]);
   const [feedback, setFeedback] = useState<ComplaintSuggestion[]>([]);
   const [checkedInToday, setCheckedInToday] = useState<Set<string>>(new Set());
-  const [query, setQuery] = useState('');
+  const [billingCount, setBillingCount] = useState(0);
+  const [campaign, setCampaign] = useState<EnrollmentCampaign | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [broadcastVisible, setBroadcastVisible] = useState(false);
   const [error, setError] = useState(false);
@@ -70,11 +72,14 @@ export function MembershipDirectorDashboard({ staffId }: { staffId: string }) {
     if (staffId === '') return;
     try {
       setError(false);
-      const [me, members, pending, complaints] = await Promise.all([
+      const [me, members, pending, complaints, arrivals, billing, activeCampaign] = await Promise.all([
         api.getStaff(staffId).catch(() => null),
         api.listAllMembers(BRANCH_ID),
         api.listPendingCancels(BRANCH_ID),
         api.listComplaintsSuggestions(BRANCH_ID).catch(() => []),
+        api.listArrivals(BRANCH_ID, today).catch(() => []),
+        api.listBillingIssues(BRANCH_ID, staffId).catch(() => []),
+        api.getActiveCampaign(today).catch(() => null),
       ]);
       const [withPlans, streaks] = await Promise.all([
         Promise.all(
@@ -90,6 +95,9 @@ export function MembershipDirectorDashboard({ staffId }: { staffId: string }) {
         if (p?.checkInDates.includes(today)) checked.add(members[i].id);
       });
 
+      arrivals.forEach((a) => checked.add(a.memberId));
+      setBillingCount(billing.length);
+      setCampaign(activeCampaign);
       setProfile(me);
       setRows(withPlans);
       setCancels(pending);
@@ -112,21 +120,6 @@ export function MembershipDirectorDashboard({ staffId }: { staffId: string }) {
     return map;
   }, [rows]);
 
-  const searchResults = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    const digits = q.replace(/\D/g, '');
-    return rows
-      .filter(
-        ({ member: m }) =>
-          m.name.toLowerCase().includes(q) ||
-          m.membershipId.toLowerCase().includes(q) ||
-          m.email.toLowerCase().includes(q) ||
-          (digits.length >= 3 && m.phone.replace(/\D/g, '').includes(digits))
-      )
-      .slice(0, 5);
-  }, [rows, query]);
-
   const planChanges = rows.filter((r) => r.membership?.pendingChange);
   const guestPasses = rows.filter((r) => r.member.type === GUEST_PLAN && r.member.status === 'active');
   const newMembers = rows.filter((r) => {
@@ -136,26 +129,6 @@ export function MembershipDirectorDashboard({ staffId }: { staffId: string }) {
     return age >= 0 && age <= NEW_MEMBER_WINDOW_DAYS;
   });
   const activeCount = rows.filter((r) => r.member.status === 'active' && r.member.type !== GUEST_PLAN).length;
-
-  const checkIn = async (member: Member) => {
-    setBusyId(member.id);
-    try {
-      const result = await streakRepo.recordCheckIn(member.id, { source: 'manual', note: 'Front desk check-in' });
-      setCheckedInToday((prev) => new Set(prev).add(member.id));
-      dialog.alert(
-        result.isNewCheckIn ? 'Checked In' : 'Already Checked In',
-        result.isNewCheckIn
-          ? `${member.name} is checked in. ${result.profile.totalCheckIns} total visits.`
-          : `${member.name} already checked in today.`,
-        [{ text: 'OK' }],
-        'checkmark'
-      );
-    } catch (err: any) {
-      dialog.alert('Error', err?.message || 'Could not record check-in.');
-    } finally {
-      setBusyId(null);
-    }
-  };
 
   const approve = async (cancel: CancelRequest) => {
     setBusyId(cancel.memberId);
@@ -206,6 +179,7 @@ export function MembershipDirectorDashboard({ staffId }: { staffId: string }) {
           items={[
             { label: 'Active Members', value: activeCount, icon: 'people', color: theme.color },
             { label: 'Checked In Today', value: checkedInToday.size, icon: 'scan', color: '#15803D' },
+            { label: 'Billing Issues', value: billingCount, icon: 'card', color: '#B42318' },
             { label: 'Pending Cancels', value: cancels.length, icon: 'alert-circle', color: colors.scarlet },
             { label: 'Plan Changes', value: planChanges.length, icon: 'swap-horizontal', color: '#D97706' },
           ]}
@@ -221,55 +195,37 @@ export function MembershipDirectorDashboard({ staffId }: { staffId: string }) {
           ...(can('manageComplaints')
             ? [{ key: 'feedback', label: 'Feedback Inbox', icon: 'chatbubbles-outline' as const, onPress: () => router.push('/(staff)/complaints-suggestions'), color: '#0284C7' }]
             : []),
+          ...(can('handleBillingIssues')
+            ? [{ key: 'billing', label: 'Billing Issues', icon: 'card-outline' as const, onPress: () => router.push('/(staff)/billing-issues'), color: '#B42318' }]
+            : []),
+          ...(can('manageLeads')
+            ? [{ key: 'leads', label: 'Sales Leads', icon: 'funnel-outline' as const, onPress: () => router.push('/(staff)/leads'), color: '#7C3AED' }]
+            : []),
+          ...(can('manageCampaigns')
+            ? [{ key: 'campaigns', label: 'Campaigns', icon: 'pricetag-outline' as const, onPress: () => router.push('/(staff)/campaigns'), color: '#B45309' }]
+            : []),
+          ...(can('viewRepKpis')
+            ? [{ key: 'reps', label: 'Rep Performance', icon: 'stats-chart-outline' as const, onPress: () => router.push('/(staff)/rep-performance'), color: '#0F766E' }]
+            : []),
+          { key: 'childwatch', label: 'Child Watch', icon: 'happy-outline', onPress: () => router.push('/(staff)/child-watch'), color: '#D97706' },
           { key: 'msg', label: 'Messages', icon: 'mail-outline', onPress: () => router.push('/(staff)/messages'), color: '#15803D' },
         ]}
       />
 
-      <SectionCard title="Front Desk Check-In" icon="scan" accent={theme.color} subtitle="Search by name, member ID, email or phone">
-        <TextField
-          value={query}
-          onChangeText={setQuery}
-          placeholder="e.g. Jordan or YMCA-1042"
-          autoCapitalize="none"
-          autoCorrect={false}
-          accessibilityLabel="Search members to check in"
-        />
-        {query.trim() === '' ? null : searchResults.length === 0 ? (
-          <EmptyState icon="search-outline" text="No members match that search." />
-        ) : (
-          searchResults.map(({ member, membership }) => {
-            const tone = statusTone(member.status);
-            const checked = checkedInToday.has(member.id);
-            const blocked = member.status === 'cancelled' || member.status === 'paused';
-            return (
-              <ListRow
-                key={member.id}
-                title={member.name}
-                subtitle={`${member.membershipId} · ${member.type}`}
-                meta={membership?.cancelEffectiveDate ? `Access through ${formatShortDate(membership.cancelEffectiveDate)}` : undefined}
-                left={<UserAvatar uri={member.avatarUrl} name={member.name} size={38} />}
-                onPress={() => router.push(`/(staff)/members/${member.id}`)}
-                right={
-                  <View style={styles.rightCol}>
-                    <StatusPill label={tone.label} color={tone.color} bg={tone.bg} />
-                    {checked ? (
-                      <StatusPill label="IN TODAY" color="#15803D" bg="#DCFCE7" />
-                    ) : blocked ? null : (
-                      <ActionButton
-                        label="Check In"
-                        icon="log-in-outline"
-                        color="#15803D"
-                        loading={busyId === member.id}
-                        onPress={() => void checkIn(member)}
-                      />
-                    )}
-                  </View>
-                }
-              />
-            );
-          })
-        )}
-      </SectionCard>
+      {campaign ? (
+        <View style={[styles.cancel, { borderColor: '#F59E0B', backgroundColor: '#FEF3C7' }]}>
+          <Text style={{ color: '#92400E', fontWeight: '700' }}>{campaignHeadline(campaign)}</Text>
+        </View>
+      ) : null}
+
+      <SignInConsole
+        staffId={staffId}
+        rows={rows}
+        checkedInToday={checkedInToday}
+        accent={theme.color}
+        canHandleBilling={can('handleBillingIssues')}
+        onChanged={load}
+      />
 
       <SectionCard
         title="Cancellation Requests"

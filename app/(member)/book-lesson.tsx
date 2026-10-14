@@ -5,7 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BookingSummaryBar } from '@/components/booking/BookingSummaryBar';
 import { BookingTabs } from '@/components/booking/BookingTabs';
-import { DaySlotPicker, localDayKey } from '@/components/booking/DaySlotPicker';
+import { DaySlotPicker, localDayKey, type PickerTime } from '@/components/booking/DaySlotPicker';
 import { InstructorCard } from '@/components/booking/InstructorCard';
 import { LessonCheckoutSheet } from '@/components/booking/LessonCheckoutSheet';
 import { LessonTypeToggle } from '@/components/booking/LessonTypeToggle';
@@ -19,6 +19,7 @@ import { WellnessPackageModal } from '@/components/WellnessPackageModal';
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
+import { householdRepo } from '@/repositories/householdRepo';
 import { useTheme } from '@/context/ThemeContext';
 import {
   AQUATICS_CLASSES,
@@ -34,21 +35,33 @@ import {
   SWIM_CLASS_CAPACITY,
   swimClassPriceCents,
 } from '@/domain/lessonPricing';
+import { dedupeByStart, sessionLengthsFor } from '@/domain/sessionAvailability';
 import type {
+  BookableTime,
   LessonPricing,
-  LessonSlot,
   LessonType,
   Member,
   Membership,
+  PaymentTiming,
   PrivateLesson,
   Staff,
   SwimClassEnrollment,
 } from '@/domain/types';
-import { lessonRepo, pricingRepo, swimClassRepo } from '@/repositories/lessonRepo';
+import { lessonRepo, pricingRepo, sessionRequestRepo, swimClassRepo } from '@/repositories/lessonRepo';
+import { MySessionRequests } from '@/components/booking/MySessionRequests';
 import { staffRepo } from '@/repositories/staffRepo';
 import { radii, spacing, tapTarget } from '@/theme/typography';
 
 type Tab = 'private' | 'classes';
+
+const ANY_INSTRUCTOR = 'any';
+const ANY_STAFF: Staff = {
+  id: ANY_INSTRUCTOR,
+  name: 'Any available',
+  email: '',
+  roleLabel: 'First open time with any instructor',
+  homeBranchId: '',
+};
 
 function addDays(isoDate: string, days: number): string {
   const d = new Date(`${isoDate}T12:00:00`);
@@ -85,6 +98,7 @@ export default function BookLessonScreen() {
   const [pricing, setPricing] = useState<LessonPricing>(DEFAULT_LESSON_PRICING);
   const [member, setMember] = useState<Member | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
+  const [family, setFamily] = useState<{ id: string; name: string }[]>([]);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [packageModalVisible, setPackageModalVisible] = useState(false);
@@ -97,9 +111,10 @@ export default function BookLessonScreen() {
   const [trainerId, setTrainerId] = useState<string | null>(
     typeof params.staffId === 'string' && params.staffId.length > 0 ? params.staffId : null
   );
-  const [slots, setSlots] = useState<LessonSlot[]>([]);
+  const [times, setTimes] = useState<BookableTime[]>([]);
   const [selectedDay, setSelectedDay] = useState(today);
-  const [slotId, setSlotId] = useState<string | null>(null);
+  const [timeKey, setTimeKey] = useState<string | null>(null);
+  const [paymentTiming, setPaymentTiming] = useState<PaymentTiming>('before');
   const [swimmerName, setSwimmerName] = useState('');
   const [stageCode, setStageCode] = useState(NOT_SURE_STAGE);
   const [notes, setNotes] = useState('');
@@ -124,22 +139,61 @@ export default function BookLessonScreen() {
       ),
     [allStaff, lessonType]
   );
+  const isAny = trainerId === ANY_INSTRUCTOR;
   const activeTrainer = instructors.find((t) => t.id === trainerId) ?? null;
 
-  const loadSlots = useCallback(
-    async (staffId: string) => {
-      try {
-        const open = await lessonRepo.listOpenSlots(api, staffId, today, addDays(today, 6));
-        open.sort((a, b) => a.start.localeCompare(b.start));
-        setSlots(open);
-        const first = open[0];
-        setSelectedDay(first ? localDayKey(first.start) : today);
-        setSlotId(null);
-      } catch {
-        setError(true);
-      }
-    },
-    [api, today]
+  const allowedLengths = useMemo<(30 | 60)[]>(() => {
+    const pool = isAny ? instructors : activeTrainer ? [activeTrainer] : [];
+    const set = new Set<30 | 60>();
+    for (const s of pool) sessionLengthsFor(s).forEach((l) => set.add(l));
+    const out = ([30, 60] as const).filter((l) => set.has(l));
+    return out.length > 0 ? out : [30, 60];
+  }, [isAny, instructors, activeTrainer]);
+
+  useEffect(() => {
+    if (!allowedLengths.includes(duration)) {
+      setDuration(allowedLengths[0]);
+    }
+  }, [allowedLengths, duration]);
+
+  const staffName = useCallback(
+    (id: string) => allStaff.find((s) => s.id === id)?.name ?? 'Instructor',
+    [allStaff]
+  );
+
+  const loadTimes = useCallback(async () => {
+    if (!trainerId || memberId === '') {
+      return;
+    }
+    try {
+      const open = await sessionRequestRepo.bookableTimes(api, memberId, {
+        lessonType,
+        durationMin: duration,
+        from: today,
+        to: addDays(today, 13),
+        staffId: trainerId === ANY_INSTRUCTOR ? undefined : trainerId,
+      });
+      const list = trainerId === ANY_INSTRUCTOR ? dedupeByStart(open) : open;
+      setTimes(list);
+      const first = list[0];
+      setSelectedDay(first ? localDayKey(first.start) : today);
+      setTimeKey(null);
+    } catch {
+      setError(true);
+    }
+  }, [api, memberId, trainerId, lessonType, duration, today]);
+
+  const pickerTimes = useMemo<PickerTime[]>(
+    () =>
+      times.map((t) => ({
+        key: `${t.staffId}|${t.start}`,
+        start: t.start,
+        end: t.end,
+        location: t.location,
+        instant: t.instant,
+        label: isAny ? staffName(t.staffId) : undefined,
+      })),
+    [times, isAny, staffName]
   );
 
   const load = useCallback(async () => {
@@ -159,6 +213,12 @@ export default function BookLessonScreen() {
       ]);
       setPricing(prices);
       setMember(mem);
+      try {
+        const hh = await householdRepo.get(api, memberId);
+        setFamily(hh.members.map((p) => ({ id: p.id, name: p.name })));
+      } catch {
+        setFamily([]);
+      }
       setMembership(ms);
       setAllStaff(staffList);
       setAssignedId(assigned?.id ?? null);
@@ -192,7 +252,7 @@ export default function BookLessonScreen() {
     if (instructors.length === 0) {
       return;
     }
-    if (trainerId && instructors.some((i) => i.id === trainerId)) {
+    if (trainerId && (trainerId === ANY_INSTRUCTOR || instructors.some((i) => i.id === trainerId))) {
       return;
     }
     const preferred = instructors.find((i) => i.id === assignedId) ?? instructors[0];
@@ -200,10 +260,8 @@ export default function BookLessonScreen() {
   }, [instructors, trainerId, assignedId]);
 
   useEffect(() => {
-    if (trainerId) {
-      void loadSlots(trainerId);
-    }
-  }, [trainerId, loadSlots]);
+    void loadTimes();
+  }, [loadTimes]);
 
   // Open the enroll sheet when arriving from the aquatics guide.
   useEffect(() => {
@@ -215,49 +273,64 @@ export default function BookLessonScreen() {
     }
   }, [params.classId]);
 
-  const selectedSlot = slots.find((s) => s.id === slotId) ?? null;
-  const chargeCents = isChange
-    ? (oldLesson?.paidAmountCents ?? 0)
-    : lessonPriceCents(pricing, lessonType, duration);
+  const selectedTime = times.find((t) => `${t.staffId}|${t.start}` === timeKey) ?? null;
+  const selectedInstructor = selectedTime ? allStaff.find((s) => s.id === selectedTime.staffId) ?? null : null;
+  const effectiveTiming: PaymentTiming = isChange ? (oldLesson?.paymentTiming ?? 'before') : paymentTiming;
+  const instant = Boolean(selectedTime?.instant);
+  const priceCents = lessonPriceCents(pricing, lessonType, duration);
+  // Money moves only once the session is confirmed, and only when paying before.
+  const chargeCents = isChange ? 0 : priceCents;
+  const dueNowCents = !isChange && instant && effectiveTiming === 'before' ? priceCents : 0;
   const cardBrand = membership?.paymentBrand ?? 'Visa';
   const cardLast4 = membership?.paymentLast4 ?? '4242';
 
   const handleSelectType = (t: LessonType) => {
     setLessonType(t);
     setTrainerId(null);
-    setSlotId(null);
+    setTimeKey(null);
   };
 
   const doBookLesson = async () => {
-    if (!selectedSlot || memberId === '') {
+    if (!selectedTime || memberId === '') {
       return;
     }
     setBusy(true);
     try {
-      if (isChange && params.changeLessonId) {
-        await lessonRepo.change(api, memberId, params.changeLessonId, selectedSlot.id);
-      } else {
-        await lessonRepo.book(api, memberId, selectedSlot.id, {
-          lessonType,
-          durationMin: duration,
-          swimmerName: lessonType === 'swim' ? swimmerName : undefined,
-          stageCode: lessonType === 'swim' ? stageCode : undefined,
-          notes: notes || undefined,
-        });
-      }
+      const req = await sessionRequestRepo.create(api, memberId, {
+        staffId: selectedTime.staffId,
+        lessonType,
+        durationMin: duration,
+        start: selectedTime.start,
+        paymentTiming: effectiveTiming,
+        swimmerName: lessonType === 'swim' ? swimmerName : undefined,
+        stageCode: lessonType === 'swim' ? stageCode : undefined,
+        notes: notes || undefined,
+        replacesLessonId: isChange ? params.changeLessonId : undefined,
+      });
       setCheckoutOpen(false);
+      const who = selectedInstructor?.name ?? 'your instructor';
+      const confirmed = req.status === 'accepted';
       dialog.show({
-        title: isChange ? 'Lesson updated' : 'Lesson booked',
-        message: `${formatSlot(selectedSlot.start)} with ${activeTrainer?.name ?? 'your instructor'} is on your schedule.${
-          !isChange && chargeCents > 0
-            ? `\n\nReceipt: ${formatCents(chargeCents)} charged to ${cardBrand} ending ${cardLast4}.`
-            : ''
-        }`,
+        title: confirmed ? 'Lesson booked' : 'Request sent',
+        message: confirmed
+          ? `${formatSlot(selectedTime.start)} with ${who} is on your schedule.${
+              dueNowCents > 0
+                ? `\n\nReceipt: ${formatCents(dueNowCents)} charged to ${cardBrand} ending ${cardLast4}.`
+                : effectiveTiming === 'after'
+                  ? '\n\nYou will be charged after the session.'
+                  : ''
+            }`
+          : `${who} will accept, decline, or offer another time for ${formatSlot(selectedTime.start)}. We will notify you.${
+              effectiveTiming === 'before'
+                ? `\n\nYour card is only charged (${formatCents(priceCents)}) once the session is confirmed.`
+                : '\n\nYou will be charged after the session.'
+            }`,
         icon: 'checkmark',
         buttons: [{ text: 'OK', style: 'default', onPress: () => router.back() }],
       });
     } catch (e) {
       setCheckoutOpen(false);
+      void loadTimes();
       dialog.show({
         title: 'Could not book',
         message: e instanceof Error ? e.message : 'Please try again.',
@@ -322,7 +395,7 @@ export default function BookLessonScreen() {
               try {
                 await swimClassRepo.cancel(api, memberId, e.id);
                 await load();
-              } catch (err) {
+              } catch {
                 setError(true);
               }
             })();
@@ -373,6 +446,7 @@ export default function BookLessonScreen() {
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {tab === 'private' ? (
           <>
+            {!isChange ? <MySessionRequests onChanged={() => void loadTimes()} /> : null}
             <Pressable
               onPress={() => setPackageModalVisible(true)}
               style={[styles.rates, { backgroundColor: colors.primaryLight, borderColor: colors.primary }]}
@@ -398,7 +472,7 @@ export default function BookLessonScreen() {
                   2. Length
                 </Text>
                 <View style={styles.durationRow}>
-                  {([30, 60] as const).map((d) => {
+                  {allowedLengths.map((d) => {
                     const active = d === duration;
                     return (
                       <Pressable
@@ -438,7 +512,7 @@ export default function BookLessonScreen() {
                 </Text>
               ) : (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cards}>
-                  {instructors.map((t) => (
+                  {[ANY_STAFF, ...instructors].map((t) => (
                     <InstructorCard
                       key={t.id}
                       staff={t}
@@ -446,7 +520,7 @@ export default function BookLessonScreen() {
                       isAssigned={t.id === assignedId}
                       onPress={() => {
                         setTrainerId(t.id);
-                        setSlotId(null);
+                        setTimeKey(null);
                       }}
                     />
                   ))}
@@ -455,7 +529,7 @@ export default function BookLessonScreen() {
             ) : (
               <Text style={{ color: colors.textMuted }} allowFontScaling>
                 Same instructor: {allStaff.find((s) => s.id === trainerId)?.name ?? 'your trainer'}. No new
-                charge for changing the time.
+                charge for changing the time. Your current lesson stays until the new time is confirmed.
               </Text>
             )}
 
@@ -466,15 +540,14 @@ export default function BookLessonScreen() {
             ) : null}
             <DaySlotPicker
               today={today}
-              slots={slots}
+              times={pickerTimes}
               selectedDay={selectedDay}
               onSelectDay={(d) => {
                 setSelectedDay(d);
-                setSlotId(null);
+                setTimeKey(null);
               }}
-              selectedSlotId={slotId}
-              onSelectSlot={setSlotId}
-              durationMin={duration}
+              selectedKey={timeKey}
+              onSelect={setTimeKey}
             />
 
             {lessonType === 'swim' && !isChange ? (
@@ -490,13 +563,53 @@ export default function BookLessonScreen() {
                   notes={notes}
                   onNotes={setNotes}
                   memberName={member?.name ?? ''}
+                  household={family.filter((p) => p.id !== memberId)}
                   onOpenGuide={() => router.push('/(member)/aquatics-guide')}
                 />
               </>
             ) : null}
 
+            {!isChange ? (
+              <>
+                <Text style={[styles.section, { color: colors.text }]} allowFontScaling>
+                  {lessonType === 'swim' ? '6. Payment' : '5. Payment'}
+                </Text>
+                <View style={styles.durationRow}>
+                  {(
+                    [
+                      { key: 'before', title: 'Pay now', sub: 'Charged when confirmed' },
+                      { key: 'after', title: 'Pay after', sub: 'Charged after the session' },
+                    ] as const
+                  ).map((o) => {
+                    const active = paymentTiming === o.key;
+                    return (
+                      <Pressable
+                        key={o.key}
+                        onPress={() => setPaymentTiming(o.key)}
+                        style={[
+                          styles.duration,
+                          {
+                            backgroundColor: active ? colors.primary : colors.cardBg,
+                            borderColor: active ? colors.primary : colors.cardBorder,
+                          },
+                        ]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                        accessibilityLabel={`${o.title}. ${o.sub}`}
+                      >
+                        <Text style={{ color: active ? '#FFFFFF' : colors.text, fontWeight: '800', fontSize: 16 }}>
+                          {o.title}
+                        </Text>
+                        <Text style={{ color: active ? '#FFFFFF' : colors.textMuted, fontSize: 12 }}>{o.sub}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
+
             <Text style={[styles.policy, { color: colors.textMuted }]} allowFontScaling>
-              Need to cancel? Cancel from My Schedule before your lesson. Silver Spring pool hours: Mon-Fri
+              Your instructor reviews each request and can accept, decline, or offer another time. Need to cancel? Cancel from My Schedule before your lesson. Silver Spring pool hours: Mon-Fri
               6:00 AM - 9:45 PM, Sat 7:00 AM - 7:45 PM, Sun 8:00 AM - 7:45 PM.
             </Text>
           </>
@@ -553,17 +666,23 @@ export default function BookLessonScreen() {
       {tab === 'private' ? (
         <BookingSummaryBar
           title={
-            selectedSlot
-              ? `${activeTrainer?.name ?? 'Instructor'} · ${formatSlot(selectedSlot.start)}`
+            selectedTime
+              ? `${selectedInstructor?.name ?? 'Instructor'} · ${formatSlot(selectedTime.start)}`
               : 'Select a day and time'
           }
           detail={`${lessonType === 'swim' ? 'Private swim lesson' : 'Personal training'} · ${duration} min · ${
             isChange ? 'No new charge' : formatCents(chargeCents)
           }`}
           buttonLabel={
-            isChange ? 'Confirm change' : chargeCents > 0 ? `Book & Pay ${formatCents(chargeCents)}` : 'Book'
+            instant
+              ? isChange
+                ? 'Confirm change'
+                : dueNowCents > 0
+                  ? `Book & Pay ${formatCents(dueNowCents)}`
+                  : 'Book'
+              : 'Send request'
           }
-          disabled={!selectedSlot || busy}
+          disabled={!selectedTime || busy}
           loading={busy && !checkoutOpen}
           onPress={() => setCheckoutOpen(true)}
         />
@@ -571,22 +690,33 @@ export default function BookLessonScreen() {
 
       <LessonCheckoutSheet
         visible={checkoutOpen}
-        title={isChange ? 'Confirm new time' : 'Review and pay'}
+        title={instant ? (isChange ? 'Confirm new time' : 'Review and book') : 'Review your request'}
         lines={[
           { label: 'Lesson', value: lessonType === 'swim' ? 'Private swim lesson' : 'Personal training' },
-          { label: 'Instructor', value: activeTrainer?.name ?? '' },
-          { label: 'When', value: selectedSlot ? formatSlot(selectedSlot.start) : '' },
+          { label: 'Instructor', value: selectedInstructor?.name ?? '' },
+          { label: 'When', value: selectedTime ? formatSlot(selectedTime.start) : '' },
           { label: 'Length', value: `${duration} minutes` },
-          ...(selectedSlot ? [{ label: 'Where', value: selectedSlot.location }] : []),
+          ...(selectedTime ? [{ label: 'Where', value: selectedTime.location }] : []),
+          { label: 'Price', value: isChange ? 'No new charge' : formatCents(priceCents) },
+          {
+            label: 'Payment',
+            value: effectiveTiming === 'before' ? 'Pay now (when confirmed)' : 'Pay after the session',
+          },
           ...(lessonType === 'swim' && !isChange
             ? [{ label: 'Swimmer', value: swimmerName.trim() || member?.name || 'Myself' }]
             : []),
         ]}
-        totalCents={isChange ? 0 : chargeCents}
+        totalCents={dueNowCents}
+        totalText={dueNowCents > 0 ? undefined : 'Nothing charged yet'}
+        confirmLabel={instant ? (dueNowCents > 0 ? undefined : 'Book') : 'Send request'}
         paymentBrand={cardBrand}
         paymentLast4={cardLast4}
         busy={busy}
-        footnote="Cancel before your lesson from My Schedule."
+        footnote={
+          instant
+            ? 'Instant booking is on for you with this instructor. Cancel before your lesson from My Schedule.'
+            : 'Your instructor will accept, decline, or offer another time. Your card is not charged until the session is confirmed.'
+        }
         onConfirm={() => void doBookLesson()}
         onClose={() => setCheckoutOpen(false)}
       />
@@ -595,6 +725,7 @@ export default function BookLessonScreen() {
         offering={enrollTarget && !checkoutClass ? enrollTarget : null}
         priceCents={enrollTarget ? swimClassPriceCents(pricing, enrollTarget, tier) : 0}
         defaultName={member?.name ?? ''}
+        household={family}
         onClose={() => setEnrollTarget(null)}
         onContinue={(name) => {
           if (enrollTarget) {

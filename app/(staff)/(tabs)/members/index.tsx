@@ -29,7 +29,6 @@ import {
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
-import { PersonaBanner } from '@/components/staff/PersonaBanner';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { trainerRepo } from '@/repositories/trainerRepo';
 import { cardStyle } from '@/theme/card';
@@ -239,23 +238,6 @@ export default function StaffMembersScreen() {
         }
       />
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
-
-      <View style={styles.bannerWrap}>
-        <PersonaBanner
-          theme={theme}
-          text={
-            isAdmin
-              ? 'Full account, plan and delete access (override)'
-              : isMembershipDirector
-                ? 'You own enrollments, plan changes and cancellation decisions'
-                : isWellnessDirector
-                  ? 'See every client, spot unassigned members and pair them with trainers'
-                  : coachesClients
-                    ? 'Your assigned clients, goals and workout logs'
-                    : 'Look up members for check-in and front desk help'
-          }
-        />
-      </View>
 
       {canCreateMembers ? (
         <View style={styles.adminBadgeWrap}>
@@ -608,10 +590,6 @@ function makeStyles(colors: ThemeColors) {
   meta: {
     ...typography.body,
     color: colors.muted,
-  },
-  bannerWrap: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
   },
   adminBadgeWrap: {
     paddingHorizontal: 16,

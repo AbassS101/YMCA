@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -19,15 +19,26 @@ import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
+import {
+  ageOn,
+  canHoldSoloMembership,
+  isFamilyPlan,
+  validateHousehold,
+} from '@/domain/householdAccess';
 import { tokenizePaymentInput } from '@/domain/paymentTokenizer';
 import {
   YMCA_MEMBERSHIP_PLANS,
   effectiveEnrollmentFeeCents,
+  type EnrollmentCampaign,
   type MembershipPlan,
 } from '@/domain/types';
+import { getDemoToday } from '@/domain/demoClock';
+import { campaignHeadline } from '@/domain/enrollmentCampaigns';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { cardStyle } from '@/theme/card';
 import { radii, spacing, typography } from '@/theme/typography';
+
+type FamilyDraft = { name: string; birthDate: string; email: string };
 
 function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
@@ -57,14 +68,44 @@ export default function JoinMembershipScreen() {
   const [donationCents, setDonationCents] = useState<number>(0);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [campaign, setCampaign] = useState<EnrollmentCampaign | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getActiveCampaign(getDemoToday())
+      .then((c) => {
+        if (!cancelled) setCampaign(c);
+      })
+      .catch(() => {
+        if (!cancelled) setCampaign(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+
+  const [birthDate, setBirthDate] = useState('');
+  const [family, setFamily] = useState<FamilyDraft[]>([]);
 
   const selectedPlan =
     YMCA_MEMBERSHIP_PLANS.find((p) => p.id === selectedPlanId) ?? YMCA_MEMBERSHIP_PLANS[0];
+  const familyPlan = isFamilyPlan(selectedPlan);
+  const validBirth = /^\d{4}-\d{2}-\d{2}$/.test(birthDate.trim());
+  const buyerCheck = validBirth
+    ? canHoldSoloMembership(birthDate.trim(), selectedPlan.id, getDemoToday())
+    : null;
+  const updateFamily = (idx: number, patch: Partial<FamilyDraft>) =>
+    setFamily((prev) => prev.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
 
   const isGuestConverting = session?.role === 'guest';
   const enrollmentFeeDueCents = effectiveEnrollmentFeeCents(selectedPlan, {
     waiveEnrollmentFee: isGuestConverting,
+    campaign,
   });
+  const campaignDiscountApplies =
+    campaign !== null &&
+    effectiveEnrollmentFeeCents(selectedPlan, { campaign }) < selectedPlan.enrollmentFeeCents;
 
   const totalFirstMonthCents =
     selectedPlan.monthlyAmountCents + enrollmentFeeDueCents + donationCents;
@@ -85,6 +126,36 @@ export default function JoinMembershipScreen() {
     if (!trimmedEmail.includes('@') || !trimmedEmail.includes('.')) {
       setFormError('Please enter a valid email address.');
       return;
+    }
+
+    if (!validBirth) {
+      setFormError('Enter your birth date as YYYY-MM-DD.');
+      return;
+    }
+    if (buyerCheck && !buyerCheck.ok) {
+      setFormError(buyerCheck.reason);
+      return;
+    }
+    const householdMembers = familyPlan
+      ? family
+          .filter((f) => f.name.trim() !== '' || f.birthDate.trim() !== '')
+          .map((f) => ({
+            name: f.name.trim(),
+            birthDate: f.birthDate.trim(),
+            email: f.email.trim() || undefined,
+          }))
+      : [];
+    if (householdMembers.some((f) => f.name === '' || !/^\d{4}-\d{2}-\d{2}$/.test(f.birthDate))) {
+      setFormError('Each family member needs a name and a birth date (YYYY-MM-DD).');
+      return;
+    }
+    if (householdMembers.length > 0) {
+      const people = [{ birthDate: birthDate.trim() }, ...householdMembers];
+      const household = validateHousehold(selectedPlan.id, people, getDemoToday());
+      if (!household.ok) {
+        setFormError(household.reason);
+        return;
+      }
     }
 
     const tokenized = tokenizePaymentInput({
@@ -113,6 +184,9 @@ export default function JoinMembershipScreen() {
         },
         donationCents: donationCents > 0 ? donationCents : undefined,
         waiveEnrollmentFee: isGuestConverting,
+        campaignId: campaign?.id,
+        birthDate: birthDate.trim(),
+        householdMembers: householdMembers.length > 0 ? householdMembers : undefined,
       });
 
       // If not logged in, automatically log in as the newly created member!
@@ -266,7 +340,7 @@ export default function JoinMembershipScreen() {
               label="Full Name *"
               value={name}
               onChangeText={setName}
-              placeholder="e.g. Jordan Hale"
+              placeholder="e.g. John Doe"
               autoCapitalize="words"
             />
             <TextField
@@ -291,7 +365,71 @@ export default function JoinMembershipScreen() {
               onChangeText={setAddress}
               placeholder="Street address, city, state, zip"
             />
+            <TextField
+              label="Your Birth Date (YYYY-MM-DD) *"
+              value={birthDate}
+              onChangeText={setBirthDate}
+              placeholder="e.g. 1985-06-30"
+              keyboardType="numbers-and-punctuation"
+              autoCorrect={false}
+            />
+            {buyerCheck && !buyerCheck.ok ? <ErrorBanner message={buyerCheck.reason} /> : null}
           </View>
+
+          {familyPlan ? (
+            <View style={[styles.sectionCard, cardTheme, { marginTop: 12 }]}>
+              <AppText style={{ fontSize: 15, fontWeight: '700', color: colors.text }}>
+                Add family members
+              </AppText>
+              <AppText style={{ fontSize: 13, color: colors.textMuted, lineHeight: 18 }}>
+                You pay for the plan. Everyone gets their own barcode ID. Children under 13 can use the pool, take
+                lessons and use Child Watch. Ages 13-17 can use the gym after a trainer orientation. Add an email for
+                anyone 13 or older who should have their own app login.
+              </AppText>
+              {family.map((f, idx) => (
+                <View key={idx} style={{ gap: 4, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
+                  <TextField
+                    label={`Person ${idx + 1} name`}
+                    value={f.name}
+                    onChangeText={(v) => updateFamily(idx, { name: v })}
+                    autoCapitalize="words"
+                  />
+                  <TextField
+                    label="Birth date (YYYY-MM-DD)"
+                    value={f.birthDate}
+                    onChangeText={(v) => updateFamily(idx, { birthDate: v })}
+                    keyboardType="numbers-and-punctuation"
+                    autoCorrect={false}
+                  />
+                  {/^\d{4}-\d{2}-\d{2}$/.test(f.birthDate.trim()) && ageOn(f.birthDate.trim(), getDemoToday()) >= 13 ? (
+                    <TextField
+                      label="Email (optional, gives them their own login)"
+                      value={f.email}
+                      onChangeText={(v) => updateFamily(idx, { email: v })}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  ) : null}
+                  <Pressable
+                    onPress={() => setFamily((prev) => prev.filter((_, i) => i !== idx))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove person ${idx + 1}`}
+                  >
+                    <AppText style={{ color: '#DC2626', fontWeight: '700', fontSize: 13 }}>Remove</AppText>
+                  </Pressable>
+                </View>
+              ))}
+              <Pressable
+                onPress={() => setFamily((prev) => [...prev, { name: '', birthDate: '', email: '' }])}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                accessibilityRole="button"
+              >
+                <Ionicons name="add-circle" size={20} color={colors.primary} />
+                <AppText style={{ color: colors.primary, fontWeight: '700' }}>Add a person</AppText>
+              </Pressable>
+            </View>
+          ) : null}
 
           {/* Step 3: Payment Card */}
           <AppText style={[styles.stepTitle, { color: colors.text, marginTop: 24 }]}>
@@ -417,6 +555,12 @@ export default function JoinMembershipScreen() {
               <View style={[styles.guestFeeBanner, { backgroundColor: isDark ? '#14532D33' : '#DCFCE7', borderColor: colors.success }]}>
                 <AppText style={{ color: colors.success, fontSize: 13, fontWeight: '700' }}>
                   Guest pass benefit: one-time enrollment fee waived
+                </AppText>
+              </View>
+            ) : campaignDiscountApplies ? (
+              <View style={[styles.guestFeeBanner, { backgroundColor: isDark ? '#78350F33' : '#FEF3C7', borderColor: '#F59E0B' }]}>
+                <AppText style={{ color: isDark ? '#FCD34D' : '#92400E', fontSize: 13, fontWeight: '700' }}>
+                  {campaign ? campaignHeadline(campaign) : ''}
                 </AppText>
               </View>
             ) : null}

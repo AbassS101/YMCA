@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Dimensions,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -20,7 +21,7 @@ import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import { personaTheme } from '@/domain/staffCapabilities';
-import { type Staff, type StaffRole } from '@/domain/types';
+import { isTopLevelStaffRole, type Staff, type StaffRole } from '@/domain/types';
 import { UserAvatar } from '@/components/UserAvatar';
 import { cardStyle } from '@/theme/card';
 import { colors } from '@/theme/colors';
@@ -33,6 +34,9 @@ export default function StaffManagementScreen() {
   const { session, api } = useSession();
   const { can } = useStaffCapabilities();
   const isAdmin = can('manageStaff');
+  // Wellness Directors can manage staff but not create/edit admin- or director-level accounts.
+  const limitedToLowerRoles = session?.role === 'wellness_director';
+  const canManageStaffMember = (s: Staff) => !limitedToLowerRoles || !isTopLevelStaffRole(s.staffRole);
 
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [roleFilter, setRoleFilter] = useState<'all' | 'directors' | StaffRole>('all');
@@ -86,7 +90,10 @@ export default function StaffManagementScreen() {
         result = result.filter((s) => s.staffRole === 'admin' || s.staffRole === 'staff_admin');
       } else if (roleFilter === 'directors') {
         result = result.filter(
-          (s) => s.staffRole === 'wellness_director' || s.staffRole === 'membership_director'
+          (s) =>
+            s.staffRole === 'wellness_director' ||
+            s.staffRole === 'aquatics_director' ||
+            s.staffRole === 'membership_director'
         );
       } else {
         result = result.filter((s) => s.staffRole === roleFilter);
@@ -116,6 +123,10 @@ export default function StaffManagementScreen() {
     setStaffModalVisible(true);
   }
 
+  function blockedByRoleLimit(role: StaffRole | undefined) {
+    return limitedToLowerRoles && isTopLevelStaffRole(role);
+  }
+
   function openEditModal(staff: Staff) {
     setEditingStaffId(staff.id);
     setFormName(staff.name);
@@ -131,6 +142,10 @@ export default function StaffManagementScreen() {
   async function handleSaveStaff() {
     if (!formName.trim() || !formEmail.trim() || !formRoleLabel.trim()) {
       setModalError('Please fill in name, email, and role title.');
+      return;
+    }
+    if (blockedByRoleLimit(formStaffRole)) {
+      setModalError('Only Staff Admins and IT Admins can create admin- or director-level staff.');
       return;
     }
     setSubmittingStaff(true);
@@ -218,7 +233,7 @@ export default function StaffManagementScreen() {
 
   return (
     <View style={styles.screen}>
-      <YHeader subtitle="Staff Admin & IT Admin · Staff & Trainers" />
+      <YHeader subtitle="Staff & Trainers" />
       {error ? <ErrorBanner onRetry={() => void loadStaff()} /> : null}
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -260,7 +275,8 @@ export default function StaffManagementScreen() {
             { key: 'staff_admin', label: 'Staff Admin' },
             { key: 'directors', label: 'Directors' },
             { key: 'trainer', label: 'Trainers' },
-            { key: 'desk', label: 'Front Desk' },
+            { key: 'swim_instructor', label: 'Swim' },
+            { key: 'desk', label: 'Membership Rep' },
           ].map((f) => (
             <Pressable
               key={f.key}
@@ -317,7 +333,7 @@ export default function StaffManagementScreen() {
                 </View>
 
                 {/* Admin Actions */}
-                {isAdmin ? (
+                {isAdmin && canManageStaffMember(s) ? (
                   <View style={styles.actionRow}>
                     <Pressable
                       onPress={() => openEditModal(s)}
@@ -372,7 +388,7 @@ export default function StaffManagementScreen() {
 
             {modalError ? <ErrorBanner message={modalError} /> : null}
 
-            <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ gap: 12, paddingBottom: 16 }}>
+            <ScrollView style={{ maxHeight: Math.round(Dimensions.get('window').height * 0.7) }} contentContainerStyle={{ gap: 12, paddingBottom: 16 }}>
               <TextField label="Full Name *" value={formName} onChangeText={setFormName} placeholder="e.g. David Martinez" />
               <TextField label="Email Address *" value={formEmail} onChangeText={setFormEmail} autoCapitalize="none" keyboardType="email-address" placeholder="david@silverspring.ymca" />
 
@@ -393,8 +409,8 @@ export default function StaffManagementScreen() {
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
                 {[
                   { label: 'Clean Silhouette', url: '' },
-                  { label: 'Trainer (Alex)', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80' },
-                  { label: 'Trainer (Sarah)', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&q=80' },
+                  { label: 'Trainer (Doc)', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80' },
+                  { label: 'Swim Instructor (Jane)', url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&q=80' },
                   { label: 'Director (Jane)', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&q=80' },
                   { label: 'IT Admin (David)', url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=80' },
                 ].map((preset) => {
@@ -440,10 +456,14 @@ export default function StaffManagementScreen() {
                   { key: 'it_admin', label: 'IT Admin', desc: 'Full IT & system admin access' },
                   { key: 'staff_admin', label: 'Staff Admin', desc: 'Full branch administrative power' },
                   { key: 'wellness_director', label: 'Wellness Director', desc: 'Leads trainers & client assignments' },
+                  { key: 'aquatics_director', label: 'Aquatics Director', desc: 'Leads swim instructors & sees private swim requests' },
                   { key: 'membership_director', label: 'Membership Director', desc: 'Cancellations, plans & front desk' },
                   { key: 'trainer', label: 'Trainer / Coach', desc: 'Teaches classes & private lessons' },
-                  { key: 'desk', label: 'Front Desk', desc: 'Check-in & member services' },
-                ].map((r) => {
+                  { key: 'swim_instructor', label: 'Swim Instructor', desc: 'Teaches swim classes & private swim lessons' },
+                  { key: 'desk', label: 'Front Desk Membership Rep', desc: 'Sign-in, member calls, billing follow-up & sales' },
+                ]
+                  .filter((r) => !limitedToLowerRoles || !isTopLevelStaffRole(r.key))
+                  .map((r) => {
                   const isSelected = formStaffRole === r.key || (r.key === 'staff_admin' && formStaffRole === 'admin');
                   return (
                     <Pressable
@@ -451,14 +471,21 @@ export default function StaffManagementScreen() {
                       onPress={() => setFormStaffRole(r.key as StaffRole)}
                       style={[
                         styles.roleSelectCard,
-                        { width: '48%' },
+                        { width: '100%' },
                         isSelected && styles.roleSelectCardActive,
                       ]}
                     >
-                      <Text style={[styles.roleSelectTitle, isSelected && { color: colors.primary }]}>
-                        {r.label}
-                      </Text>
-                      <Text style={styles.roleSelectDesc}>{r.desc}</Text>
+                      <Ionicons
+                        name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                        size={22}
+                        color={isSelected ? colors.primary : '#94A3B8'}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.roleSelectTitle, isSelected && { color: colors.primary }]}>
+                          {r.label}
+                        </Text>
+                        <Text style={styles.roleSelectDesc}>{r.desc}</Text>
+                      </View>
                     </Pressable>
                   );
                 })}
@@ -752,25 +779,30 @@ const styles = StyleSheet.create({
     color: colors.nearBlack,
   },
   roleSelectCard: {
-    flex: 1,
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: '#F8FAFC',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#CBD5E1',
   },
   roleSelectCardActive: {
     borderColor: colors.primary,
+    borderWidth: 2,
     backgroundColor: '#EFF6FF',
   },
   roleSelectTitle: {
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '700',
-    color: colors.nearBlack,
+    color: '#0F172A',
   },
   roleSelectDesc: {
-    fontSize: 10,
-    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#475569',
     marginTop: 2,
   },
   avatarPresetChip: {

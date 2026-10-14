@@ -25,17 +25,17 @@ export const YMCA_AVATAR_PRESETS = [
   },
   {
     id: 'wellness-1',
-    label: 'Jordan (Member)',
+    label: 'John (Member)',
     url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
   },
   {
     id: 'wellness-2',
-    label: 'Alex (Trainer)',
+    label: 'Doc (Trainer)',
     url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80',
   },
   {
     id: 'wellness-3',
-    label: 'Sarah (AOA Coach)',
+    label: 'Jane (Swim Instructor)',
     url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&q=80',
   },
   {

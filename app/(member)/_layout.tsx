@@ -24,6 +24,8 @@ export default function MemberLayout() {
       <Stack.Screen name="surveys" />
       <Stack.Screen name="pool-schedule" />
       <Stack.Screen name="aquatics-guide" />
+      <Stack.Screen name="child-watch" />
+      <Stack.Screen name="family" />
     </Stack>
   );
 }

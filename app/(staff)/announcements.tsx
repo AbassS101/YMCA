@@ -299,23 +299,22 @@ export default function StaffAnnouncementsScreen() {
                   onPress={() => void handleTogglePopup(item)}
                   style={[
                     styles.actionBtnOutline,
+                    { flex: 1.5, paddingHorizontal: 6 },
                     item.popupNotice && { borderColor: colors.scarlet, backgroundColor: '#FEF2F2' },
                   ]}
                   accessibilityRole="button"
                   accessibilityLabel={item.popupNotice ? 'Disable App Open Pop-up' : 'Enable App Open Pop-up'}
                 >
-                  <Ionicons
-                    name="phone-portrait"
-                    size={15}
-                    color={item.popupNotice ? colors.scarlet : colors.nearBlack}
-                  />
                   <Text
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
                     style={[
                       styles.actionBtnText,
                       item.popupNotice && { color: colors.scarlet, fontWeight: '700' },
                     ]}
                   >
-                    {item.popupNotice ? 'Pop-up: ON' : 'Pop-up: OFF'}
+                    {item.popupNotice ? 'Pop-up On' : 'Pop-up Off'}
                   </Text>
                 </Pressable>
                 <Pressable

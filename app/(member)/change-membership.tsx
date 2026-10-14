@@ -16,6 +16,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
+import { PrimaryOnlyNotice, usePrimaryGuard } from '@/context/usePrimaryGuard';
 import { useTheme } from '@/context/ThemeContext';
 import {
   YMCA_MEMBERSHIP_PLANS,
@@ -39,6 +40,7 @@ function formatBillingDate(isoDate: string): string {
 export default function ChangeMembershipScreen() {
   const router = useRouter();
   const { session, api } = useSession();
+  const { primaryName: billingOwner } = usePrimaryGuard();
   const { colors, isDark } = useTheme();
   const memberId = session?.userId ?? '';
 
@@ -211,6 +213,8 @@ export default function ChangeMembershipScreen() {
     backgroundColor: colors.cardBg,
     borderColor: colors.cardBorder,
   };
+
+  if (billingOwner) return <PrimaryOnlyNotice primaryName={billingOwner} action="change the plan" />;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>

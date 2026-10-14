@@ -155,7 +155,7 @@ describe('Staff Admin and Trainer Capabilities', () => {
       // 1. Trainer views assigned schedule
       const trainerClasses = await adapter.listTrainerSchedule('staff-alex');
       expect(trainerClasses.length).toBeGreaterThan(0);
-      expect(trainerClasses[0].instructorName).toBe('Alex Rivera');
+      expect(trainerClasses[0].instructorName).toBe('Doc');
 
       // 2. Trainer adds an open lesson slot
       const slot = await adapter.addLessonSlot({

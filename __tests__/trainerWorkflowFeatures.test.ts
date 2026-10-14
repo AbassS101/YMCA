@@ -273,7 +273,7 @@ describe('Trainer Workflow & Capabilities', () => {
       // Client (member-jordan) checks their logs
       const memberLogs = await trainerRepo.listClientWorkoutLogs(adapter, 'member-jordan');
       expect(memberLogs.length).toBeGreaterThan(0);
-      expect(memberLogs[0].trainerName).toBe('Alex Rivera');
+      expect(memberLogs[0].trainerName).toBe('Doc');
       expect(memberLogs[0].exercises?.length).toBeGreaterThan(0);
 
       // Client checks their goals

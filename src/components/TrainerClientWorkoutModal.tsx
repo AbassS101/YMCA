@@ -275,7 +275,7 @@ export function TrainerClientWorkoutModal({
           trainerNameToSave = staffUser.name;
         } catch {
           trainerIdToSave = session?.userId ?? 'staff-trainer';
-          trainerNameToSave = 'Coach Alex Rivera';
+          trainerNameToSave = 'Coach Doc';
         }
       }
 

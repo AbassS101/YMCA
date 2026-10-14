@@ -8,13 +8,14 @@ import { BroadcastNoticeModal } from '@/components/staff/BroadcastNoticeModal';
 import { KpiRow } from '@/components/staff/KpiTile';
 import { PersonaHero } from '@/components/staff/PersonaHero';
 import { QuickActionBar } from '@/components/staff/QuickActionBar';
+import { SessionRequestsOversight } from '@/components/staff/SessionRequestsOversight';
 import { ActionButton, EmptyState, ListRow, SectionCard, StatusPill } from '@/components/staff/SectionCard';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import { getDemoToday } from '@/domain/demoClock';
 import { formatShortDate } from '@/domain/displayDates';
-import { personaTheme } from '@/domain/staffCapabilities';
+import { personaForRole, personaTheme } from '@/domain/staffCapabilities';
 import type { CancelRequest, ComplaintSuggestion, Member, ScheduleItem, Staff } from '@/domain/types';
 import { registrationRepo } from '@/repositories/registrationRepo';
 import { scheduleRepo } from '@/repositories/scheduleRepo';
@@ -35,7 +36,8 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
   const router = useRouter();
   const { api } = useSession();
   const { colors: tc } = useTheme();
-  const { theme, isITAdmin } = useStaffCapabilities();
+  const { theme, isITAdmin, isWellnessDirector, can } = useStaffCapabilities();
+  const seesComplaints = can('manageComplaints');
 
   const [profile, setProfile] = useState<Staff | null>(null);
   const [classes, setClasses] = useState<ClassFill[]>([]);
@@ -59,8 +61,10 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
         api.getStaff(staffId).catch(() => null),
         scheduleRepo.listAll(api, BRANCH_ID),
         api.listAllMembers(BRANCH_ID),
-        api.listPendingCancels(BRANCH_ID),
-        api.listComplaintsSuggestions(BRANCH_ID).catch(() => []),
+        api.listPendingCancels(BRANCH_ID).catch(() => []),
+        seesComplaints
+          ? api.listComplaintsSuggestions(BRANCH_ID).catch(() => [] as ComplaintSuggestion[])
+          : Promise.resolve([] as ComplaintSuggestion[]),
         api.listStaff(BRANCH_ID).catch(() => []),
       ]);
       const todays = allClasses
@@ -72,7 +76,10 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
         Promise.all(allMembers.map((m) => streakRepo.getStreakProfile(m.id).catch(() => null))),
         Promise.all(
           staff
-            .filter((s) => s.staffRole !== 'it_admin')
+            .filter((s) => {
+              const persona = personaForRole(s.staffRole);
+              return persona === 'trainer' || persona === 'swimInstructor';
+            })
             .map(async (s) => ({ staff: s, sessionsToday: (await api.listStaffLessons(s.id, today).catch(() => [])).length }))
         ),
         Promise.all(
@@ -93,7 +100,7 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
     } catch {
       setError(true);
     }
-  }, [api, staffId, today]);
+  }, [api, staffId, today, seesComplaints]);
 
   useFocusEffect(
     useCallback(() => {
@@ -121,7 +128,7 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
           route: '/(staff)/members',
         }]
       : []),
-    ...(newComplaints.length > 0
+    ...(seesComplaints && newComplaints.length > 0
       ? [{
           key: 'complaints',
           title: `${newComplaints.length} new complaint${newComplaints.length === 1 ? '' : 's'}`,
@@ -153,7 +160,13 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
 
   return (
     <DashboardScaffold
-      subtitle={isITAdmin ? 'IT Admin · Branch Overview' : 'Staff Admin · Branch Overview'}
+      subtitle={
+        isITAdmin
+          ? 'IT Admin · Branch Overview'
+          : isWellnessDirector
+            ? 'Wellness Director · Branch Overview'
+            : 'Staff Admin · Branch Overview'
+      }
       error={error}
       onRetry={() => void load()}
       overlay={
@@ -170,7 +183,7 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
     >
       <PersonaHero
         theme={theme}
-        name={profile?.name ?? 'Branch Director'}
+        name={profile?.name ?? (isWellnessDirector ? 'Wellness Director' : 'Staff Admin')}
         avatarUrl={profile?.avatarUrl}
         roleLabel={profile?.roleLabel}
         dateLabel={formatLongDate(today)}
@@ -179,7 +192,9 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
           items={[
             { label: 'Checked In Today', value: checkIns, icon: 'scan', color: '#15803D' },
             { label: 'Class Fill Rate', value: `${fillRate}%`, icon: 'pie-chart', color: '#0284C7' },
-            { label: 'Open Feedback', value: feedback.length, icon: 'chatbubbles', color: '#B45309', onPress: () => router.push('/(staff)/complaints-suggestions') },
+            ...(seesComplaints
+              ? [{ label: 'Open Feedback', value: feedback.length, icon: 'chatbubbles' as const, color: '#B45309', onPress: () => router.push('/(staff)/complaints-suggestions') }]
+              : [{ label: 'Members', value: members.length, icon: 'people' as const, color: '#B45309' }]),
             { label: 'Pending Cancels', value: cancels.length, icon: 'alert-circle', color: colors.scarlet },
           ]}
         />
@@ -191,8 +206,11 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
           { key: 'notices', label: 'Notices', icon: 'newspaper-outline', onPress: () => router.push('/(staff)/announcements') },
           { key: 'surveys', label: 'Surveys', icon: 'stats-chart-outline', onPress: () => router.push('/(staff)/surveys'), color: '#16A34A' },
           { key: 'staff', label: 'Staff', icon: 'people-outline', onPress: () => router.push('/(staff)/staff-management'), color: '#7C3AED' },
-          { key: 'feedback', label: 'Feedback', icon: 'chatbubbles-outline', onPress: () => router.push('/(staff)/complaints-suggestions'), color: '#0284C7' },
+          ...(seesComplaints
+            ? [{ key: 'feedback', label: 'Feedback', icon: 'chatbubbles-outline' as const, onPress: () => router.push('/(staff)/complaints-suggestions'), color: '#0284C7' }]
+            : []),
           { key: 'schedules', label: 'Schedules', icon: 'calendar-outline', onPress: () => router.push('/(staff)/schedules'), color: '#D97706' },
+          { key: 'childwatch', label: 'Child Watch', icon: 'happy-outline', onPress: () => router.push('/(staff)/child-watch'), color: '#0D9488' },
         ]}
       />
 
@@ -223,16 +241,18 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
         />
       </SectionCard>
 
+      <SessionRequestsOversight viewerId={staffId} accent={theme.color} title="Private Session Requests" />
+
       <SectionCard
         title="Team Today"
         icon="people-circle"
         accent={personaTheme('wellness_director').color}
-        subtitle="Private sessions booked per staff member"
+        subtitle="Private sessions booked per trainer and swim instructor"
         actionLabel="Staff"
         onAction={() => router.push('/(staff)/staff-management')}
       >
         {team.length === 0 ? (
-          <EmptyState icon="people-outline" text="No staff found." />
+          <EmptyState icon="people-outline" text="No trainers or swim instructors found." />
         ) : (
           team.map(({ staff, sessionsToday }) => {
             const pt = personaTheme(staff.staffRole ?? 'desk');

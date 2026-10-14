@@ -29,14 +29,14 @@ describe('YMCA Silver Spring Membership Plan Changing & Features', () => {
     expect(family?.monthlyAmountCents).toBe(9900);
   });
 
-  test('changeMembership switches plan from Adult to Family / Household', async () => {
+  test('changeMembership switches plan from Family II to Family / Household', async () => {
     const api = new MockProtivityAdapter();
     const initialMember = await api.getMember('member-jordan');
     const initialMembership = await api.getMembership('member-jordan');
 
-    expect(initialMember.type).toBe('Adult');
-    expect(initialMembership.rateName).toBe('Adult');
-    expect(initialMembership.monthlyAmountCents).toBe(8900);
+    expect(initialMember.type).toBe('Family II');
+    expect(initialMembership.rateName).toBe('Family II');
+    expect(initialMembership.monthlyAmountCents).toBe(11900);
 
     // Switch to Family / Household ($145.00/mo)
     const updated = await api.changeMembership('member-jordan', 'Family / Household', 14500);

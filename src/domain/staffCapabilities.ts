@@ -4,7 +4,9 @@ export type StaffPersona =
   | 'admin'
   | 'it'
   | 'trainer'
+  | 'swimInstructor'
   | 'wellnessDirector'
+  | 'aquaticsDirector'
   | 'membershipDirector'
   | 'frontDesk';
 
@@ -27,7 +29,14 @@ export type StaffCapability =
   | 'broadcast'
   | 'manageComplaints'
   | 'manageSurveys'
-  | 'viewBranchKpis';
+  | 'viewBranchKpis'
+  | 'handleBillingIssues'
+  | 'logMemberContacts'
+  | 'manageLeads'
+  | 'sellMemberships'
+  | 'manageCampaigns'
+  | 'viewRepKpis'
+  | 'viewSessionRequests';
 
 const ALL_CAPABILITIES: readonly StaffCapability[] = [
   'viewAllMembers',
@@ -49,6 +58,13 @@ const ALL_CAPABILITIES: readonly StaffCapability[] = [
   'manageComplaints',
   'manageSurveys',
   'viewBranchKpis',
+  'handleBillingIssues',
+  'logMemberContacts',
+  'manageLeads',
+  'sellMemberships',
+  'manageCampaigns',
+  'viewRepKpis',
+  'viewSessionRequests',
 ];
 
 const TRAINER_CAPABILITIES: readonly StaffCapability[] = [
@@ -57,13 +73,19 @@ const TRAINER_CAPABILITIES: readonly StaffCapability[] = [
   'takeAttendance',
 ];
 
-const WELLNESS_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = [
+// Wellness Director = everything a Staff Admin can do, except reading complaints.
+// (Creating/editing admin- or director-level staff is blocked in staff management.)
+const WELLNESS_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = ALL_CAPABILITIES.filter(
+  (c) => c !== 'manageComplaints'
+);
+
+const AQUATICS_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = [
   ...TRAINER_CAPABILITIES,
   'viewAllMembers',
   'manageAllLessonSlots',
   'assignClients',
-  'manageTrainers',
   'broadcast',
+  'viewSessionRequests',
 ];
 
 const MEMBERSHIP_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = [
@@ -77,9 +99,24 @@ const MEMBERSHIP_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = [
   'takeAttendance',
   'broadcast',
   'manageComplaints',
+  'handleBillingIssues',
+  'logMemberContacts',
+  'manageLeads',
+  'sellMemberships',
+  'manageCampaigns',
+  'viewRepKpis',
 ];
 
-const FRONT_DESK_CAPABILITIES: readonly StaffCapability[] = ['viewAllMembers', 'checkIn', 'takeAttendance'];
+const FRONT_DESK_CAPABILITIES: readonly StaffCapability[] = [
+  'viewAllMembers',
+  'createMembers',
+  'checkIn',
+  'takeAttendance',
+  'handleBillingIssues',
+  'logMemberContacts',
+  'manageLeads',
+  'sellMemberships',
+];
 
 export function personaForRole(role?: UserRole | StaffRole | string | null): StaffPersona | null {
   switch (role) {
@@ -90,8 +127,12 @@ export function personaForRole(role?: UserRole | StaffRole | string | null): Sta
       return 'it';
     case 'trainer':
       return 'trainer';
+    case 'swim_instructor':
+      return 'swimInstructor';
     case 'wellness_director':
       return 'wellnessDirector';
+    case 'aquatics_director':
+      return 'aquaticsDirector';
     case 'membership_director':
       return 'membershipDirector';
     case 'staff':
@@ -108,9 +149,12 @@ export function capabilitiesForRole(role?: UserRole | StaffRole | string | null)
     case 'it':
       return new Set(ALL_CAPABILITIES);
     case 'trainer':
+    case 'swimInstructor':
       return new Set(TRAINER_CAPABILITIES);
     case 'wellnessDirector':
       return new Set(WELLNESS_DIRECTOR_CAPABILITIES);
+    case 'aquaticsDirector':
+      return new Set(AQUATICS_DIRECTOR_CAPABILITIES);
     case 'membershipDirector':
       return new Set(MEMBERSHIP_DIRECTOR_CAPABILITIES);
     case 'frontDesk':
@@ -132,13 +176,13 @@ export function isStaffRole(role?: UserRole | StaffRole | string | null): boolea
 }
 
 export function isDirectorRole(role?: UserRole | StaffRole | string | null): boolean {
-  return role === 'wellness_director' || role === 'membership_director';
+  return role === 'wellness_director' || role === 'aquatics_director' || role === 'membership_director';
 }
 
 export type PersonaTheme = {
   badge: string;
   title: string;
-  icon: 'star' | 'shield-checkmark' | 'barbell' | 'fitness' | 'business' | 'person';
+  icon: 'star' | 'shield-checkmark' | 'barbell' | 'water' | 'fitness' | 'business' | 'person';
   color: string;
   softBg: string;
   darkSoftBg: string;
@@ -147,7 +191,7 @@ export type PersonaTheme = {
 export const PERSONA_THEMES: Record<StaffPersona, PersonaTheme> = {
   admin: {
     badge: 'STAFF ADMIN',
-    title: 'Branch Director',
+    title: 'Staff Admin',
     icon: 'star',
     color: '#B45309',
     softBg: '#FEF3C7',
@@ -169,6 +213,14 @@ export const PERSONA_THEMES: Record<StaffPersona, PersonaTheme> = {
     softBg: '#DCFCE7',
     darkSoftBg: '#052E16',
   },
+  swimInstructor: {
+    badge: 'SWIM INSTRUCTOR',
+    title: 'Swim Instructor',
+    icon: 'water',
+    color: '#0284C7',
+    softBg: '#E0F2FE',
+    darkSoftBg: '#082F49',
+  },
   wellnessDirector: {
     badge: 'WELLNESS DIR',
     title: 'Wellness Director',
@@ -176,6 +228,14 @@ export const PERSONA_THEMES: Record<StaffPersona, PersonaTheme> = {
     color: '#9D174D',
     softBg: '#FCE7F3',
     darkSoftBg: '#500724',
+  },
+  aquaticsDirector: {
+    badge: 'AQUATICS DIR',
+    title: 'Aquatics Director',
+    icon: 'water',
+    color: '#0369A1',
+    softBg: '#E0F2FE',
+    darkSoftBg: '#082F49',
   },
   membershipDirector: {
     badge: 'MEMBERSHIP DIR',
@@ -186,8 +246,8 @@ export const PERSONA_THEMES: Record<StaffPersona, PersonaTheme> = {
     darkSoftBg: '#1E1B4B',
   },
   frontDesk: {
-    badge: 'FRONT DESK',
-    title: 'Front Desk',
+    badge: 'MEMBERSHIP REP',
+    title: 'Front Desk Membership Representative',
     icon: 'person',
     color: '#0369A1',
     softBg: '#E0F2FE',

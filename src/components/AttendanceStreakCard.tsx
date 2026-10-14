@@ -8,7 +8,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { AttendanceStreakModal } from '@/components/AttendanceStreakModal';
 import { StreakFireEffect } from '@/components/StreakFireEffect';
+import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
+import { arrivalRepo } from '@/repositories/arrivalRepo';
 import {
   countVisitsInWeek,
   FROZEN_FLAME_TIER,
@@ -35,6 +37,7 @@ export function AttendanceStreakCard({
   onProfileUpdated,
 }: AttendanceStreakCardProps) {
   const { colors, isDark } = useTheme();
+  const { api } = useSession();
   const [modalVisible, setModalVisible] = useState(false);
   const [modalInitialTab, setModalInitialTab] = useState<'overview' | 'goals' | 'hold' | 'milestones'>('overview');
   const [justCheckedInMsg, setJustCheckedInMsg] = useState<string | null>(null);
@@ -59,6 +62,7 @@ export function AttendanceStreakCard({
         source: 'manual',
       });
       onProfileUpdated(result.profile);
+      if (result.isNewCheckIn) void arrivalRepo.notifyArrival(api, memberId, 'manual');
 
       if (result.isNewCheckIn) {
         if (result.justHitMilestone) {

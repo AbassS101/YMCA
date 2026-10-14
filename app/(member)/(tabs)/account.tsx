@@ -29,6 +29,7 @@ import { useSession } from '@/context/SessionContext';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
 import { cancelRequestedCopy } from '@/domain/displayDates';
 import type { Member, Membership, MemberStreakProfile, Message, Staff, TicketType } from '@/domain/types';
+import { householdRepo } from '@/repositories/householdRepo';
 import { memberRepo } from '@/repositories/memberRepo';
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { messageRepo } from '@/repositories/messageRepo';
@@ -74,7 +75,7 @@ const DEMO_ACCOUNTS = [
   {
     name: 'David',
     email: 'admin@silverspring.ymca',
-    role: 'Staff Admin · Branch Director',
+    role: 'Staff Admin',
     icon: 'shield' as const,
     color: '#D97706',
   },
@@ -95,7 +96,7 @@ const DEMO_ACCOUNTS = [
   {
     name: 'Celine',
     email: 'celine@silverspring.ymca',
-    role: 'Wellness Director (Incharge of Personal training)',
+    role: 'Wellness Director',
     icon: 'fitness' as const,
     color: '#EC4899',
   },
@@ -165,6 +166,9 @@ export default function MemberAccountScreen() {
 
   const [member, setMember] = useState<Member | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
+  /** Set when this member is on someone else's family plan; billing then belongs to that person. */
+  const [primaryName, setPrimaryName] = useState<string | null>(null);
+  const isPrimary = primaryName === null;
   const [streakProfile, setStreakProfile] = useState<MemberStreakProfile | null>(null);
   const [showStreakModal, setShowStreakModal] = useState(false);
   const [error, setError] = useState(false);
@@ -228,6 +232,12 @@ export default function MemberAccountScreen() {
       setMember(nextMember);
       setMembership(nextMembership);
       setStreakProfile(streakData);
+      if (nextMember.householdId && nextMember.householdId !== nextMember.id) {
+        const hh = await householdRepo.get(api, nextMember.id);
+        setPrimaryName(hh.primary.name);
+      } else {
+        setPrimaryName(null);
+      }
     } catch {
       setError(true);
     }
@@ -360,6 +370,7 @@ export default function MemberAccountScreen() {
                 <AppText style={[styles.sectionTitle, { color: colors.text }]}>Membership</AppText>
                 <AppText style={[styles.row, { color: colors.text }]}>ID {member.membershipId}</AppText>
               </View>
+              {isPrimary ? (
               <View style={{ flexDirection: 'row', gap: 6 }}>
                 <Pressable
                   onPress={() => router.push('/(member)/manage-membership')}
@@ -385,7 +396,14 @@ export default function MemberAccountScreen() {
                   </AppText>
                 </Pressable>
               </View>
+              ) : null}
             </View>
+
+            {!isPrimary ? (
+              <AppText style={[styles.row, { color: colors.textMuted }]}>
+                Family plan paid by {primaryName}. Only they can change billing or the plan.
+              </AppText>
+            ) : null}
 
             <AppText style={[styles.row, { color: colors.text, fontWeight: '700' }]}>
               {member.type} Plan · {formatCents(membership.monthlyAmountCents)}/mo
@@ -421,7 +439,7 @@ export default function MemberAccountScreen() {
               </View>
             ) : null}
 
-            {member.status === 'cancel_pending' ? (
+            {member.status === 'cancel_pending' && isPrimary ? (
               <View style={{ marginTop: 10 }}>
                 {cancelBanner ? (
                   <AppText style={[styles.cancelBanner, { marginBottom: 8 }]}>{cancelBanner}</AppText>
@@ -448,6 +466,7 @@ export default function MemberAccountScreen() {
           <View style={[styles.card, cardTheme]}>
             <View style={styles.membershipCardHeader}>
               <AppText style={[styles.sectionTitle, { color: colors.text }]}>Payment method</AppText>
+              {isPrimary ? (
               <Pressable
                 onPress={() => router.push('/(member)/update-payment')}
                 style={[styles.changePlanPill, { backgroundColor: colors.primaryLight }]}
@@ -459,6 +478,7 @@ export default function MemberAccountScreen() {
                   Update
                 </AppText>
               </Pressable>
+              ) : null}
             </View>
             <AppText style={[styles.row, { color: colors.text }]}>
               {membership.paymentBrand} •••• {membership.paymentLast4}
@@ -642,24 +662,36 @@ export default function MemberAccountScreen() {
             onPress={() => setShowStreakModal(true)}
             colors={colors}
           />
-          <MenuRow
-            label="Manage Membership & Billing"
-            icon="settings-outline"
-            onPress={() => router.push('/(member)/manage-membership')}
-            colors={colors}
-          />
-          <MenuRow
-            label="Change membership plan"
-            icon="swap-horizontal"
-            onPress={() => router.push('/(member)/change-membership')}
-            colors={colors}
-          />
-          <MenuRow
-            label="Buy / Add Membership Plan"
-            icon="add-circle-outline"
-            onPress={() => router.push('/(member)/join-membership')}
-            colors={colors}
-          />
+          {member?.householdId ? (
+            <MenuRow
+              label="Family & Household (IDs, access, add people)"
+              icon="people"
+              onPress={() => router.push('/(member)/family')}
+              colors={colors}
+            />
+          ) : null}
+          {isPrimary ? (
+            <>
+              <MenuRow
+                label="Manage Membership & Billing"
+                icon="settings-outline"
+                onPress={() => router.push('/(member)/manage-membership')}
+                colors={colors}
+              />
+              <MenuRow
+                label="Change membership plan"
+                icon="swap-horizontal"
+                onPress={() => router.push('/(member)/change-membership')}
+                colors={colors}
+              />
+              <MenuRow
+                label="Buy / Add Membership Plan"
+                icon="add-circle-outline"
+                onPress={() => router.push('/(member)/join-membership')}
+                colors={colors}
+              />
+            </>
+          ) : null}
           <MenuRow
             label="Community Events & Noticeboard"
             icon="calendar"
@@ -720,18 +752,22 @@ export default function MemberAccountScreen() {
             onPress={() => router.push('/(member)/guest-pass')}
             colors={colors}
           />
-          <MenuRow
-            label="Update payment method"
-            icon="card"
-            onPress={() => router.push('/(member)/update-payment')}
-            colors={colors}
-          />
-          <MenuRow
-            label="Cancel membership"
-            icon="close-circle"
-            onPress={() => router.push('/(member)/cancel')}
-            colors={colors}
-          />
+          {isPrimary ? (
+            <>
+              <MenuRow
+                label="Update payment method"
+                icon="card"
+                onPress={() => router.push('/(member)/update-payment')}
+                colors={colors}
+              />
+              <MenuRow
+                label="Cancel membership"
+                icon="close-circle"
+                onPress={() => router.push('/(member)/cancel')}
+                colors={colors}
+              />
+            </>
+          ) : null}
           <MenuRow
             label="About"
             icon="information-circle"
@@ -960,7 +996,7 @@ export default function MemberAccountScreen() {
         visible={supportModalVisible}
         onClose={() => setSupportModalVisible(false)}
         userId={memberId}
-        userName={member?.name ?? 'Jordan Hale'}
+        userName={member?.name ?? 'John Doe'}
         userEmail={member?.email ?? 'jordan@silverspring.ymca'}
         userRole="member"
         api={api}

@@ -12,7 +12,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '@/components/AppText';
 import { StreakFireEffect } from '@/components/StreakFireEffect';
+import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
+import { arrivalRepo } from '@/repositories/arrivalRepo';
 import {
   countVisitsInWeek,
   FLAME_MILESTONE_TIERS,
@@ -68,6 +70,7 @@ export function AttendanceStreakModal({
   initialTab = 'overview',
 }: AttendanceStreakModalProps) {
   const { colors, isDark } = useTheme();
+  const { api } = useSession();
   const [activeTab, setActiveTab] = useState<'overview' | 'goals' | 'hold' | 'milestones'>(initialTab);
 
   // Goal state
@@ -121,6 +124,7 @@ export function AttendanceStreakModal({
       });
       onProfileUpdated(result.profile);
       if (result.isNewCheckIn) {
+        void arrivalRepo.notifyArrival(api, memberId, 'manual');
         if (result.justHitMilestone) {
           setCheckInFeedback(
             `🎉 Milestone Unlocked: ${result.justHitMilestone.tierName} (${result.justHitMilestone.threshold}+ weeks)!`

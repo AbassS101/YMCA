@@ -17,6 +17,7 @@ import { SecondaryButton } from '@/components/SecondaryButton';
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
+import { PrimaryOnlyNotice, usePrimaryGuard } from '@/context/usePrimaryGuard';
 import { useTheme } from '@/context/ThemeContext';
 import {
   YMCA_MEMBERSHIP_PLANS,
@@ -43,6 +44,7 @@ function formatDate(iso: string): string {
 export default function ManageMembershipScreen() {
   const router = useRouter();
   const { session, api } = useSession();
+  const { primaryName: billingOwner } = usePrimaryGuard();
   const { colors, isDark } = useTheme();
   const memberId = session?.userId ?? '';
 
@@ -147,6 +149,8 @@ export default function ManageMembershipScreen() {
 
   const isCancelPending = member?.status === 'cancel_pending';
   const hasPendingChange = Boolean(membership?.pendingChange);
+
+  if (billingOwner) return <PrimaryOnlyNotice primaryName={billingOwner} action="manage billing" />;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>

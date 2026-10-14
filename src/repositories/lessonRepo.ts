@@ -1,8 +1,14 @@
 import type {
   BookLessonOptions,
+  BookableTime,
+  CreateSessionRequestInput,
   LessonPricing,
   LessonSlot,
+  LessonType,
   PrivateLesson,
+  SessionRequest,
+  SessionRequestFilter,
+  SessionRequestResponse,
   SwimClassEnrollment,
 } from '@/domain/types';
 import type { ProtivityPort } from '@/protivity/ProtivityPort';
@@ -60,6 +66,50 @@ export const lessonRepo = {
         }
       : undefined;
     return api.bookPrivateLesson(memberId, newSlotId, carry);
+  },
+};
+
+export const sessionRequestRepo = {
+  bookableTimes(
+    api: ProtivityPort,
+    memberId: string,
+    q: { lessonType: LessonType; durationMin: 30 | 60; from: string; to: string; staffId?: string }
+  ): Promise<BookableTime[]> {
+    return api.listBookableTimes(memberId, q);
+  },
+  create(api: ProtivityPort, memberId: string, input: CreateSessionRequestInput): Promise<SessionRequest> {
+    return api.createSessionRequest(memberId, input);
+  },
+  respond(
+    api: ProtivityPort,
+    requestId: string,
+    staffId: string,
+    response: SessionRequestResponse
+  ): Promise<SessionRequest> {
+    return api.respondToSessionRequest(requestId, staffId, response);
+  },
+  answerCounter(
+    api: ProtivityPort,
+    requestId: string,
+    memberId: string,
+    decision: 'accept' | 'decline'
+  ): Promise<SessionRequest> {
+    return api.respondToCounterOffer(requestId, memberId, decision);
+  },
+  cancel(api: ProtivityPort, requestId: string, userId: string): Promise<SessionRequest> {
+    return api.cancelSessionRequest(requestId, userId);
+  },
+  list(api: ProtivityPort, filter?: SessionRequestFilter): Promise<SessionRequest[]> {
+    return api.listSessionRequests(filter);
+  },
+  setInstantBooking(
+    api: ProtivityPort,
+    staffId: string,
+    memberId: string,
+    enabled: boolean,
+    requesterUserId?: string
+  ) {
+    return api.setInstantBooking(staffId, memberId, enabled, requesterUserId);
   },
 };
 

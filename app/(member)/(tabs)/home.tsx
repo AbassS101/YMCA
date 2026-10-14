@@ -262,6 +262,7 @@ export default function MemberHomeScreen() {
           ) : (
             <MemberCheckInCard
               member={member}
+              onBookOrientation={() => router.push('/(member)/(tabs)/trainers')}
               onClose={() => {
                 if (memberId) {
                   void streakRepo.getStreakProfile(memberId).then(setStreakProfile);
@@ -525,6 +526,19 @@ export default function MemberHomeScreen() {
             </View>
             <Text style={[styles.tileTitle, { color: colors.text }]}>Events</Text>
             <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>RSVP & Reminders</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push('/(member)/child-watch')}
+            style={[styles.featureTile, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
+            accessibilityRole="button"
+            accessibilityLabel="Open Child Watch"
+          >
+            <View style={[styles.tileIconCircle, { backgroundColor: colors.primaryLight }]}>
+              <Ionicons name="happy-outline" size={20} color={colors.primary} />
+            </View>
+            <Text style={[styles.tileTitle, { color: colors.text }]}>Child Watch</Text>
+            <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>Free babysitting</Text>
           </Pressable>
 
           <Pressable

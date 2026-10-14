@@ -1,4 +1,13 @@
 import type {
+  ArrivalRecord,
+  ArrivalResult,
+  ArrivalSource,
+  BillingIssueRow,
+  EnrollmentCampaign,
+  Lead,
+  MemberContact,
+  HouseholdMemberInput,
+  HouseholdView,
   Announcement,
   AppNotification,
   AttendanceStatus,
@@ -15,6 +24,12 @@ import type {
   ForumTopic,
   ForumTopicCategory,
   BookLessonOptions,
+  BookableTime,
+  CreateSessionRequestInput,
+  LessonType,
+  SessionRequest,
+  SessionRequestFilter,
+  SessionRequestResponse,
   LessonPricing,
   SwimClassEnrollment,
   LessonSlot,
@@ -85,7 +100,20 @@ export interface ProtivityPort {
     donationCents?: number;
     password?: string;
     waiveEnrollmentFee?: boolean;
+    campaignId?: string;
+    birthDate?: string;
+    householdMembers?: HouseholdMemberInput[];
   }): Promise<{ member: Member; membership: Membership }>;
+  getHousehold(memberId: string): Promise<HouseholdView>;
+  addHouseholdMember(primaryId: string, input: HouseholdMemberInput): Promise<Member>;
+  updateHouseholdMember(
+    primaryId: string,
+    memberId: string,
+    updates: Partial<Pick<HouseholdMemberInput, 'name' | 'birthDate' | 'allergies' | 'notes'>>
+  ): Promise<Member>;
+  removeHouseholdMember(primaryId: string, memberId: string): Promise<void>;
+  /** Trainer/admin only; member must be 13-17. */
+  recordGymOrientation(memberId: string, staffId: string): Promise<Member>;
   submitCancelNotice(
     memberId: string,
     input: { reason: string; requestedAt: string }
@@ -113,6 +141,30 @@ export interface ProtivityPort {
     slotId: string,
     options?: BookLessonOptions
   ): Promise<PrivateLesson>;
+  // Private session requests (PT and swim)
+  listBookableTimes(
+    memberId: string,
+    q: { lessonType: LessonType; durationMin: 30 | 60; from: string; to: string; staffId?: string }
+  ): Promise<BookableTime[]>;
+  createSessionRequest(memberId: string, input: CreateSessionRequestInput): Promise<SessionRequest>;
+  respondToSessionRequest(
+    requestId: string,
+    staffId: string,
+    response: SessionRequestResponse
+  ): Promise<SessionRequest>;
+  respondToCounterOffer(
+    requestId: string,
+    memberId: string,
+    decision: 'accept' | 'decline'
+  ): Promise<SessionRequest>;
+  cancelSessionRequest(requestId: string, userId: string): Promise<SessionRequest>;
+  listSessionRequests(filter?: SessionRequestFilter): Promise<SessionRequest[]>;
+  setInstantBooking(
+    staffId: string,
+    memberId: string,
+    enabled: boolean,
+    requesterUserId?: string
+  ): Promise<Staff>;
   getLessonPricing(): Promise<LessonPricing>;
   updateLessonPricing(updates: Partial<LessonPricing>): Promise<LessonPricing>;
   enrollInSwimClass(
@@ -237,6 +289,7 @@ export interface ProtivityPort {
     planId: string;
     password?: string;
     homeBranchId?: string;
+    campaignId?: string;
   }): Promise<{ member: Member; membership: Membership }>;
 
   // Class Community Forum & Chat
@@ -367,6 +420,39 @@ export interface ProtivityPort {
   listSurveyResponses(surveyId: string): Promise<SurveyResponse[]>;
   submitSurveyResponse(input: Omit<SurveyResponse, 'id' | 'submittedAt'>): Promise<SurveyResponse>;
   getMemberSurveyResponses(memberId: string): Promise<SurveyResponse[]>;
+  // Arrivals, billing issues, contacts, leads, campaigns (front desk)
+  recordArrival(
+    memberId: string,
+    options?: { source?: ArrivalSource; staffId?: string; date?: string }
+  ): Promise<ArrivalResult>;
+  listArrivals(branchId: string, date: string): Promise<ArrivalRecord[]>;
+  listBillingIssues(branchId: string, requesterUserId?: string): Promise<BillingIssueRow[]>;
+  resolveBillingIssue(
+    memberId: string,
+    payment: { brand: string; last4: string },
+    requesterUserId: string
+  ): Promise<Membership>;
+  listMemberContacts(filter?: { memberId?: string; leadId?: string; staffId?: string }): Promise<MemberContact[]>;
+  logMemberContact(
+    input: Omit<MemberContact, 'id' | 'createdAt' | 'staffId' | 'staffName'>,
+    requesterUserId: string
+  ): Promise<MemberContact>;
+  listLeads(requesterUserId?: string): Promise<Lead[]>;
+  createLead(
+    input: Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'status'> & { status?: Lead['status'] },
+    requesterUserId: string
+  ): Promise<Lead>;
+  updateLead(id: string, updates: Partial<Lead>, requesterUserId: string): Promise<Lead>;
+  convertLeadToMember(
+    leadId: string,
+    input: { planId: string; payment: { brand: string; last4: string }; password?: string },
+    requesterUserId: string
+  ): Promise<{ member: Member; membership: Membership; enrollmentFeeCents: number; campaign: EnrollmentCampaign | null }>;
+  listCampaigns(): Promise<EnrollmentCampaign[]>;
+  getActiveCampaign(date: string, planId?: string): Promise<EnrollmentCampaign | null>;
+  saveCampaign(
+    input: Omit<EnrollmentCampaign, 'id' | 'createdByStaffId'> & { id?: string },
+    requesterUserId: string
+  ): Promise<EnrollmentCampaign>;
+  deleteCampaign(id: string, requesterUserId: string): Promise<void>;
 }
-
-

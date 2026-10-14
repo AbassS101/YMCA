@@ -15,6 +15,7 @@ import {
 import { ClassCard } from '@/components/ClassCard';
 import { ClassDetailModal } from '@/components/ClassDetailModal';
 import { ClassForumModal } from '@/components/ClassForumModal';
+import { MySessionRequests } from '@/components/booking/MySessionRequests';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { PaymentCheckoutModal } from '@/components/PaymentCheckoutModal';
 import { YHeader } from '@/components/YHeader';
@@ -47,8 +48,7 @@ type FilterChipKey =
   | 'freeweight'
   | 'studio'
   | 'circuit'
-  | 'event'
-  | 'childWatch';
+  | 'event';
 
 const FILTER_CHIPS: { key: FilterChipKey; label: string; icon?: any }[] = [
   { key: 'all', label: 'All Classes' },
@@ -65,7 +65,6 @@ const FILTER_CHIPS: { key: FilterChipKey; label: string; icon?: any }[] = [
   { key: 'studio', label: '✨ Studio' },
   { key: 'circuit', label: '⚙️ Circuit Room' },
   { key: 'event', label: '🏆 Events' },
-  { key: 'childWatch', label: '🧸 Child Watch' },
 ];
 
 function addDays(isoDate: string, days: number): string {
@@ -256,8 +255,6 @@ export default function MemberSchedulesScreen() {
         if (!item.location.toLowerCase().includes('circuit')) return false;
       } else if (activeChip === 'event') {
         if (item.category !== 'event' && !item.isSpecialEvent) return false;
-      } else if (activeChip === 'childWatch') {
-        if (item.category !== 'childWatch') return false;
       }
 
       // Text search query
@@ -716,6 +713,7 @@ export default function MemberSchedulesScreen() {
         showsVerticalScrollIndicator
         ListHeaderComponent={
           <View style={styles.listHeaderWrapper}>
+            <MySessionRequests />
             {/* Quick Community Forum Banner (Scrolls naturally with list) */}
             <Pressable
               onPress={() => router.push('/(member)/community-forum')}
@@ -767,6 +765,21 @@ export default function MemberSchedulesScreen() {
                 <Ionicons name="chevron-forward" size={16} color={tc.primary} />
               </Pressable>
             ) : null}
+
+            {/* Child Watch is a service, not a class */}
+            <Pressable
+              onPress={() => router.push('/(member)/child-watch')}
+              style={[styles.slimForumBanner, { backgroundColor: tc.cardBg, borderColor: tc.border }]}
+              accessibilityRole="button"
+              accessibilityLabel="Open Child Watch hours and sign-in"
+            >
+              <View style={[styles.slimForumIconWrap, { backgroundColor: isDark ? '#1E3A8A' : '#E0F2FE' }]}>
+                <Ionicons name="happy-outline" size={14} color={tc.primary} />
+              </View>
+              <Text style={[styles.slimForumText, { color: tc.text }]} numberOfLines={1}>
+                Free Child Watch · Mon–Fri 9–12 & 4–8, Sat 9–12 <Text style={{ color: tc.primary, fontWeight: '700' }}>Details ›</Text>
+              </Text>
+            </Pressable>
 
             {/* Filter Status Reset Pill if filters are active */}
             {hasActiveFilters ? (

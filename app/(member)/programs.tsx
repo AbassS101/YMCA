@@ -132,7 +132,7 @@ const PROGRAMS: ProgramSection[] = [
       'Goal setting: strength building, mobility, weight management, or race prep',
       'Book anytime directly with our personal trainers in the app',
     ],
-    ctaText: 'Book with Trainer Alex or Sarah',
+    ctaText: 'Book with Doc or Jane Doe',
     ctaRoute: '/(member)/(tabs)/trainers',
   },
 ];

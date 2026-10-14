@@ -126,7 +126,7 @@ describe('Official YMCA Silver Spring Fall 1 Group Exercise Schedule', () => {
       // 6:00am–6:45am BodyPump (Sarah, Gym)
       const bp = tuesdayClasses.find((c) => c.title === 'BodyPump' && c.start.includes('06:00'));
       expect(bp).toBeDefined();
-      expect(bp?.instructorName).toBe('Sarah');
+      expect(bp?.instructorName).toBe('Jane Doe');
       expect(bp?.location).toBe('Gym');
 
       // 7:00am–8:00am Vinyasa Flow Yoga (Jim, Gym)
@@ -215,7 +215,7 @@ describe('Official YMCA Silver Spring Fall 1 Group Exercise Schedule', () => {
       // 7:30am–8:30am CoreFusion (Sarah, Studio)
       const coreFusion = wednesdayClasses.find((c) => c.title === 'CoreFusion');
       expect(coreFusion).toBeDefined();
-      expect(coreFusion?.instructorName).toBe('Sarah');
+      expect(coreFusion?.instructorName).toBe('Jane Doe');
       expect(coreFusion?.location).toBe('Studio');
 
       // 7:45am–8:45am Cardiolite (Sue, Gym)

@@ -66,8 +66,8 @@ describe('YMCA Membership Management: Buy, Schedule Next Month, Cancel & Rescind
   test('scheduleMembershipChange records pendingChange for next billing cycle and sends notification', async () => {
     const api = new MockProtivityAdapter();
     const initial = await api.getMembership('member-jordan');
-    expect(initial.rateName).toBe('Adult');
-    expect(initial.monthlyAmountCents).toBe(8900);
+    expect(initial.rateName).toBe('Family II');
+    expect(initial.monthlyAmountCents).toBe(11900);
 
     const updated = await api.scheduleMembershipChange(
       'member-jordan',
@@ -77,8 +77,8 @@ describe('YMCA Membership Management: Buy, Schedule Next Month, Cancel & Rescind
     );
 
     // Current plan remains unchanged until next month
-    expect(updated.rateName).toBe('Adult');
-    expect(updated.monthlyAmountCents).toBe(8900);
+    expect(updated.rateName).toBe('Family II');
+    expect(updated.monthlyAmountCents).toBe(11900);
 
     // Pending change is recorded
     expect(updated.pendingChange).toBeDefined();
@@ -99,7 +99,7 @@ describe('YMCA Membership Management: Buy, Schedule Next Month, Cancel & Rescind
 
     const cancelled = await api.cancelScheduledChange('member-jordan');
     expect(cancelled.pendingChange).toBeUndefined();
-    expect(cancelled.rateName).toBe('Adult');
+    expect(cancelled.rateName).toBe('Family II');
 
     const notifs = await api.listNotifications('member-jordan');
     expect(notifs.some((n) => n.title.includes('Scheduled Plan Change Cancelled'))).toBe(true);

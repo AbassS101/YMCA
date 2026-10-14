@@ -28,6 +28,24 @@ const ALL: StaffCapability[] = [
   'manageComplaints',
   'manageSurveys',
   'viewBranchKpis',
+  'handleBillingIssues',
+  'logMemberContacts',
+  'manageLeads',
+  'sellMemberships',
+  'manageCampaigns',
+  'viewRepKpis',
+  'viewSessionRequests',
+];
+
+const REP: StaffCapability[] = [
+  'viewAllMembers',
+  'createMembers',
+  'checkIn',
+  'takeAttendance',
+  'handleBillingIssues',
+  'logMemberContacts',
+  'manageLeads',
+  'sellMemberships',
 ];
 
 const EXPECTED: Record<string, StaffCapability[]> = {
@@ -35,15 +53,17 @@ const EXPECTED: Record<string, StaffCapability[]> = {
   staff_admin: ALL,
   it_admin: ALL,
   trainer: ['logWorkouts', 'manageOwnLessonSlots', 'takeAttendance'],
-  wellness_director: [
+  // Everything a Staff Admin can do, except reading complaints.
+  wellness_director: ALL.filter((c) => c !== 'manageComplaints'),
+  aquatics_director: [
     'logWorkouts',
     'manageOwnLessonSlots',
     'takeAttendance',
     'viewAllMembers',
     'manageAllLessonSlots',
     'assignClients',
-    'manageTrainers',
     'broadcast',
+    'viewSessionRequests',
   ],
   membership_director: [
     'viewAllMembers',
@@ -56,9 +76,15 @@ const EXPECTED: Record<string, StaffCapability[]> = {
     'takeAttendance',
     'broadcast',
     'manageComplaints',
+    'handleBillingIssues',
+    'logMemberContacts',
+    'manageLeads',
+    'sellMemberships',
+    'manageCampaigns',
+    'viewRepKpis',
   ],
-  staff: ['viewAllMembers', 'checkIn', 'takeAttendance'],
-  desk: ['viewAllMembers', 'checkIn', 'takeAttendance'],
+  staff: REP,
+  desk: REP,
   member: [],
   guest: [],
 };
@@ -81,12 +107,14 @@ describe('staff capability matrix', () => {
     }
   });
 
-  it('keeps membership decisions away from trainers and the Wellness Director', () => {
-    for (const role of ['trainer', 'wellness_director']) {
-      expect(hasCapability(role, 'approveCancellations')).toBe(false);
-      expect(hasCapability(role, 'changePlans')).toBe(false);
-      expect(hasCapability(role, 'deleteMembers')).toBe(false);
-    }
+  it('keeps membership decisions away from trainers', () => {
+    expect(hasCapability('trainer', 'approveCancellations')).toBe(false);
+    expect(hasCapability('trainer', 'changePlans')).toBe(false);
+    expect(hasCapability('trainer', 'deleteMembers')).toBe(false);
+  });
+
+  it('keeps complaints away from the Wellness Director', () => {
+    expect(hasCapability('wellness_director', 'manageComplaints')).toBe(false);
   });
 });
 
@@ -96,7 +124,11 @@ describe('staff persona helpers', () => {
     expect(personaForRole('admin')).toBe('admin');
     expect(personaForRole('it_admin')).toBe('it');
     expect(personaForRole('trainer')).toBe('trainer');
+    expect(personaForRole('swim_instructor')).toBe('swimInstructor');
+    expect([...capabilitiesForRole('swim_instructor')].sort()).toEqual([...capabilitiesForRole('trainer')].sort());
     expect(personaForRole('wellness_director')).toBe('wellnessDirector');
+    expect(personaForRole('aquatics_director')).toBe('aquaticsDirector');
+    expect(isDirectorRole('aquatics_director')).toBe(true);
     expect(personaForRole('membership_director')).toBe('membershipDirector');
     expect(personaForRole('desk')).toBe('frontDesk');
     expect(personaForRole('staff')).toBe('frontDesk');

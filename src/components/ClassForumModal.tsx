@@ -68,7 +68,7 @@ export function ClassForumModal({
 
   const isOverallAdmin = isAdminRole(currentUserRole);
   const isClassTrainer = Boolean(
-    (currentUserRole === 'trainer' || currentUserRole === 'wellness_director') &&
+    (currentUserRole === 'trainer' || currentUserRole === 'swim_instructor' || currentUserRole === 'wellness_director') &&
       scheduleItem &&
       (scheduleItem.staffId === currentUserId ||
         (staffProfile?.name &&

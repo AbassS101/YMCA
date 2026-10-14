@@ -107,10 +107,7 @@ describe('Director roles and membership permissions', () => {
     });
   });
 
-  describe.each([
-    ['Trainer', TRAINER],
-    ['Wellness Director', WELLNESS_DIRECTOR],
-  ])('%s', (_label, staffId) => {
+  describe.each([['Trainer', TRAINER]])('%s', (_label, staffId) => {
     it('cannot approve a cancellation', async () => {
       await submitCancel();
       await expect(adapter.approveCancelRequest(MEMBER, staffId)).rejects.toThrow(/not permitted/);
@@ -130,6 +127,15 @@ describe('Director roles and membership permissions', () => {
     it('cannot delete a member account', async () => {
       await expect(adapter.deleteMemberAccount(MEMBER, staffId)).rejects.toThrow(/not permitted/);
       expect((await adapter.getMember(MEMBER)).id).toBe(MEMBER);
+    });
+  });
+
+  describe('Wellness Director', () => {
+    it('has Staff Admin membership powers', async () => {
+      await submitCancel();
+      expect((await adapter.approveCancelRequest(MEMBER, WELLNESS_DIRECTOR)).status).toBe('approved');
+      expect((await adapter.rescindCancelNotice(MEMBER, WELLNESS_DIRECTOR)).status).toBe('active');
+      expect((await adapter.changeMembership(MEMBER, 'Senior', 4500, WELLNESS_DIRECTOR)).rateName).toBe('Senior');
     });
   });
 

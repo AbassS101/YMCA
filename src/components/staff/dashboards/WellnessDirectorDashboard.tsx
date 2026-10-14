@@ -8,12 +8,14 @@ import { BroadcastNoticeModal } from '@/components/staff/BroadcastNoticeModal';
 import { KpiRow } from '@/components/staff/KpiTile';
 import { PersonaHero } from '@/components/staff/PersonaHero';
 import { QuickActionBar } from '@/components/staff/QuickActionBar';
+import { SessionRequestsOversight } from '@/components/staff/SessionRequestsOversight';
 import { ActionButton, EmptyState, ListRow, SectionCard, StatusPill } from '@/components/staff/SectionCard';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import { getDemoToday } from '@/domain/demoClock';
+import { personaForRole } from '@/domain/staffCapabilities';
 import type { Member, Staff } from '@/domain/types';
 import { formatWellnessPrice, WELLNESS_TRAINING_PROGRAMS } from '@/domain/wellnessPrograms';
 import { radii } from '@/theme/typography';
@@ -50,7 +52,10 @@ export function WellnessDirectorDashboard({ staffId }: { staffId: string }) {
       setTeamError(false);
       const today = getDemoToday();
       const [staff, members] = await Promise.all([api.listStaff(BRANCH_ID), api.listAllMembers(BRANCH_ID)]);
-      const trainers = staff.filter((s) => s.staffRole === 'trainer' || s.staffRole === 'wellness_director');
+      const trainers = staff.filter((s) => {
+        const persona = personaForRole(s.staffRole);
+        return persona === 'trainer' || persona === 'swimInstructor' || persona === 'wellnessDirector';
+      });
 
       const loads = await Promise.all(
         trainers.map(async (trainer) => {
@@ -250,6 +255,13 @@ export function WellnessDirectorDashboard({ staffId }: { staffId: string }) {
           ))
         )}
       </SectionCard>
+
+      <SessionRequestsOversight
+        viewerId={staffId}
+        accent={theme.color}
+        title="Personal Training Requests"
+        lessonType="training"
+      />
 
       <SectionCard title="Wellness Programs" icon="fitness" accent={theme.color} subtitle="Branch member pricing">
         {WELLNESS_TRAINING_PROGRAMS.map((p) => {

@@ -17,9 +17,12 @@ export function LessonCheckoutSheet({
   busy,
   confirmLabel,
   footnote,
+  totalText,
   onConfirm,
   onClose,
 }: {
+  /** Overrides the total value text, e.g. when nothing is charged yet. */
+  totalText?: string;
   visible: boolean;
   title: string;
   lines: CheckoutLine[];
@@ -34,7 +37,7 @@ export function LessonCheckoutSheet({
 }) {
   const { colors } = useTheme();
   const free = totalCents === 0;
-  const total = free ? 'Free' : `$${(totalCents / 100).toFixed(2)}`;
+  const total = totalText ?? (free ? 'Free' : `$${(totalCents / 100).toFixed(2)}`);
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -72,8 +75,7 @@ export function LessonCheckoutSheet({
               </Text>
             ) : null}
             <PrimaryButton
-              title={confirmLabel ?? (free ? 'Confirm' : `Pay ${total}`)}
-              onPress={onConfirm}
+              title={confirmLabel ?? (free ? 'Confirm' : `Pay ${total}`)}              onPress={onConfirm}
               loading={busy}
             />
             <SecondaryButton title="Cancel" onPress={onClose} disabled={busy} />

@@ -13,9 +13,18 @@ import {
   View,
 } from 'react-native';
 
+import { AvailabilitySettings } from '@/components/staff/AvailabilitySettings';
 import { ClassAttendanceModal } from '@/components/ClassAttendanceModal';
 import { ClassForumModal } from '@/components/ClassForumModal';
 import { DateTimeWheelPicker } from '@/components/DateTimeWheelPicker';
+import {
+  DEFAULT_REPEAT,
+  RepeatPicker,
+  expandRepeat,
+  repeatFromDates,
+  repeatLabel,
+  type RepeatValue,
+} from '@/components/RepeatPicker';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { TextField } from '@/components/TextField';
@@ -25,7 +34,6 @@ import { dialog } from '@/context/DialogContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useSession } from '@/context/SessionContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
-import { PersonaBanner } from '@/components/staff/PersonaBanner';
 import { formatShortDate } from '@/domain/displayDates';
 import { type LessonSlot, type Member, type PrivateLesson, type ScheduleCategory, type ScheduleItem, type Staff } from '@/domain/types';
 import { registrationRepo } from '@/repositories/registrationRepo';
@@ -42,7 +50,6 @@ const CATEGORIES: { key: ScheduleCategory | 'all'; label: string }[] = [
   { key: 'groupEx', label: 'Group Fitness' },
   { key: 'seniors', label: 'Seniors / AOA' },
   { key: 'swim', label: 'Aquatics & Swim' },
-  { key: 'childWatch', label: 'Child Watch' },
   { key: 'event', label: 'Special Events' },
 ];
 
@@ -74,7 +81,7 @@ export default function StaffSchedulesScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const staffId = session?.userId ?? '';
-  const { can, isAdmin, isWellnessDirector, isMembershipDirector, theme } = useStaffCapabilities();
+  const { can, isAdmin } = useStaffCapabilities();
   const canManageSchedules = can('manageSchedules');
   const canManageOwnSlots = can('manageOwnLessonSlots');
   const canManageAllSlots = can('manageAllLessonSlots');
@@ -110,6 +117,11 @@ export default function StaffSchedulesScreen() {
   const [formDurationMinutes, setFormDurationMinutes] = useState(60);
   const [formEndTime, setFormEndTime] = useState('10:00');
   const [formCapacity, setFormCapacity] = useState('20');
+  const [formOpenAccess, setFormOpenAccess] = useState(true);
+  const [formRepeat, setFormRepeat] = useState<RepeatValue>(DEFAULT_REPEAT);
+  const [formEditingItem, setFormEditingItem] = useState<ScheduleItem | null>(null);
+  const [formApplyScope, setFormApplyScope] = useState<'one' | 'future'>('one');
+  const [slotRepeat, setSlotRepeat] = useState<RepeatValue>(DEFAULT_REPEAT);
   const [formPrice, setFormPrice] = useState('0');
   const [formDescription, setFormDescription] = useState('');
   const [formSeniorFriendly, setFormSeniorFriendly] = useState(false);
@@ -119,7 +131,14 @@ export default function StaffSchedulesScreen() {
 
   // Cancellation & Notification Modal
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
-  const [itemToCancel, setItemToCancel] = useState<{ id: string; title: string; type: 'class' | 'lesson' } | null>(null);
+  const [itemToCancel, setItemToCancel] = useState<{
+    id: string;
+    title: string;
+    type: 'class' | 'lesson';
+    seriesId?: string;
+    start?: string;
+  } | null>(null);
+  const [cancelScope, setCancelScope] = useState<'one' | 'future'>('one');
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
 
@@ -239,6 +258,10 @@ export default function StaffSchedulesScreen() {
     setFormDurationMinutes(60);
     setFormEndTime('11:00');
     setFormCapacity('20');
+    setFormOpenAccess(true);
+    setFormRepeat(DEFAULT_REPEAT);
+    setFormEditingItem(null);
+    setFormApplyScope('one');
     setFormPrice('0');
     setFormDescription('');
     setFormSeniorFriendly(false);
@@ -247,7 +270,7 @@ export default function StaffSchedulesScreen() {
     setItemModalVisible(true);
   }
 
-  function openEditModal(item: ScheduleItem) {
+  function openEditModal(item: ScheduleItem, scope: 'one' | 'future' = 'one') {
     setEditingItemId(item.id);
     setFormTitle(item.title);
     setFormCategory(item.category);
@@ -261,6 +284,22 @@ export default function StaffSchedulesScreen() {
     setFormStartTime(startTimePart);
     setFormEndTime(endTimePart);
     setFormCapacity(String(item.capacity || 20));
+    setFormOpenAccess(Boolean(item.openAccess));
+    setFormEditingItem(item);
+    setFormRepeat(DEFAULT_REPEAT);
+    setFormApplyScope(item.seriesId ? scope : 'one');
+    if (item.seriesId) {
+      // Rebuild the existing repeat pattern from the sessions in this series.
+      void api.listAllSchedules(BRANCH_ID).then((all) => {
+        const sibs = all.filter((s) => s.seriesId === item.seriesId && s.start >= item.start);
+        setFormRepeat(
+          repeatFromDates(
+            sibs.map((s) => s.start.slice(0, 10)),
+            item.recurrenceLabel,
+          ),
+        );
+      });
+    }
     setFormPrice(String((item.priceCents || 0) / 100));
     setFormDescription(item.description ?? '');
     setFormSeniorFriendly(Boolean(item.seniorFriendly));
@@ -283,45 +322,116 @@ export default function StaffSchedulesScreen() {
 
     try {
       const calculatedEnd = formEndTime || computeEndTime(formStartTime, formDurationMinutes);
-      const startIso = `${formStartDate}T${formStartTime}:00-04:00`;
-      const endIso = `${formStartDate}T${calculatedEnd}:00-04:00`;
-      const cap = parseInt(formCapacity, 10) || 20;
+      // Open access = first come, first served: no visible cap, so use a high internal limit.
+      const cap = formOpenAccess ? 9999 : parseInt(formCapacity, 10) || 20;
       const priceC = Math.round(parseFloat(formPrice || '0') * 100);
       const chosenStaffId = formStaffId || staffId;
 
-      if (editingItemId) {
-        await scheduleRepo.update(api, editingItemId, {
-          title: formTitle.trim(),
-          category: formCategory,
-          instructorName: formInstructor.trim(),
-          staffId: chosenStaffId,
-          location: formLocation.trim(),
-          start: startIso,
-          end: endIso,
-          capacity: cap,
-          priceCents: priceC,
-          description: formDescription.trim(),
-          seniorFriendly: formSeniorFriendly,
-          isSpecialEvent: formIsSpecialEvent,
-        });
-        dialog.alert('Updated!', 'Schedule item updated and participants notified if time changed.', [{ text: 'OK' }], 'checkmark');
-      } else {
-        await scheduleRepo.create(api, {
+      const common = {
+        title: formTitle.trim(),
+        category: formCategory,
+        instructorName: formInstructor.trim(),
+        staffId: chosenStaffId,
+        location: formLocation.trim(),
+        capacity: cap,
+        openAccess: formOpenAccess,
+        priceCents: priceC,
+        description: formDescription.trim(),
+        seniorFriendly: formSeniorFriendly,
+        isSpecialEvent: formIsSpecialEvent,
+      };
+      const timesFor = (date: string) => ({
+        start: `${date}T${formStartTime}:00-04:00`,
+        end: `${date}T${calculatedEnd}:00-04:00`,
+      });
+      const newDates = expandRepeat(formStartDate, formRepeat);
+      const label = newDates.length > 1 ? repeatLabel(formRepeat) : undefined;
+      if (newDates.length === 0) {
+        setFormError('Pick at least one day of the week for the repeat.');
+        setFormSubmitting(false);
+        return;
+      }
+      const createOn = (date: string, seriesId?: string) =>
+        scheduleRepo.create(api, {
           branchId: BRANCH_ID,
-          title: formTitle.trim(),
-          category: formCategory,
-          instructorName: formInstructor.trim(),
-          staffId: chosenStaffId,
-          location: formLocation.trim(),
-          start: startIso,
-          end: endIso,
-          capacity: cap,
-          priceCents: priceC,
-          description: formDescription.trim(),
-          seniorFriendly: formSeniorFriendly,
-          isSpecialEvent: formIsSpecialEvent,
+          ...common,
+          ...timesFor(date),
+          seriesId,
+          recurrenceLabel: label,
         });
-        dialog.alert('Created!', 'New class or event has been published to the YMCA schedule.', [{ text: 'OK' }], 'checkmark');
+
+      if (editingItemId && formEditingItem) {
+        const orig = formEditingItem;
+        if (orig.seriesId && formApplyScope === 'one') {
+          // Only this session changes; it stays linked to its series.
+          await scheduleRepo.update(api, editingItemId, { ...common, ...timesFor(formStartDate) });
+          dialog.alert('Updated!', 'This session was updated. Participants are notified if the time changed.', [{ text: 'OK' }], 'checkmark');
+        } else if (orig.seriesId) {
+          // This and all future sessions in the series.
+          const all = await api.listAllSchedules(BRANCH_ID);
+          const future = all.filter(
+            (x) => x.seriesId === orig.seriesId && x.start >= orig.start && x.id !== orig.id,
+          );
+          const seriesId = newDates.length > 1 ? orig.seriesId : undefined;
+          await scheduleRepo.update(api, editingItemId, {
+            ...common,
+            ...timesFor(formStartDate),
+            seriesId,
+            recurrenceLabel: label,
+          });
+          const kept = new Set<string>([formStartDate]);
+          for (const sib of future) {
+            const date = sib.start.slice(0, 10);
+            if (newDates.includes(date) && !kept.has(date)) {
+              kept.add(date);
+              await scheduleRepo.update(api, sib.id, {
+                ...common,
+                ...timesFor(date),
+                seriesId,
+                recurrenceLabel: label,
+              });
+            } else {
+              await scheduleRepo.delete(api, sib.id, 'This session was removed when the repeating schedule changed.');
+            }
+          }
+          for (const date of newDates) {
+            if (!kept.has(date)) await createOn(date, seriesId);
+          }
+          dialog.alert('Updated!', 'This and all future sessions were updated.', [{ text: 'OK' }], 'checkmark');
+        } else {
+          // Single session: update it, and optionally turn it into a repeating series.
+          const seriesId = newDates.length > 1 ? `series-${Date.now()}` : undefined;
+          await scheduleRepo.update(api, editingItemId, {
+            ...common,
+            ...timesFor(formStartDate),
+            seriesId,
+            recurrenceLabel: label,
+          });
+          for (const date of newDates) {
+            if (date !== formStartDate) await createOn(date, seriesId);
+          }
+          dialog.alert(
+            'Updated!',
+            newDates.length > 1
+              ? `Updated, and ${newDates.length - 1} repeating sessions were added.`
+              : 'Schedule item updated and participants notified if time changed.',
+            [{ text: 'OK' }],
+            'checkmark',
+          );
+        }
+      } else {
+        const seriesId = newDates.length > 1 ? `series-${Date.now()}` : undefined;
+        for (const date of newDates) {
+          await createOn(date, seriesId);
+        }
+        dialog.alert(
+          'Created!',
+          newDates.length > 1
+            ? `${newDates.length} sessions have been published to the YMCA schedule.`
+            : 'New class or event has been published to the YMCA schedule.',
+          [{ text: 'OK' }],
+          'checkmark',
+        );
       }
       setItemModalVisible(false);
       await loadData();
@@ -332,8 +442,9 @@ export default function StaffSchedulesScreen() {
     }
   }
 
-  function promptCancel(item: ScheduleItem) {
-    setItemToCancel({ id: item.id, title: item.title, type: 'class' });
+  function promptCancel(item: ScheduleItem, scope: 'one' | 'future' = 'one') {
+    setItemToCancel({ id: item.id, title: item.title, type: 'class', seriesId: item.seriesId, start: item.start });
+    setCancelScope(item.seriesId ? scope : 'one');
     setCancelReason('Instructor unwell or emergency facility maintenance.');
     setCancelModalVisible(true);
   }
@@ -350,10 +461,20 @@ export default function StaffSchedulesScreen() {
     setCancelling(true);
     try {
       if (itemToCancel.type === 'class') {
-        await scheduleRepo.cancelClassAndNotify(api, itemToCancel.id, cancelReason.trim());
+        let ids = [itemToCancel.id];
+        if (itemToCancel.seriesId && cancelScope === 'future') {
+          const all = await api.listAllSchedules(BRANCH_ID);
+          ids = all
+            .filter((x) => x.seriesId === itemToCancel.seriesId && x.start >= (itemToCancel.start ?? ''))
+            .map((x) => x.id);
+          if (!ids.includes(itemToCancel.id)) ids.push(itemToCancel.id);
+        }
+        for (const id of ids) {
+          await scheduleRepo.cancelClassAndNotify(api, id, cancelReason.trim());
+        }
         dialog.alert(
-          'Class Cancelled',
-          'The session was cancelled and automated alerts have been sent to all registered attendees.',
+          ids.length > 1 ? `${ids.length} Sessions Cancelled` : 'Class Cancelled',
+          'The cancelled sessions have been removed and automated alerts have been sent to all registered attendees.',
           [{ text: 'OK' }],
           'checkmark'
         );
@@ -397,17 +518,30 @@ export default function StaffSchedulesScreen() {
   async function handleAddSlot() {
     setSlotSubmitting(true);
     try {
-      const startIso = `${slotDate}T${slotStart}:00-04:00`;
-      const endIso = `${slotDate}T${slotEnd}:00-04:00`;
-      await api.addLessonSlot({
-        staffId: lessonStaffId,
-        branchId: BRANCH_ID,
-        start: startIso,
-        end: endIso,
-        location: slotLocation.trim(),
-      });
+      const dates = expandRepeat(slotDate, slotRepeat);
+      if (dates.length === 0) {
+        dialog.alert('Pick a day', 'Choose at least one day of the week for the repeat.', [{ text: 'OK' }]);
+        return;
+      }
+      for (const date of dates) {
+        await api.addLessonSlot({
+          staffId: lessonStaffId,
+          branchId: BRANCH_ID,
+          start: `${date}T${slotStart}:00-04:00`,
+          end: `${date}T${slotEnd}:00-04:00`,
+          location: slotLocation.trim(),
+        });
+      }
       setSlotModalVisible(false);
-      dialog.alert('Slot Added', 'New open private lesson availability created.', [{ text: 'OK' }], 'checkmark');
+      setSlotRepeat(DEFAULT_REPEAT);
+      dialog.alert(
+        'Availability Added',
+        dates.length > 1
+          ? `${dates.length} availability windows created. Members request times inside them.`
+          : 'New availability window created. Members request times inside it.',
+        [{ text: 'OK' }],
+        'checkmark',
+      );
       await loadData();
     } catch (err: any) {
       dialog.alert('Error', err?.message || 'Could not add slot.', [{ text: 'OK' }]);
@@ -427,53 +561,28 @@ export default function StaffSchedulesScreen() {
 
   return (
     <View style={styles.screen}>
-      <YHeader
-        subtitle={
-          isAdmin
-            ? 'Staff Admin · Schedules & Events'
-            : isWellnessDirector
-              ? 'Wellness Director · Team Schedules'
-              : isMembershipDirector
-                ? 'Membership Director · Branch Schedule'
-                : canManageOwnSlots
-                  ? 'Trainer Portal · Schedules'
-                  : 'Branch Schedule'
-        }
-      />
+      <YHeader />
       {error ? <ErrorBanner onRetry={() => void loadData()} /> : null}
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        <PersonaBanner
-          theme={theme}
-          text={
-            canManageSchedules
-              ? 'Create, edit and cancel any class or event'
-              : canManageAllSlots
-                ? 'Manage your classes and open lesson slots for any trainer'
-                : canManageOwnSlots
-                  ? 'Your classes, private lessons and open slots'
-                  : 'Read-only branch schedule with rosters and attendance'
-          }
-        />
-
         <View style={styles.actionRow}>
           {canManageSchedules ? (
             <Pressable
               onPress={openCreateModal}
-              style={[styles.primaryActionBtn, { backgroundColor: colors.primary }]}
+              style={({ pressed }) => [styles.primaryActionBtn, pressed && styles.pressed]}
               accessibilityRole="button"
             >
-              <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-              <Text style={styles.primaryActionText}>+ New Class or Event</Text>
+              <Ionicons name="add" size={20} color="#FFFFFF" />
+              <Text style={styles.primaryActionText}>New class or event</Text>
             </Pressable>
           ) : canManageOwnSlots ? (
             <Pressable
               onPress={() => setSlotModalVisible(true)}
-              style={[styles.primaryActionBtn, { backgroundColor: '#15803D' }]}
+              style={({ pressed }) => [styles.primaryActionBtn, pressed && styles.pressed]}
               accessibilityRole="button"
             >
-              <Ionicons name="time" size={20} color="#FFFFFF" />
-              <Text style={styles.primaryActionText}>+ Add Available Slot</Text>
+              <Ionicons name="add" size={20} color="#FFFFFF" />
+              <Text style={styles.primaryActionText}>Add available slot</Text>
             </Pressable>
           ) : null}
         </View>
@@ -575,12 +684,19 @@ export default function StaffSchedulesScreen() {
 
                     {/* Date and Time Bar */}
                     <View style={styles.timeBar}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}>
                         <Ionicons name="time-outline" size={16} color={colors.primary} />
                         <Text style={styles.timeText}>
                           {formatDate(item.start)} · {formatTime(item.start)} - {formatTime(item.end)}
+                          {item.recurrenceLabel ? ` · ${item.recurrenceLabel}` : ''}
                         </Text>
                       </View>
+                      {item.openAccess ? (
+                        <View style={styles.rosterPill}>
+                          <Ionicons name="walk" size={14} color={colors.primary} />
+                          <Text style={styles.rosterPillText}>First come, first served</Text>
+                        </View>
+                      ) : (
                       <Pressable
                         onPress={() => void openRoster(item)}
                         style={styles.rosterPill}
@@ -592,54 +708,75 @@ export default function StaffSchedulesScreen() {
                           {rosterCount}/{item.capacity} Enrolled
                         </Text>
                       </Pressable>
+                      )}
                     </View>
 
                     {item.description ? <Text style={styles.classDesc}>{item.description}</Text> : null}
 
                     {/* Action Buttons for Admins & Trainers */}
                     <View style={styles.cardActions}>
+                      {item.openAccess ? null : (
                       <Pressable
                         onPress={() => void openRoster(item)}
-                        style={[styles.actionBtnOutline, { borderColor: '#15803D', backgroundColor: '#F0FDF4', flex: 1.1 }]}
+                        style={({ pressed }) => [styles.actionBtnFilled, pressed && styles.pressed]}
                         accessibilityRole="button"
                         accessibilityLabel={`Take attendance for ${item.title}`}
                       >
-                        <Ionicons name="clipboard-outline" size={16} color="#15803D" />
-                        <Text style={[styles.actionBtnText, { color: '#15803D' }]}>Attendance</Text>
+                        <Text style={styles.actionBtnFilledText}>Attendance</Text>
                       </Pressable>
+                      )}
 
                       <Pressable
                         onPress={() => {
                           setSelectedForumClass(item);
                           setForumModalVisible(true);
                         }}
-                        style={[styles.actionBtnOutline, { borderColor: '#C084FC', flex: 1.1 }]}
+                        style={({ pressed }) => [styles.actionBtnTonal, pressed && styles.pressed]}
                         accessibilityRole="button"
                         accessibilityLabel={`Class forum and chat for ${item.title}`}
                       >
-                        <Ionicons name="chatbubbles-outline" size={16} color="#7C3AED" />
-                        <Text style={[styles.actionBtnText, { color: '#7C3AED' }]}>Forum</Text>
+                        <Text style={styles.actionBtnText}>Forum</Text>
                       </Pressable>
 
                       {canManageSchedules || canManageOwnSlots ? (
                         <>
                           <Pressable
                             onPress={() => openEditModal(item)}
-                            style={styles.actionBtnOutline}
+                            style={({ pressed }) => [styles.actionBtnTonal, pressed && styles.pressed]}
                             accessibilityRole="button"
                           >
-                            <Ionicons name="create-outline" size={16} color={colors.primary} />
                             <Text style={styles.actionBtnText}>Edit</Text>
                           </Pressable>
 
+                          {item.seriesId ? (
+                            <Pressable
+                              onPress={() => openEditModal(item, 'future')}
+                              style={({ pressed }) => [styles.actionBtnTonal, pressed && styles.pressed]}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Edit this and all future sessions of ${item.title}`}
+                            >
+                              <Text style={styles.actionBtnText}>Edit All Future</Text>
+                            </Pressable>
+                          ) : null}
+
                           <Pressable
                             onPress={() => promptCancel(item)}
-                            style={styles.actionBtnDestructive}
+                            style={({ pressed }) => [styles.actionBtnGhost, pressed && styles.pressed]}
                             accessibilityRole="button"
                           >
-                            <Ionicons name="close-circle-outline" size={16} color={colors.scarlet} />
                             <Text style={[styles.actionBtnText, { color: colors.scarlet }]}>Cancel</Text>
                           </Pressable>
+
+                          {item.seriesId ? (
+                            <Pressable
+                              onPress={() => promptCancel(item, 'future')}
+                              style={({ pressed }) => [styles.actionBtnGhost, pressed && styles.pressed]}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Cancel this and all future sessions of ${item.title}`}
+                            >
+                              <Text style={[styles.actionBtnText, { color: colors.scarlet }]}>Cancel All Future</Text>
+                            </Pressable>
+                          ) : null}
                         </>
                       ) : null}
                     </View>
@@ -660,7 +797,7 @@ export default function StaffSchedulesScreen() {
                 <Text style={styles.sectionHeader}>Trainer</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
                   {allStaff
-                    .filter((st) => st.staffRole === 'trainer' || st.staffRole === 'wellness_director')
+                    .filter((st) => st.staffRole === 'trainer' || st.staffRole === 'swim_instructor' || st.staffRole === 'wellness_director')
                     .map((st) => {
                       const active = lessonStaffId === st.id;
                       return (
@@ -773,20 +910,20 @@ export default function StaffSchedulesScreen() {
 
             {/* Open Availability Slots */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-              <Text style={styles.sectionHeader}>Open Availability Slots</Text>
+              <Text style={styles.sectionHeader}>Availability Windows</Text>
               <Pressable
                 onPress={() => setSlotModalVisible(true)}
                 style={{ paddingVertical: 4, paddingHorizontal: 8 }}
                 accessibilityRole="button"
               >
-                <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>+ Add Slot</Text>
+                <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>+ Add Availability</Text>
               </Pressable>
             </View>
 
             {lessonSlots.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Ionicons name="time-outline" size={36} color={colors.muted} />
-                <Text style={styles.emptyText}>No available slots configured. Add open times for members to book.</Text>
+                <Text style={styles.emptyText}>No availability set. Add the hours you are free (for example 9 AM to 2 PM) so members can request sessions.</Text>
               </View>
             ) : (
               lessonSlots.map((slot) => (
@@ -808,6 +945,8 @@ export default function StaffSchedulesScreen() {
                 </View>
               ))
             )}
+
+            <AvailabilitySettings key={lessonStaffId} staffId={lessonStaffId} accent={colors.primary} />
           </View>
         ) : null}
       </ScrollView>
@@ -820,19 +959,19 @@ export default function StaffSchedulesScreen() {
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{editingItemId ? 'Edit Class / Event' : 'Create New Class / Event'}</Text>
-              <Pressable onPress={() => setItemModalVisible(false)} hitSlop={10}>
+              <Pressable onPress={() => setItemModalVisible(false)} hitSlop={16} style={{ padding: 8 }}>
                 <Ionicons name="close" size={24} color={colors.nearBlack} />
               </Pressable>
             </View>
 
             {formError ? <ErrorBanner message={formError} /> : null}
 
-            <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ gap: 12, paddingBottom: 20 }}>
+            <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 12, paddingBottom: 20 }}>
               <TextField label="Title / Class Name" value={formTitle} onChangeText={setFormTitle} placeholder="e.g. Sunrise Yoga Flow" />
 
               <Text style={styles.fieldLabel}>Category</Text>
               <View style={styles.chipRow}>
-                {(['groupEx', 'seniors', 'swim', 'childWatch', 'event'] as ScheduleCategory[]).map((cat) => (
+                {(['groupEx', 'seniors', 'swim', 'event'] as ScheduleCategory[]).map((cat) => (
                   <Pressable
                     key={cat}
                     onPress={() => setFormCategory(cat)}
@@ -873,7 +1012,7 @@ export default function StaffSchedulesScreen() {
                   label="Instructor Display Name"
                   value={formInstructor}
                   onChangeText={setFormInstructor}
-                  placeholder="e.g. Sarah Davis or Guest Instructor"
+                  placeholder="e.g. Jane Doe or Guest Instructor"
                 />
               </View>
 
@@ -918,10 +1057,67 @@ export default function StaffSchedulesScreen() {
                 </Text>
               </View>
 
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <TextField label="Capacity" value={formCapacity} onChangeText={setFormCapacity} keyboardType="numeric" />
+              {/* Repeat: available when creating and when editing */}
+              {editingItemId && formEditingItem?.seriesId ? (
+                <View>
+                  <Text style={styles.fieldLabel}>Apply changes to</Text>
+                  <View style={styles.chipRow}>
+                    {([
+                      ['one', 'Just this session'],
+                      ['future', 'This & all future sessions'],
+                    ] as const).map(([key, text]) => {
+                      const active = formApplyScope === key;
+                      return (
+                        <Pressable
+                          key={key}
+                          onPress={() => setFormApplyScope(key)}
+                          style={[styles.miniChip, active && styles.miniChipActive]}
+                        >
+                          <Text style={[styles.miniChipText, active && styles.miniChipTextActive]}>{text}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                 </View>
+              ) : null}
+              {!(editingItemId && formEditingItem?.seriesId && formApplyScope === 'one') ? (
+                <RepeatPicker value={formRepeat} onChange={setFormRepeat} startDate={formStartDate} />
+              ) : null}
+
+              {/* Capacity mode */}
+              <View>
+                <Text style={styles.fieldLabel}>Capacity</Text>
+                <View style={styles.chipRow}>
+                  <Pressable
+                    onPress={() => setFormOpenAccess(true)}
+                    style={[styles.miniChip, formOpenAccess && styles.miniChipActive]}
+                  >
+                    <Text style={[styles.miniChipText, formOpenAccess && styles.miniChipTextActive]}>
+                      First come, first served
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setFormOpenAccess(false)}
+                    style={[styles.miniChip, !formOpenAccess && styles.miniChipActive]}
+                  >
+                    <Text style={[styles.miniChipText, !formOpenAccess && styles.miniChipTextActive]}>
+                      Limited spots
+                    </Text>
+                  </Pressable>
+                </View>
+                {formOpenAccess ? (
+                  <Text style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}>
+                    Capacity is not shown and attendance is not checked.
+                  </Text>
+                ) : null}
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                {!formOpenAccess ? (
+                  <View style={{ flex: 1 }}>
+                    <TextField label="Spots" value={formCapacity} onChangeText={setFormCapacity} keyboardType="numeric" />
+                  </View>
+                ) : null}
                 <View style={{ flex: 1 }}>
                   <TextField label="Price $ (0 = free)" value={formPrice} onChangeText={setFormPrice} keyboardType="decimal-pad" />
                 </View>
@@ -988,6 +1184,26 @@ export default function StaffSchedulesScreen() {
                 {itemToCancel?.title}
               </Text>
             </View>
+
+            {itemToCancel?.seriesId ? (
+              <View style={[styles.chipRow, { justifyContent: 'center', marginBottom: 12 }]}>
+                {([
+                  ['one', 'Just this session'],
+                  ['future', 'This & all future'],
+                ] as const).map(([key, text]) => {
+                  const active = cancelScope === key;
+                  return (
+                    <Pressable
+                      key={key}
+                      onPress={() => setCancelScope(key)}
+                      style={[styles.miniChip, active && styles.miniChipActive]}
+                    >
+                      <Text style={[styles.miniChipText, active && styles.miniChipTextActive]}>{text}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
 
             <TextField
               label="Cancellation Reason (sent to all enrolled members):"
@@ -1098,7 +1314,7 @@ export default function StaffSchedulesScreen() {
               </Pressable>
             </View>
 
-            <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ gap: 12, paddingBottom: 16 }}>
+            <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 12, paddingBottom: 16 }}>
               <DateTimeWheelPicker
                 selectedDate={slotDate}
                 onDateChange={setSlotDate}
@@ -1136,6 +1352,8 @@ export default function StaffSchedulesScreen() {
                   Slot Interval: {slotStart} - {slotEnd} ({slotDurationMinutes} mins)
                 </Text>
               </View>
+
+              <RepeatPicker value={slotRepeat} onChange={setSlotRepeat} startDate={slotDate} />
 
               <TextField label="Location" value={slotLocation} onChangeText={setSlotLocation} placeholder="e.g. Studio B, Pool Lane 3" />
 
@@ -1307,6 +1525,9 @@ function makeStyles(colors: ThemeColors) {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    rowGap: 8,
+    columnGap: 8,
     backgroundColor: colors.background,
     padding: 10,
     borderRadius: radii.sm,
@@ -1314,6 +1535,7 @@ function makeStyles(colors: ThemeColors) {
     borderColor: '#E2E8F0',
   },
   timeText: {
+    flexShrink: 1,
     fontSize: 13,
     fontWeight: '600',
     color: colors.nearBlack,
@@ -1339,6 +1561,7 @@ function makeStyles(colors: ThemeColors) {
   },
   cardActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
     borderTopWidth: 1,
     borderTopColor: colors.border,
@@ -1355,6 +1578,37 @@ function makeStyles(colors: ThemeColors) {
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.white,
+  },
+  pressed: {
+    opacity: 0.75,
+  },
+  actionBtnFilled: {
+    flex: 1.2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: radii.sm,
+    backgroundColor: colors.primary,
+  },
+  actionBtnFilledText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  actionBtnTonal: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: radii.sm,
+    backgroundColor: colors.background,
+  },
+  actionBtnGhost: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: radii.sm,
   },
   actionBtnDestructive: {
     flex: 1,
@@ -1423,11 +1677,14 @@ function makeStyles(colors: ThemeColors) {
     backgroundColor: 'rgba(0,0,0,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 64,
+    paddingBottom: 24,
   },
   modalSheet: {
     width: '100%',
     maxWidth: 520,
+    maxHeight: '100%',
     backgroundColor: colors.white,
     borderRadius: radii.lg,
     padding: 20,
@@ -1465,6 +1722,7 @@ function makeStyles(colors: ThemeColors) {
     marginBottom: 4,
   },
   miniChip: {
+    maxWidth: '100%',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 6,
@@ -1477,6 +1735,7 @@ function makeStyles(colors: ThemeColors) {
     borderColor: colors.primary,
   },
   miniChipText: {
+    flexShrink: 1,
     fontSize: 11,
     fontWeight: '700',
     color: colors.nearBlack,

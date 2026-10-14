@@ -28,5 +28,5 @@ test('reset loads seed and payment update never stores PAN', async () => {
   const reloaded = await loadStore();
   expect(reloaded.memberships[0].paymentLast4).toBe('1111');
   expect(JSON.stringify(reloaded)).not.toMatch(/\d{13,19}/);
-  expect(SEED.memberships[0].monthlyAmountCents).toBe(8900);
+  expect(SEED.memberships[0].monthlyAmountCents).toBe(11900);
 });

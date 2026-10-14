@@ -20,7 +20,7 @@ export type MentionCandidate = {
   id: string;
   name: string;
   roleLabel: string;
-  roleType: 'admin' | 'trainer' | 'desk' | 'it' | 'member';
+  roleType: 'admin' | 'trainer' | 'swim' | 'desk' | 'it' | 'member';
   icon: keyof typeof Ionicons.glyphMap;
   badgeBg: string;
   badgeText: string;
@@ -48,8 +48,8 @@ export const DEFAULT_MENTION_CANDIDATES: MentionCandidate[] = [
   {
     id: 'staff-sarah',
     name: 'Jane Doe',
-    roleLabel: 'Senior Mobility & Aqua Coach',
-    roleType: 'trainer',
+    roleLabel: 'Swim Instructor',
+    roleType: 'swim',
     icon: 'water',
     badgeBg: '#E0F2FE',
     badgeText: '#0284C7',
@@ -57,7 +57,7 @@ export const DEFAULT_MENTION_CANDIDATES: MentionCandidate[] = [
   {
     id: 'staff-celine',
     name: 'Celine',
-    roleLabel: 'Wellness Director (Incharge of PT)',
+    roleLabel: 'Wellness Director',
     roleType: 'trainer',
     icon: 'fitness',
     badgeBg: '#FCE7F3',
@@ -84,7 +84,7 @@ export const DEFAULT_MENTION_CANDIDATES: MentionCandidate[] = [
   {
     id: 'staff-admin',
     name: 'David',
-    roleLabel: 'Staff Admin & Branch Director',
+    roleLabel: 'Staff Admin',
     roleType: 'admin',
     icon: 'shield-checkmark',
     badgeBg: '#EEF2FF',
@@ -137,7 +137,7 @@ export const DEFAULT_MENTION_CANDIDATES: MentionCandidate[] = [
   },
   {
     id: 'member-elena',
-    name: 'Elena Rostova',
+    name: 'Emily Wilson',
     roleLabel: 'YMCA Community Member',
     roleType: 'member',
     icon: 'person',

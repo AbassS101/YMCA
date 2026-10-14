@@ -13,7 +13,9 @@ export function roleTag(role: string): { label: string; color: string } | null {
   if (role === 'admin' || role === 'it_admin' || role === 'staff_admin')
     return { label: 'ADMIN', color: '#7C3AED' };
   if (role === 'wellness_director') return { label: 'WELLNESS DIR', color: '#9D174D' };
+  if (role === 'aquatics_director') return { label: 'AQUATICS DIR', color: '#0369A1' };
   if (role === 'membership_director') return { label: 'MEMBERSHIP DIR', color: '#4338CA' };
+  if (role === 'swim_instructor') return { label: 'SWIM INSTRUCTOR', color: '#0284C7' };
   if (role === 'trainer') return { label: 'TRAINER', color: '#15803D' };
   if (role === 'staff' || role === 'desk') return { label: 'STAFF', color: '#0284C7' };
   return null;
