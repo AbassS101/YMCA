@@ -1,3 +1,4 @@
+import type { AppConfig, AppConfigPatch, AppConfigSection, ConfigAuditEntry } from '@/domain/appConfig';
 import type {
   ArrivalRecord,
   ArrivalResult,
@@ -260,7 +261,7 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
-  async updateLessonPricing(_updates: Partial<LessonPricing>): Promise<LessonPricing> {
+  async updateLessonPricing(_updates: Partial<LessonPricing>, _requesterUserId?: string): Promise<LessonPricing> {
     throw new ProtivityNotConnected();
   }
 
@@ -907,6 +908,26 @@ export class LiveProtivityAdapter implements ProtivityPort {
   }
 
   async deleteCampaign(_id: string, _requesterUserId: string): Promise<void> {
+    throw new ProtivityNotConnected();
+  }
+
+  async getAppConfig(): Promise<AppConfig> {
+    throw new ProtivityNotConnected();
+  }
+
+  async updateAppConfig<S extends AppConfigSection>(
+    _section: S,
+    _patch: AppConfigPatch<S>,
+    _requesterUserId: string
+  ): Promise<AppConfig> {
+    throw new ProtivityNotConnected();
+  }
+
+  async resetAppConfigSection(_section: AppConfigSection, _requesterUserId: string): Promise<AppConfig> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listConfigAudit(_requesterUserId: string): Promise<ConfigAuditEntry[]> {
     throw new ProtivityNotConnected();
   }
 }

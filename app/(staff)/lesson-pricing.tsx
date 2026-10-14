@@ -10,9 +10,10 @@ import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
+import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import { AQUATICS_CLASSES } from '@/domain/aquaticsGuideData';
 import { DEFAULT_LESSON_PRICING } from '@/domain/lessonPricing';
-import { isAdminRole, type LessonPricing } from '@/domain/types';
+import type { LessonPricing } from '@/domain/types';
 import { pricingRepo } from '@/repositories/lessonRepo';
 import { radii, spacing, tapTarget } from '@/theme/typography';
 
@@ -40,7 +41,8 @@ export default function LessonPricingScreen() {
   const router = useRouter();
   const { session, api } = useSession();
   const { colors } = useTheme();
-  const isAdmin = isAdminRole(session?.role);
+  const { canEditSection } = useStaffCapabilities();
+  const canEdit = canEditSection('lessonPricing');
 
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -101,11 +103,15 @@ export default function LessonPricingScreen() {
     }
     setBusy(true);
     try {
-      await pricingRepo.update(api, {
-        training: { 30: t30, 60: t60 },
-        swim: { 30: s30, 60: s60 },
-        swimClassOverrides: classOverrides,
-      });
+      await pricingRepo.update(
+        api,
+        {
+          training: { 30: t30, 60: t60 },
+          swim: { 30: s30, 60: s60 },
+          swimClassOverrides: classOverrides,
+        },
+        session?.userId ?? ''
+      );
       dialog.show({
         title: 'Pricing saved',
         message: 'New prices apply to bookings made from now on.',
@@ -155,7 +161,7 @@ export default function LessonPricingScreen() {
     />
   );
 
-  if (!isAdmin) {
+  if (!canEdit) {
     return (
       <View style={[styles.screen, { backgroundColor: colors.background }]}>
         <YHeader subtitle="Lesson pricing" />

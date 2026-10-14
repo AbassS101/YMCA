@@ -373,7 +373,7 @@ const CONVERSATIONS: Conversation[] = [
     memberId: 'member-riley',
     staffId: 'staff-frontdesk',
     lines: [
-      ['s', 'Hi Riley, this is Maya at the front desk. The card ending in 1881 was declined on the 10th. You can update it under Account, then Payment.', -3, '15:10'],
+      ['s', 'Hi Riley, this is Liz at the front desk. The card ending in 1881 was declined on the 10th. You can update it under Account, then Payment.', -3, '15:10'],
       ['m', 'Oh no, I changed banks last month. I will update it tonight.', -3, '19:45'],
       ['s', 'Thanks! Let me know if it does not go through and we can take it at the desk.', -2, '08:30'],
     ],
@@ -498,7 +498,7 @@ const NOTIFICATIONS: NotifRow[] = [
   ['member-jordan-spouse', 'membership', 'Welcome to the Y, Jane', 'You are on the Doe family plan. Scan your pass at the front desk or the turnstile.', -20, '09:00', true, '/(member)/manage-membership'],
   ['member-jordan-spouse', 'event', 'Parents Night Out is open for sign-up', 'Drop off the kids for an evening of games and a movie while you get time to yourself.', -1, '12:00', false, '/(member)/events'],
   ['member-riley', 'billing', 'Payment declined', 'We could not process your monthly payment. Please update your card to keep your membership active.', -4, '03:10', false, '/(member)/update-payment'],
-  ['member-riley', 'staff_inquiry', 'Message from Maya at the front desk', 'Let me know if the card does not go through and we can take it at the desk.', -2, '08:30', false, '/(member)/(tabs)/trainers'],
+  ['member-riley', 'staff_inquiry', 'Message from Liz at the front desk', 'Let me know if the card does not go through and we can take it at the desk.', -2, '08:30', false, '/(member)/(tabs)/trainers'],
   ['member-riley', 'general', 'Session confirmed with Doc', 'Tuesday at 2:00 PM on the Wellness Floor.', -7, '08:15', true, '/(member)/book-lesson'],
   ['member-nora', 'membership', 'Welcome to the Y, Nora', 'Your Senior Adult membership is active. Silver Sneakers classes are listed under Schedules.', -4, '09:30', true, '/(member)/(tabs)/schedules'],
   ['member-nora', 'general', 'Session accepted', 'Doc accepted your 30 minute session on Tuesday at 4:00 PM.', -9, '08:00', true, '/(member)/book-lesson'],
@@ -1094,15 +1094,15 @@ function buildLeads(): Lead[] {
 
 type ContactSpec = Omit<MemberContact, 'createdAt' | 'followUpDate'> & { day: number; follow?: number };
 const CONTACT_ROWS: ContactSpec[] = [
-  { id: 'contact-x-1', memberId: 'member-sam', staffId: 'staff-frontdesk', staffName: 'Maya Brooks', channel: 'in_person', purpose: 'billing', outcome: 'card_updated', notes: 'Sam stopped by and added a new Mastercard. Payment cleared.', day: -11 },
-  { id: 'contact-x-2', memberId: 'member-adeyemi-priscilla', staffId: 'staff-frontdesk', staffName: 'Maya Brooks', channel: 'call', purpose: 'billing', outcome: 'voicemail', notes: 'Left a voicemail about the expired card. Will call again tomorrow.', day: -6, follow: 1 },
-  { id: 'contact-x-3', memberId: 'member-carter-devon', staffId: 'staff-frontdesk', staffName: 'Maya Brooks', channel: 'sms', purpose: 'billing', outcome: 'callback', notes: 'Texted a reminder to update the card in the app. Devon said he would do it tonight.', day: -3, follow: 0 },
+  { id: 'contact-x-1', memberId: 'member-sam', staffId: 'staff-frontdesk', staffName: 'Liz', channel: 'in_person', purpose: 'billing', outcome: 'card_updated', notes: 'Sam stopped by and added a new Mastercard. Payment cleared.', day: -11 },
+  { id: 'contact-x-2', memberId: 'member-adeyemi-priscilla', staffId: 'staff-frontdesk', staffName: 'Liz', channel: 'call', purpose: 'billing', outcome: 'voicemail', notes: 'Left a voicemail about the expired card. Will call again tomorrow.', day: -6, follow: 1 },
+  { id: 'contact-x-3', memberId: 'member-carter-devon', staffId: 'staff-frontdesk', staffName: 'Liz', channel: 'sms', purpose: 'billing', outcome: 'callback', notes: 'Texted a reminder to update the card in the app. Devon said he would do it tonight.', day: -3, follow: 0 },
   { id: 'contact-x-4', memberId: 'member-ortega-luis', staffId: 'staff-desk', staffName: 'Billy Deveaux', channel: 'call', purpose: 'billing', outcome: 'no_answer', notes: 'Called twice, no answer. Sent an email with a payment link.', day: -2, follow: 1 },
-  { id: 'contact-x-5', memberId: 'member-mendez-gloria', staffId: 'staff-frontdesk', staffName: 'Maya Brooks', channel: 'call', purpose: 'welcome', outcome: 'resolved', notes: 'Welcome call. Gloria is enjoying the water classes and asked about the walking club.', day: -9 },
-  { id: 'contact-x-6', memberId: 'member-bell-tasha', staffId: 'staff-frontdesk', staffName: 'Maya Brooks', channel: 'call', purpose: 'welcome', outcome: 'resolved', notes: 'New member check-in call. Scheduled a free gym orientation for Thursday.', day: -12 },
+  { id: 'contact-x-5', memberId: 'member-mendez-gloria', staffId: 'staff-frontdesk', staffName: 'Liz', channel: 'call', purpose: 'welcome', outcome: 'resolved', notes: 'Welcome call. Gloria is enjoying the water classes and asked about the walking club.', day: -9 },
+  { id: 'contact-x-6', memberId: 'member-bell-tasha', staffId: 'staff-frontdesk', staffName: 'Liz', channel: 'call', purpose: 'welcome', outcome: 'resolved', notes: 'New member check-in call. Scheduled a free gym orientation for Thursday.', day: -12 },
   { id: 'contact-x-7', memberId: 'member-washington-isaiah', staffId: 'staff-desk', staffName: 'Billy Deveaux', channel: 'call', purpose: 'retention', outcome: 'callback', notes: 'Isaiah is relocating for work. Offered a pause instead of cancelling; he will think it over.', day: -4, follow: 2 },
   { id: 'contact-x-8', leadId: 'lead-x-5', staffId: 'staff-desk', staffName: 'Billy Deveaux', channel: 'call', purpose: 'sales', outcome: 'callback', notes: 'Walked through Family I pricing. Tanya will talk with her partner.', day: -5, follow: -1 },
-  { id: 'contact-x-9', leadId: 'lead-x-7', staffId: 'staff-frontdesk', staffName: 'Maya Brooks', channel: 'in_person', purpose: 'sales', outcome: 'sold', notes: 'Joined after her tour. Booked a free orientation with Doc.', day: -14 },
+  { id: 'contact-x-9', leadId: 'lead-x-7', staffId: 'staff-frontdesk', staffName: 'Liz', channel: 'in_person', purpose: 'sales', outcome: 'sold', notes: 'Joined after her tour. Booked a free orientation with Doc.', day: -14 },
 ];
 
 function buildContacts(): MemberContact[] {

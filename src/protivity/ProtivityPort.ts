@@ -1,3 +1,4 @@
+import type { AppConfig, AppConfigPatch, AppConfigSection, ConfigAuditEntry } from '@/domain/appConfig';
 import type {
   ArrivalRecord,
   ArrivalResult,
@@ -172,7 +173,7 @@ export interface ProtivityPort {
     requesterUserId?: string
   ): Promise<Staff>;
   getLessonPricing(): Promise<LessonPricing>;
-  updateLessonPricing(updates: Partial<LessonPricing>): Promise<LessonPricing>;
+  updateLessonPricing(updates: Partial<LessonPricing>, requesterUserId?: string): Promise<LessonPricing>;
   enrollInSwimClass(
     memberId: string,
     classId: string,
@@ -461,4 +462,13 @@ export interface ProtivityPort {
     requesterUserId: string
   ): Promise<EnrollmentCampaign>;
   deleteCampaign(id: string, requesterUserId: string): Promise<void>;
+  getAppConfig(): Promise<AppConfig>;
+  /** The requester is required: config changes are always checked against the section and audited. */
+  updateAppConfig<S extends AppConfigSection>(
+    section: S,
+    patch: AppConfigPatch<S>,
+    requesterUserId: string
+  ): Promise<AppConfig>;
+  resetAppConfigSection(section: AppConfigSection, requesterUserId: string): Promise<AppConfig>;
+  listConfigAudit(requesterUserId: string): Promise<ConfigAuditEntry[]>;
 }

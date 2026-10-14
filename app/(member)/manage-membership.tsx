@@ -18,9 +18,10 @@ import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { PrimaryOnlyNotice, usePrimaryGuard } from '@/context/usePrimaryGuard';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
+import { findPlan } from '@/domain/householdAccess';
 import {
-  YMCA_MEMBERSHIP_PLANS,
   type Member,
   type Membership,
 } from '@/domain/types';
@@ -79,10 +80,8 @@ export default function ManageMembershipScreen() {
     }, [load])
   );
 
-  const currentPlan =
-    YMCA_MEMBERSHIP_PLANS.find(
-      (p) => p.name.toLowerCase() === (membership?.rateName ?? '').toLowerCase()
-    ) ?? YMCA_MEMBERSHIP_PLANS[0];
+  const plans = useAppConfig().config.membershipPlans;
+  const currentPlan = findPlan(membership?.rateName ?? '', plans) ?? plans[0];
 
   const handleCancelPendingChange = () => {
     dialog.show({

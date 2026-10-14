@@ -6,7 +6,8 @@ import { ActionButton, StatusPill } from '@/components/staff/SectionCard';
 import { useTheme } from '@/context/ThemeContext';
 import { salesCallScript } from '@/domain/callScripts';
 import { formatShortDate } from '@/domain/displayDates';
-import { YMCA_MEMBERSHIP_PLANS, type EnrollmentCampaign, type Lead, type LeadStatus } from '@/domain/types';
+import { useAppConfig } from '@/context/AppConfigContext';
+import type { EnrollmentCampaign, Lead, LeadStatus } from '@/domain/types';
 import { radii } from '@/theme/typography';
 
 export const LEAD_STATUS_META: Record<LeadStatus, { label: string; color: string; bg: string }> = {
@@ -33,7 +34,7 @@ export function LeadCard({
 }) {
   const { colors: tc } = useTheme();
   const meta = LEAD_STATUS_META[lead.status];
-  const plan = YMCA_MEMBERSHIP_PLANS.find((p) => p.id === lead.interestPlanId);
+  const plan = useAppConfig().config.membershipPlans.find((p) => p.id === lead.interestPlanId);
   return (
     <View style={[styles.card, { borderColor: tc.cardBorder }]}>
       <View style={styles.top}>

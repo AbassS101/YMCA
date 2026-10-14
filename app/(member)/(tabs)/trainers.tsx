@@ -11,6 +11,7 @@ import { TrainerGoalModal } from '@/components/TrainerGoalModal';
 import { UserAvatar } from '@/components/UserAvatar';
 import { WellnessPackagesView } from '@/components/WellnessPackagesView';
 import { YHeader } from '@/components/YHeader';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -21,6 +22,7 @@ import type {
   PrivateLesson,
   Staff,
 } from '@/domain/types';
+import { formatWellnessPrice, largestWellnessSavings, lowestWellnessRate } from '@/domain/wellnessPrograms';
 import { lessonRepo } from '@/repositories/lessonRepo';
 import { messageRepo } from '@/repositories/messageRepo';
 import { staffRepo } from '@/repositories/staffRepo';
@@ -52,6 +54,7 @@ export default function MemberTrainersScreen() {
   const router = useRouter();
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const { session, api } = useSession();
+  const { config } = useAppConfig();
   const { colors, isDark } = useTheme();
   const memberId = session?.userId ?? '';
 
@@ -553,13 +556,13 @@ export default function MemberTrainersScreen() {
                     Wellness Training Packages & Rates
                   </Text>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }} allowFontScaling>
-                    60-Min, 30-Min & Partner Training from $35
+                    60-Min, 30-Min & Partner Training from {formatWellnessPrice(lowestWellnessRate(config.wellnessPackages))}
                   </Text>
                 </View>
               </View>
 
               <Text style={{ fontSize: 12, color: colors.textMuted, lineHeight: 17 }} allowFontScaling>
-                Nationally certified YMCA trainers. Every package includes a full functional assessment, goal planning, and a custom program plan. Save up to $180 on multi-session packs!
+                Nationally certified YMCA trainers. Every package includes a full functional assessment, goal planning, and a custom program plan. Save up to {formatWellnessPrice(largestWellnessSavings(config.wellnessPackages))} on multi-session packs!
               </Text>
 
               <Pressable

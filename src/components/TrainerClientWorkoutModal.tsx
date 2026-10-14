@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -82,6 +82,120 @@ function formatDateCardParts(iso: string, todayIso: string, yesterdayIso: string
   return { iso, dayName: 'Date', monthDay: iso };
 }
 
+const REPS_WHEEL_OPTIONS: string[] = [
+  ...Array.from({ length: 30 }, (_, i) => String(i + 1)),
+  '6-8',
+  '8-10',
+  '10-12',
+  '12-15',
+  'AMRAP',
+];
+const REPS_ITEM_HEIGHT = 32;
+const REPS_VISIBLE_ROWS = 3;
+
+interface RepsWheelProps {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  textColor: string;
+  mutedColor: string;
+  highlightBg: string;
+  backgroundColor: string;
+  borderColor: string;
+  accessibilityLabel: string;
+}
+
+function RepsWheel({
+  value,
+  onChange,
+  disabled,
+  textColor,
+  mutedColor,
+  highlightBg,
+  backgroundColor,
+  borderColor,
+  accessibilityLabel,
+}: RepsWheelProps) {
+  const ref = useRef<ScrollView>(null);
+  const trimmed = value.trim();
+  const options =
+    trimmed && !REPS_WHEEL_OPTIONS.includes(trimmed)
+      ? [trimmed, ...REPS_WHEEL_OPTIONS]
+      : REPS_WHEEL_OPTIONS;
+  const selectedIndex = Math.max(0, options.indexOf(trimmed));
+  const pad = ((REPS_VISIBLE_ROWS - 1) / 2) * REPS_ITEM_HEIGHT;
+
+  useEffect(() => {
+    ref.current?.scrollTo({ y: selectedIndex * REPS_ITEM_HEIGHT, animated: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const commit = (y: number) => {
+    const idx = Math.min(options.length - 1, Math.max(0, Math.round(y / REPS_ITEM_HEIGHT)));
+    if (options[idx] !== trimmed) onChange(options[idx]);
+  };
+
+  return (
+    <View
+      style={{
+        height: REPS_ITEM_HEIGHT * REPS_VISIBLE_ROWS,
+        borderWidth: 1,
+        borderColor,
+        borderRadius: radii.sm,
+        backgroundColor,
+        overflow: 'hidden',
+      }}
+    >
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: pad,
+          height: REPS_ITEM_HEIGHT,
+          backgroundColor: highlightBg,
+        }}
+      />
+      <ScrollView
+        ref={ref}
+        scrollEnabled={!disabled}
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+        snapToInterval={REPS_ITEM_HEIGHT}
+        decelerationRate="fast"
+        contentContainerStyle={{ paddingVertical: pad }}
+        onMomentumScrollEnd={(e) => commit(e.nativeEvent.contentOffset.y)}
+        onScrollEndDrag={(e) => commit(e.nativeEvent.contentOffset.y)}
+        accessibilityLabel={accessibilityLabel}
+        accessibilityValue={{ text: trimmed }}
+      >
+        {options.map((opt, i) => (
+          <Pressable
+            key={opt}
+            disabled={disabled}
+            onPress={() => {
+              ref.current?.scrollTo({ y: i * REPS_ITEM_HEIGHT, animated: true });
+              onChange(opt);
+            }}
+            style={{ height: REPS_ITEM_HEIGHT, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Text
+              style={{
+                fontSize: 15,
+                fontWeight: i === selectedIndex ? '800' : '500',
+                color: i === selectedIndex ? textColor : mutedColor,
+              }}
+            >
+              {opt}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
 function formatReadableDateLabel(iso: string): string {
   const parts = iso.trim().split('-').map(Number);
   if (parts.length === 3 && !parts.some(isNaN) && iso.trim().length === 10) {
@@ -140,6 +254,19 @@ export function TrainerClientWorkoutModal({
   const yesterdayStr = getOffsetDateString(todayStr, -1);
 
   const [date, setDate] = useState(todayStr);
+  const dateWheelRef = useRef<ScrollView>(null);
+  const dateCardX = useRef<Record<string, number>>({});
+
+  const scrollWheelToDate = (iso: string) => {
+    const x = dateCardX.current[iso];
+    if (x !== undefined) {
+      dateWheelRef.current?.scrollTo({ x: Math.max(0, x), animated: true });
+    }
+  };
+
+  useEffect(() => {
+    scrollWheelToDate(date.trim());
+  }, [date]);
   const [sessionType, setSessionType] = useState<ClientWorkoutLog['sessionType']>('strength');
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
@@ -506,12 +633,15 @@ export function TrainerClientWorkoutModal({
 
                 {/* Horizontal Date Scroll Wheel */}
                 <ScrollView
+                  ref={dateWheelRef}
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.dateWheelScroll}
                 >
                   {(() => {
-                    const offsets = [0, -1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -11, -12, -13, 1];
+                    // Chronological; the wheel opens scrolled so today is the first visible card.
+                    // Past days are to the left, upcoming days to the right.
+                    const offsets = Array.from({ length: 29 }, (_, i) => i - 14);
                     const items = offsets.map((off) =>
                       formatDateCardParts(
                         getOffsetDateString(todayStr, off),
@@ -526,7 +656,8 @@ export function TrainerClientWorkoutModal({
                     ) {
                       const customItem = formatDateCardParts(trimmed, todayStr, yesterdayStr);
                       customItem.badge = 'TYPED';
-                      items.unshift(customItem);
+                      items.push(customItem);
+                      items.sort((a, b) => (a.iso < b.iso ? -1 : a.iso > b.iso ? 1 : 0));
                     }
                     return items.map((dItem) => {
                       const isSelected = date.trim() === dItem.iso;
@@ -534,6 +665,10 @@ export function TrainerClientWorkoutModal({
                         <Pressable
                           key={dItem.iso}
                           onPress={() => setDate(dItem.iso)}
+                          onLayout={(e) => {
+                            dateCardX.current[dItem.iso] = e.nativeEvent.layout.x;
+                            if (dItem.iso === date.trim()) scrollWheelToDate(dItem.iso);
+                          }}
                           style={[
                             styles.dateWheelCard,
                             {
@@ -659,14 +794,14 @@ export function TrainerClientWorkoutModal({
                       Exercises & Sets
                     </Text>
                     <Text style={[styles.sectionSubCaption, { color: tc.textMuted }]} allowFontScaling>
-                      Track progressive overload across movements
+                      Track progressive overload across exercises
                     </Text>
                   </View>
                 </View>
 
                 <View style={[styles.countPill, { backgroundColor: tc.primaryLight }]}>
                   <Text style={[styles.countPillText, { color: tc.primary }]}>
-                    {exercises.length} {exercises.length === 1 ? 'Move' : 'Moves'}
+                    {exercises.length} {exercises.length === 1 ? 'Exercise' : 'Exercises'}
                   </Text>
                 </View>
               </View>
@@ -814,20 +949,15 @@ export function TrainerClientWorkoutModal({
                         >
                           REPS / TIME
                         </Text>
-                        <TextInput
+                        <RepsWheel
                           value={item.reps}
-                          onChangeText={(v) => updateExercise(idx, 'reps', v)}
-                          placeholder="8-10"
-                          placeholderTextColor={tc.textMuted}
-                          editable={canEditExercises}
-                          style={[
-                            styles.metricInput,
-                            {
-                              color: tc.text,
-                              backgroundColor: surfaceSubtle,
-                              borderColor: tc.cardBorder,
-                            },
-                          ]}
+                          onChange={(v) => updateExercise(idx, 'reps', v)}
+                          disabled={!canEditExercises}
+                          textColor={tc.text}
+                          mutedColor={tc.textMuted}
+                          highlightBg={tc.primaryLight}
+                          backgroundColor={surfaceSubtle}
+                          borderColor={tc.cardBorder}
                           accessibilityLabel={`Reps for exercise ${idx + 1}`}
                         />
                       </View>

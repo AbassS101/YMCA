@@ -1,4 +1,5 @@
-import { demoNow, validateSignIn } from '@/domain/childWatch';
+import { FEATURE_TOGGLE_LABELS, normalizeAppConfig } from '@/domain/appConfig';
+import { demoNow, formatLimit, validateSignIn } from '@/domain/childWatch';
 import { getDemoToday } from '@/domain/demoClock';
 import { ageOn, TEEN_MIN_AGE } from '@/domain/householdAccess';
 import { createProtivityClient } from '@/protivity/createProtivityClient';
@@ -98,6 +99,8 @@ export const childWatchRepo = {
 
   async signIn(childId: string, by: string, now: Date = demoNow()): Promise<ChildWatchVisit> {
     const state = await loadStore();
+    const config = normalizeAppConfig(state.appConfig);
+    if (!config.featureToggles.childWatch) throw new Error(`${FEATURE_TOGGLE_LABELS.childWatch}: this feature is turned off right now.`);
     const childMember = state.members.find((m) => m.id === childId);
     if (!childMember || !childMember.householdId || !childMember.birthDate) throw new Error('Child not found.');
     const child = toProfile(childMember, childMember.householdId);
@@ -112,7 +115,10 @@ export const childWatchRepo = {
         break;
       }
     }
-    const check = validateSignIn({ now, child, visits: state.childWatchVisits, parentCheckedInAtDesk });
+    const check = validateSignIn(
+      { now, child, visits: state.childWatchVisits, parentCheckedInAtDesk },
+      config.childWatch
+    );
     if (!check.ok) throw new Error(check.reason);
 
     const visit: ChildWatchVisit = {
@@ -128,7 +134,7 @@ export const childWatchRepo = {
       id: `notif-cw-${visit.id}`,
       userId: child.memberId,
       title: `${child.firstName} signed in to Child Watch`,
-      body: `Pickup code: ${visit.pickupCode}. Remember: maximum of 2 hours per day, and parents must remain in the building.`,
+      body: `Pickup code: ${visit.pickupCode}. Remember: maximum of ${formatLimit(config.childWatch.maxMinutesPerDay)} per day, and parents must remain in the building.`,
       type: 'event',
       createdAt: new Date().toISOString(),
       read: false,

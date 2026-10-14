@@ -24,6 +24,7 @@ import {
   useAccessibility,
   type TextScale,
 } from '@/context/AccessibilityContext';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
 import { cancelRequestedCopy } from '@/domain/displayDates';
@@ -120,7 +121,7 @@ const DEMO_ACCOUNTS = [
     color: '#D97706',
   },
   {
-    name: 'Maya Brooks',
+    name: 'Liz',
     email: 'frontdesk@silverspring.ymca',
     role: 'Front Desk Membership Representative',
     icon: 'headset' as const,
@@ -162,6 +163,7 @@ function MenuRow({
 export default function MemberAccountScreen() {
   const router = useRouter();
   const { session, api, login, logout } = useSession();
+  const { featureToggles } = useAppConfig().config;
   const { textScale, setTextScale } = useAccessibility();
   const { themeMode, setThemeMode, colors, isDark } = useTheme();
   const memberId = session?.userId ?? '';
@@ -693,12 +695,14 @@ export default function MemberAccountScreen() {
             onPress={() => router.push('/(member)/events')}
             colors={colors}
           />
-          <MenuRow
-            label="General Community Forum & Staff Q&A"
-            icon="chatbubbles"
-            onPress={() => router.push('/(member)/community-forum')}
-            colors={colors}
-          />
+          {featureToggles.communityForum ? (
+            <MenuRow
+              label="General Community Forum & Staff Q&A"
+              icon="chatbubbles"
+              onPress={() => router.push('/(member)/community-forum')}
+              colors={colors}
+            />
+          ) : null}
           <MenuRow
             label="Complaints & Suggestions"
             icon="chatbox-ellipses"
@@ -723,12 +727,14 @@ export default function MemberAccountScreen() {
             onPress={() => router.push('/(member)/notification-settings')}
             colors={colors}
           />
-          <MenuRow
-            label="Give & Community Support (Case for Support 2026)"
-            icon="heart"
-            onPress={() => router.push('/(member)/donate')}
-            colors={colors}
-          />
+          {featureToggles.donations ? (
+            <MenuRow
+              label="Give & Community Support (Case for Support 2026)"
+              icon="heart"
+              onPress={() => router.push('/(member)/donate')}
+              colors={colors}
+            />
+          ) : null}
           <MenuRow
             label="Branch amenities & pool hours"
             icon="water"
@@ -741,12 +747,14 @@ export default function MemberAccountScreen() {
             onPress={() => router.push('/(member)/programs')}
             colors={colors}
           />
-          <MenuRow
-            label="Guest passes & reciprocity"
-            icon="ticket"
-            onPress={() => router.push('/(member)/guest-pass')}
-            colors={colors}
-          />
+          {featureToggles.guestPasses ? (
+            <MenuRow
+              label="Guest passes & reciprocity"
+              icon="ticket"
+              onPress={() => router.push('/(member)/guest-pass')}
+              colors={colors}
+            />
+          ) : null}
           {isPrimary ? (
             <>
               <MenuRow

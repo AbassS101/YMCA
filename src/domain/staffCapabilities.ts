@@ -36,7 +36,10 @@ export type StaffCapability =
   | 'sellMemberships'
   | 'manageCampaigns'
   | 'viewRepKpis'
-  | 'viewSessionRequests';
+  | 'viewSessionRequests'
+  | 'manageBusinessConfig'
+  | 'manageSystemConfig'
+  | 'viewConfigAudit';
 
 const ALL_CAPABILITIES: readonly StaffCapability[] = [
   'viewAllMembers',
@@ -65,7 +68,15 @@ const ALL_CAPABILITIES: readonly StaffCapability[] = [
   'manageCampaigns',
   'viewRepKpis',
   'viewSessionRequests',
+  'manageBusinessConfig',
+  'manageSystemConfig',
+  'viewConfigAudit',
 ];
+
+// Staff Admin runs the business settings but not the system-level ones (toggles, branding, thresholds).
+const STAFF_ADMIN_CAPABILITIES: readonly StaffCapability[] = ALL_CAPABILITIES.filter(
+  (c) => c !== 'manageSystemConfig'
+);
 
 const TRAINER_CAPABILITIES: readonly StaffCapability[] = [
   'logWorkouts',
@@ -73,10 +84,15 @@ const TRAINER_CAPABILITIES: readonly StaffCapability[] = [
   'takeAttendance',
 ];
 
-// Wellness Director = everything a Staff Admin can do, except reading complaints.
+// Wellness Director = everything a Staff Admin can do, except reading complaints and the generic
+// business/system config powers (they edit only the wellness packages section; see canEditConfigSection).
 // (Creating/editing admin- or director-level staff is blocked in staff management.)
 const WELLNESS_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = ALL_CAPABILITIES.filter(
-  (c) => c !== 'manageComplaints'
+  (c) =>
+    c !== 'manageComplaints' &&
+    c !== 'manageBusinessConfig' &&
+    c !== 'manageSystemConfig' &&
+    c !== 'viewConfigAudit'
 );
 
 const AQUATICS_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = [
@@ -146,6 +162,7 @@ export function personaForRole(role?: UserRole | StaffRole | string | null): Sta
 export function capabilitiesForRole(role?: UserRole | StaffRole | string | null): ReadonlySet<StaffCapability> {
   switch (personaForRole(role)) {
     case 'admin':
+      return new Set(STAFF_ADMIN_CAPABILITIES);
     case 'it':
       return new Set(ALL_CAPABILITIES);
     case 'trainer':
@@ -169,6 +186,42 @@ export function hasCapability(
   capability: StaffCapability
 ): boolean {
   return capabilitiesForRole(role).has(capability);
+}
+
+export type ConfigSection =
+  | 'membershipPlans'
+  | 'childWatch'
+  | 'guestPasses'
+  | 'donations'
+  | 'wellnessPackages'
+  | 'swimClasses'
+  | 'lessonPricing'
+  | 'campaigns'
+  | 'templates'
+  | 'branding'
+  | 'thresholds'
+  | 'featureToggles';
+
+/** Sections only IT may change. Everything else is a business section. */
+const SYSTEM_CONFIG_SECTIONS: ReadonlySet<ConfigSection> = new Set(['branding', 'thresholds', 'featureToggles']);
+
+/** Directors may edit just the sections that belong to their area. */
+const CONFIG_SECTION_OWNERS: Partial<Record<ConfigSection, readonly StaffPersona[]>> = {
+  campaigns: ['membershipDirector'],
+  swimClasses: ['aquaticsDirector'],
+  // Lesson pricing holds both swim and personal training prices.
+  lessonPricing: ['aquaticsDirector', 'wellnessDirector'],
+  wellnessPackages: ['wellnessDirector'],
+};
+
+export function canEditConfigSection(
+  role: UserRole | StaffRole | string | null | undefined,
+  section: ConfigSection
+): boolean {
+  if (SYSTEM_CONFIG_SECTIONS.has(section)) return hasCapability(role, 'manageSystemConfig');
+  if (hasCapability(role, 'manageBusinessConfig')) return true;
+  const persona = personaForRole(role);
+  return persona !== null && (CONFIG_SECTION_OWNERS[section] ?? []).includes(persona);
 }
 
 export function isStaffRole(role?: UserRole | StaffRole | string | null): boolean {

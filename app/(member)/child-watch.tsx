@@ -14,18 +14,22 @@ import {
 
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import {
   CHILD_WATCH_INFO,
-  MAX_MINUTES_PER_DAY,
   ageInWeeks,
+  childWatchAgesLine,
+  childWatchCutoffLine,
+  childWatchIntro,
   demoNow,
+  describeHoursLines,
   describeStatus,
   formatAge,
+  formatLimit,
   getStatusAt,
   minutesUsedToday,
-  MIN_AGE_WEEKS,
 } from '@/domain/childWatch';
 import type { ChildProfile, ChildWatchVisit } from '@/domain/types';
 import { childWatchRepo } from '@/repositories/childWatchRepo';
@@ -39,6 +43,7 @@ export default function ChildWatchScreen() {
   const { session } = useSession();
   const { colors: tc } = useTheme();
   const memberId = session?.userId ?? '';
+  const rules = useAppConfig().config.childWatch;
 
   const [children, setChildren] = useState<ChildProfile[]>([]);
   const [visits, setVisits] = useState<ChildWatchVisit[]>([]);
@@ -66,7 +71,7 @@ export default function ChildWatchScreen() {
     }, [load])
   );
 
-  const status = useMemo(() => getStatusAt(now), [now]);
+  const status = useMemo(() => getStatusAt(now, rules), [now, rules]);
   const statusColor = status.state === 'open' ? tc.success : status.state === 'signInClosed' ? '#D97706' : tc.textMuted;
 
   const fail = (e: unknown) =>
@@ -83,7 +88,7 @@ export default function ChildWatchScreen() {
       const visit = await childWatchRepo.signIn(child.id, 'member');
       dialog.show({
         title: `${child.firstName} is signed in`,
-        message: `Pickup code: ${visit.pickupCode}\n\nMaximum of 2 hours per day. Parents must remain in the building.`,
+        message: `Pickup code: ${visit.pickupCode}\n\nMaximum of ${formatLimit(rules.maxMinutesPerDay)} per day. Parents must remain in the building.`,
         icon: 'checkmark',
         buttons: [{ text: 'OK', style: 'default' }],
       });
@@ -162,35 +167,38 @@ export default function ChildWatchScreen() {
 
         <View style={[styles.card, card]}>
           <Text style={[styles.h1, { color: tc.text }]}>{CHILD_WATCH_INFO.title}</Text>
-          <Text style={[styles.body, { color: tc.text }]}>{CHILD_WATCH_INFO.intro}</Text>
-          <Text style={[styles.h2, { color: tc.text }]}>{CHILD_WATCH_INFO.ages}</Text>
-          {CHILD_WATCH_INFO.hoursLines.map((l) => (
-            <Text key={l} style={[styles.body, { color: tc.text }]}>
-              {l}
+          <Text style={[styles.body, { color: tc.text }]}>{childWatchIntro(rules)}</Text>
+          <Text style={[styles.h2, { color: tc.text }]}>{childWatchAgesLine(rules)}</Text>
+          {describeHoursLines(rules.hours).map((l) => (
+            <Text key={l.text} style={[styles.body, { color: l.closed ? tc.textMuted : tc.text }]}>
+              {l.text}
             </Text>
           ))}
-          <Text style={[styles.body, { color: tc.textMuted }]}>{CHILD_WATCH_INFO.closedLine}</Text>
-          <Text style={[styles.body, { color: tc.text, fontWeight: '700' }]}>{CHILD_WATCH_INFO.cutoff}</Text>
+          <Text style={[styles.body, { color: tc.text, fontWeight: '700' }]}>{childWatchCutoffLine(rules)}</Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: tc.primaryLight, borderColor: tc.primary }]}>
           <Text style={[styles.h2, { color: tc.primaryDark }]}>{CHILD_WATCH_INFO.noteTitle}</Text>
-          <Text style={[styles.body, { color: tc.primaryDark }]}>{CHILD_WATCH_INFO.note}</Text>
+          <Text style={[styles.body, { color: tc.primaryDark }]}>{rules.note}</Text>
         </View>
 
-        <View style={[styles.card, card]}>
-          <Text style={[styles.body, { color: tc.text }]}>
-            {CHILD_WATCH_INFO.contactText}
-            <Text
-              style={{ color: tc.primary, fontWeight: '700' }}
-              onPress={() => void Linking.openURL(`mailto:${CHILD_WATCH_INFO.contactEmail}`)}
-              accessibilityRole="link"
-            >
-              {CHILD_WATCH_INFO.contactEmail}
+        {rules.contactText.trim() || rules.contactEmail.trim() ? (
+          <View style={[styles.card, card]}>
+            <Text style={[styles.body, { color: tc.text }]}>
+              {rules.contactText}
+              {rules.contactEmail.trim() ? (
+                <Text
+                  style={{ color: tc.primary, fontWeight: '700' }}
+                  onPress={() => void Linking.openURL(`mailto:${rules.contactEmail.trim()}`)}
+                  accessibilityRole="link"
+                >
+                  {rules.contactEmail}
+                </Text>
+              ) : null}
+              .
             </Text>
-            .
-          </Text>
-        </View>
+          </View>
+        ) : null}
 
         <View style={styles.rowBetween}>
           <Text style={[styles.h1, { color: tc.text }]}>My Kids</Text>
@@ -216,8 +224,8 @@ export default function ChildWatchScreen() {
         {children.map((child) => {
           const active = visits.find((v) => v.childId === child.id && !v.signedOutAt);
           const used = minutesUsedToday(visits, child.id, now);
-          const left = Math.max(0, MAX_MINUTES_PER_DAY - used);
-          const tooYoung = ageInWeeks(child.birthDate, now) < MIN_AGE_WEEKS;
+          const left = Math.max(0, rules.maxMinutesPerDay - used);
+          const tooYoung = ageInWeeks(child.birthDate, now) < rules.minAgeWeeks;
           const canSignIn = status.state === 'open' && deskCheckedIn && !tooYoung && left > 0;
           return (
             <View key={child.id} style={[styles.card, card]}>

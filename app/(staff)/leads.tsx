@@ -12,6 +12,7 @@ import { ChipRow, FieldLabel, Sheet } from '@/components/desk/Sheet';
 import { StaffScreen } from '@/components/staff/StaffScreen';
 import { ActionButton, EmptyState, SectionCard } from '@/components/staff/SectionCard';
 import { dialog } from '@/context/DialogContext';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
@@ -21,7 +22,6 @@ import { campaignHeadline } from '@/domain/enrollmentCampaigns';
 import { tokenizePaymentInput } from '@/domain/paymentTokenizer';
 import {
   effectiveEnrollmentFeeCents,
-  YMCA_MEMBERSHIP_PLANS,
   type EnrollmentCampaign,
   type Lead,
   type LeadStatus,
@@ -255,7 +255,8 @@ function ConvertLeadSheet({
     }
   }, [lead]);
 
-  const plan = YMCA_MEMBERSHIP_PLANS.find((p) => p.id === planId) ?? YMCA_MEMBERSHIP_PLANS[0];
+  const offeredPlans = useAppConfig().config.membershipPlans.filter((p) => p.active);
+  const plan = offeredPlans.find((p) => p.id === planId) ?? offeredPlans[0];
   const today = getDemoToday();
   const running = campaign && campaign.active && today >= campaign.startDate && today <= campaign.endDate ? campaign : null;
   const fee = effectiveEnrollmentFeeCents(plan, { campaign: running });
@@ -266,7 +267,7 @@ function ConvertLeadSheet({
     if (!token.valid) return setError(token.error ?? 'Check the card details.');
     setBusy(true);
     try {
-      await onConvert({ planId, payment: { brand: token.brand, last4: token.last4 } });
+      await onConvert({ planId: plan.id, payment: { brand: token.brand, last4: token.last4 } });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not complete the sale.');
     } finally {
@@ -278,7 +279,7 @@ function ConvertLeadSheet({
     <Sheet visible={lead !== null} title={`Sell membership: ${lead?.name ?? ''}`} onClose={onClose}>
       {error ? <ErrorBanner message={error} /> : null}
       <FieldLabel>Plan</FieldLabel>
-      <ChipRow options={YMCA_MEMBERSHIP_PLANS.map((p) => ({ key: p.id, label: p.name }))} value={planId} onChange={setPlanId} />
+      <ChipRow options={offeredPlans.map((p) => ({ key: p.id, label: p.name }))} value={plan.id} onChange={setPlanId} />
       <View style={[styles.summary, { borderColor: tc.cardBorder }]}>
         <Text style={{ color: tc.text, fontWeight: '700' }}>
           {plan.name}: {money(plan.monthlyAmountCents)}/mo

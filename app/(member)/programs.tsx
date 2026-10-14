@@ -11,7 +11,9 @@ import { AppText } from '@/components/AppText';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
 import { YHeader } from '@/components/YHeader';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
+import { wellnessRateHighlights } from '@/domain/wellnessPrograms';
 import { cardStyle } from '@/theme/card';
 import { radii, spacing, typography } from '@/theme/typography';
 
@@ -38,9 +40,6 @@ const PROGRAMS: ProgramSection[] = [
     highlights: [
       'Full functional movement screening & post-assessment progress verification',
       'Goal planning, behavioral habit modification & custom periodized protocol',
-      'Personal 60-Min ($60/session; 12-pack at $50/session saving $120+)',
-      'Personal 30-Min Express ($35/session) for focused conditioning',
-      'Partner Wellness Training ($45/person/session) - workout with a friend',
       'Specialized expertise: chronic disease, corrective rehab, weight loss, athletics',
     ],
     ctaText: 'View Packages & Rates',
@@ -140,6 +139,13 @@ const PROGRAMS: ProgramSection[] = [
 export default function ProgramsScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { wellnessPackages } = useAppConfig().config;
+  // The rate lines come from the wellness rate card, so they follow price changes.
+  const programs = PROGRAMS.map((p) =>
+    p.id === 'wellness-training-programs'
+      ? { ...p, highlights: [...p.highlights.slice(0, 2), ...wellnessRateHighlights(wellnessPackages), ...p.highlights.slice(2)] }
+      : p
+  );
 
   const cardTheme = {
     backgroundColor: colors.cardBg,
@@ -173,7 +179,7 @@ export default function ProgramsScreen() {
         </View>
 
         {/* Program Cards */}
-        {PROGRAMS.map((prog) => (
+        {programs.map((prog) => (
           <View key={prog.id} style={[styles.programCard, cardTheme]}>
             <View style={styles.topRow}>
               <View style={[styles.iconCircle, { backgroundColor: colors.primaryLight }]}>

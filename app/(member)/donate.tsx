@@ -16,13 +16,12 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { TextField } from '@/components/TextField';
 import { YHeader } from '@/components/YHeader';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { tokenizePaymentInput } from '@/domain/paymentTokenizer';
 import {
   YMCA_CASE_FOR_SUPPORT_2026,
-  YMCA_COMMUNITY_FUNDS,
-  YMCA_DONATION_TIERS,
   type Donation,
   type DonationFrequency,
 } from '@/domain/types';
@@ -60,6 +59,7 @@ export default function DonateScreen() {
   const { session, api } = useSession();
   const { colors, isDark } = useTheme();
   const memberId = session?.userId ?? '';
+  const { tiers: donationTiers, funds: communityFunds, minimumGiftCents } = useAppConfig().config.donations;
 
   const parsedAmount = params.amount ? parseInt(params.amount, 10) : 10000;
   const initialAmount = isNaN(parsedAmount) ? 10000 : parsedAmount;
@@ -130,9 +130,9 @@ export default function DonateScreen() {
     ? Math.round((parseFloat(customAmountStr) || 0) * 100)
     : selectedAmountCents;
 
-  const currentTier = YMCA_DONATION_TIERS.find((t) => t.amountCents === effectiveAmountCents);
+  const currentTier = donationTiers.find((t) => t.amountCents === effectiveAmountCents);
   const selectedFund =
-    YMCA_COMMUNITY_FUNDS.find((f) => f.id === selectedFundId) ?? YMCA_COMMUNITY_FUNDS[0];
+    communityFunds.find((f) => f.id === selectedFundId) ?? communityFunds[0];
 
   const handleSelectTier = (amountCents: number) => {
     setIsCustom(false);
@@ -146,8 +146,8 @@ export default function DonateScreen() {
   const handleDonate = async () => {
     setError(null);
 
-    if (effectiveAmountCents < 500) {
-      setError('Please enter a minimum donation of $5.00.');
+    if (effectiveAmountCents < minimumGiftCents) {
+      setError(`Please enter a minimum donation of $${(minimumGiftCents / 100).toFixed(2)}.`);
       return;
     }
 
@@ -373,7 +373,7 @@ export default function DonateScreen() {
           </View>
 
           <View style={styles.tierGrid}>
-            {YMCA_DONATION_TIERS.map((tier) => {
+            {donationTiers.map((tier) => {
               const active = !isCustom && selectedAmountCents === tier.amountCents;
               return (
                 <Pressable
@@ -546,7 +546,7 @@ export default function DonateScreen() {
           </AppText>
 
           <View style={styles.fundsWrap}>
-            {YMCA_COMMUNITY_FUNDS.map((fund) => {
+            {communityFunds.map((fund) => {
               const active = selectedFundId === fund.id;
               return (
                 <Pressable

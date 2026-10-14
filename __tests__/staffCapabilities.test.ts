@@ -35,7 +35,14 @@ const ALL: StaffCapability[] = [
   'manageCampaigns',
   'viewRepKpis',
   'viewSessionRequests',
+  'manageBusinessConfig',
+  'manageSystemConfig',
+  'viewConfigAudit',
 ];
+
+// Staff Admin runs the business settings but not the system-level ones.
+const STAFF_ADMIN = ALL.filter((c) => c !== 'manageSystemConfig');
+const CONFIG_CAPS: StaffCapability[] = ['manageBusinessConfig', 'manageSystemConfig', 'viewConfigAudit'];
 
 const REP: StaffCapability[] = [
   'viewAllMembers',
@@ -49,12 +56,12 @@ const REP: StaffCapability[] = [
 ];
 
 const EXPECTED: Record<string, StaffCapability[]> = {
-  admin: ALL,
-  staff_admin: ALL,
+  admin: STAFF_ADMIN,
+  staff_admin: STAFF_ADMIN,
   it_admin: ALL,
   trainer: ['logWorkouts', 'manageOwnLessonSlots', 'takeAttendance'],
-  // Everything a Staff Admin can do, except reading complaints.
-  wellness_director: ALL.filter((c) => c !== 'manageComplaints'),
+  // Everything a Staff Admin can do, except reading complaints and the generic config powers.
+  wellness_director: ALL.filter((c) => c !== 'manageComplaints' && !CONFIG_CAPS.includes(c)),
   aquatics_director: [
     'logWorkouts',
     'manageOwnLessonSlots',
@@ -115,6 +122,16 @@ describe('staff capability matrix', () => {
 
   it('keeps complaints away from the Wellness Director', () => {
     expect(hasCapability('wellness_director', 'manageComplaints')).toBe(false);
+  });
+
+  it('keeps the generic config powers away from the Wellness Director', () => {
+    for (const cap of CONFIG_CAPS) expect(hasCapability('wellness_director', cap)).toBe(false);
+  });
+
+  it('keeps system config (toggles, branding, thresholds) with IT only', () => {
+    expect(hasCapability('it_admin', 'manageSystemConfig')).toBe(true);
+    expect(hasCapability('staff_admin', 'manageSystemConfig')).toBe(false);
+    expect(hasCapability('staff_admin', 'manageBusinessConfig')).toBe(true);
   });
 });
 

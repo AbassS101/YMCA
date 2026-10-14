@@ -14,6 +14,7 @@ import {
 import { AppText } from '@/components/AppText';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { YHeader } from '@/components/YHeader';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -21,10 +22,7 @@ import { resetStore } from '@/storage/demoStore';
 import { colors } from '@/theme/colors';
 import { radii, spacing, typography } from '@/theme/typography';
 
-const BRANCH_NAME = 'YMCA Silver Spring';
 const ASSOCIATION = 'YMCA of Metropolitan Washington';
-const ADDRESS = '9800 Hastings Drive, Silver Spring, MD 20901';
-const PHONE = '(301) 585-2120';
 const EMAIL = 'silverspring@ymcadc.org';
 
 const PILLARS = [
@@ -140,7 +138,7 @@ const DEMO_ROLES = [
     icon: 'business' as const,
   },
   {
-    name: 'Maya Brooks',
+    name: 'Liz',
     email: 'frontdesk@silverspring.ymca',
     role: 'Front Desk Membership Rep',
     color: '#0891B2',
@@ -152,6 +150,7 @@ export default function AboutScreen() {
   const router = useRouter();
   const { session, login, logout } = useSession();
   const { colors: tc, isDark } = useTheme();
+  const { branding } = useAppConfig().config;
 
   const [resetting, setResetting] = useState(false);
   const [switchingRole, setSwitchingRole] = useState<string | null>(null);
@@ -199,7 +198,7 @@ export default function AboutScreen() {
   }
 
   const handleCall = () => {
-    Linking.openURL('tel:3015852120').catch(() => {});
+    Linking.openURL(`tel:${branding.phone.replace(/\D/g, '')}`).catch(() => {});
   };
 
   const handleEmail = () => {
@@ -208,9 +207,9 @@ export default function AboutScreen() {
 
   const handleDirections = () => {
     const url = Platform.select({
-      ios: 'maps:0,0?q=YMCA+Silver+Spring+MD',
-      android: 'geo:0,0?q=9800+Hastings+Drive+Silver+Spring+MD+20901',
-      default: 'https://maps.google.com/?q=9800+Hastings+Drive+Silver+Spring+MD+20901',
+      ios: `maps:0,0?q=${encodeURIComponent(`${branding.branchName} ${branding.address}`)}`,
+      android: `geo:0,0?q=${encodeURIComponent(branding.address)}`,
+      default: `https://maps.google.com/?q=${encodeURIComponent(branding.address)}`,
     });
     if (url) Linking.openURL(url).catch(() => {});
   };
@@ -252,7 +251,7 @@ export default function AboutScreen() {
             </View>
           </View>
 
-          <AppText style={[styles.branchTitle, { color: tc.text }]}>{BRANCH_NAME}</AppText>
+          <AppText style={[styles.branchTitle, { color: tc.text }]}>{branding.branchName}</AppText>
           <AppText style={[styles.branchSub, { color: tc.textMuted }]}>{ASSOCIATION}</AppText>
           <AppText style={[styles.missionQuote, { color: tc.text }]}>
             “The Y is a cause-driven nonprofit strengthening community through youth development, healthy living, and social responsibility.”
@@ -354,32 +353,16 @@ export default function AboutScreen() {
           </AppText>
 
           <View style={styles.hoursBlock}>
-            <View style={styles.hourRow}>
-              <AppText style={[styles.hourDay, { color: tc.text }]}>Monday – Friday:</AppText>
-              <AppText style={[styles.hourTime, { color: tc.textMuted }]}>
-                5:30 AM – 10:00 PM
-              </AppText>
-            </View>
-            <View style={styles.hourRow}>
-              <AppText style={[styles.hourDay, { color: tc.text }]}>Saturday:</AppText>
-              <AppText style={[styles.hourTime, { color: tc.textMuted }]}>
-                7:00 AM – 8:00 PM
-              </AppText>
-            </View>
-            <View style={styles.hourRow}>
-              <AppText style={[styles.hourDay, { color: tc.text }]}>Sunday:</AppText>
-              <AppText style={[styles.hourTime, { color: tc.textMuted }]}>
-                8:00 AM – 8:00 PM
-              </AppText>
-            </View>
+            <AppText style={[styles.hourTime, { color: tc.textMuted }]}>{branding.hoursWeekday}</AppText>
+            <AppText style={[styles.hourTime, { color: tc.textMuted }]}>{branding.hoursWeekend}</AppText>
           </View>
 
           <View style={[styles.divider, { backgroundColor: tc.border }]} />
 
           <View style={styles.contactBlock}>
-            <AppText style={[styles.contactAddress, { color: tc.text }]}>{ADDRESS}</AppText>
+            <AppText style={[styles.contactAddress, { color: tc.text }]}>{branding.address}</AppText>
             <AppText style={[styles.contactDetail, { color: tc.textMuted }]}>
-              Phone: {PHONE} · {EMAIL}
+              Phone: {branding.phone} · {EMAIL}
             </AppText>
           </View>
 

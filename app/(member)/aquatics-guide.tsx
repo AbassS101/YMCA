@@ -15,6 +15,7 @@ import { AquaticsPoliciesModal } from '@/components/AquaticsPoliciesModal';
 import { SwimLessonClassCard } from '@/components/SwimLessonClassCard';
 import { SwimStagesDiagram } from '@/components/SwimStagesDiagram';
 import { YHeader } from '@/components/YHeader';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
 import {
   AQUATICS_CLASSES,
@@ -29,6 +30,7 @@ type ActiveTab = 'classes' | 'curriculum' | 'certifications' | 'info';
 export default function AquaticsGuideScreen() {
   const router = useRouter();
   const { colors: tc, isDark } = useTheme();
+  const { branchName } = useAppConfig().config.branding;
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('classes');
   const [selectedDayFilter, setSelectedDayFilter] = useState<string>('all');
@@ -73,7 +75,7 @@ export default function AquaticsGuideScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tc.background }]}>
-      <YHeader subtitle="YMCA Silver Spring Aquatics Guide" />
+      <YHeader subtitle={`${branchName} Aquatics Guide`} />
 
       <ScrollView
         showsVerticalScrollIndicator
@@ -131,7 +133,7 @@ export default function AquaticsGuideScreen() {
           </Text>
 
           <Text style={styles.heroDescription}>
-            YMCA Silver Spring Aquatics Programs empower infants, youth, teens, and adults with lifesaving swim competency, competitive stroke mechanics, and healthy living.
+            {branchName} Aquatics Programs empower infants, youth, teens, and adults with lifesaving swim competency, competitive stroke mechanics, and healthy living.
           </Text>
 
           {/* Registration Key Dates Card */}

@@ -24,6 +24,7 @@ import { MemberCheckInCard } from '@/components/MemberCheckInCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
 import { YHeader } from '@/components/YHeader';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { getDemoToday } from '@/domain/demoClock';
@@ -50,11 +51,6 @@ import { colors } from '@/theme/colors';
 import { radii, spacing, typography } from '@/theme/typography';
 
 const BRANCH_ID = 'silver-spring';
-const BRANCH_NAME = 'YMCA Silver Spring';
-const BRANCH_ADDRESS = '9800 Hastings Drive, Silver Spring, MD 20901';
-const BRANCH_PHONE = '(301) 585-2120';
-const HOURS_WEEKDAY = 'Mon–Fri 5:30 AM – 10:00 PM';
-const HOURS_WEEKEND = 'Sat 7:00 AM – 8:00 PM · Sun 8:00 AM – 8:00 PM';
 const CARD_WIDTH = Dimensions.get('window').width - 48;
 
 type WeekItem =
@@ -98,6 +94,8 @@ function addDays(isoDate: string, days: number): string {
 export default function MemberHomeScreen() {
   const router = useRouter();
   const { session, api } = useSession();
+  const { config } = useAppConfig();
+  const { branding, featureToggles } = config;
   const { colors, isDark } = useTheme();
   const memberId = session?.userId ?? '';
 
@@ -245,7 +243,7 @@ export default function MemberHomeScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <YHeader subtitle={firstName ? (isGuest ? `Welcome to the Y, ${firstName} (Guest Pass)` : `Welcome back, ${firstName}`) : 'YMCA Silver Spring'} />
+      <YHeader subtitle={firstName ? (isGuest ? `Welcome to the Y, ${firstName} (Guest Pass)` : `Welcome back, ${firstName}`) : branding.branchName} />
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -453,6 +451,7 @@ export default function MemberHomeScreen() {
         ) : null}
 
         {/* Dedicated General Community Forum Callout */}
+        {featureToggles.communityForum ? (
         <Pressable
           onPress={() => router.push('/(member)/community-forum')}
           style={[styles.forumBanner, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
@@ -475,6 +474,7 @@ export default function MemberHomeScreen() {
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.primary} />
         </Pressable>
+        ) : null}
 
         {/* Dedicated Aquatics & Pool Schedule Callout */}
         <Pressable
@@ -528,6 +528,7 @@ export default function MemberHomeScreen() {
             <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>RSVP & Reminders</Text>
           </Pressable>
 
+          {featureToggles.childWatch ? (
           <Pressable
             onPress={() => router.push('/(member)/child-watch')}
             style={[styles.featureTile, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
@@ -540,7 +541,9 @@ export default function MemberHomeScreen() {
             <Text style={[styles.tileTitle, { color: colors.text }]}>Child Watch</Text>
             <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>Free babysitting</Text>
           </Pressable>
+          ) : null}
 
+          {featureToggles.donations ? (
           <Pressable
             onPress={() => router.push('/(member)/donate')}
             style={[styles.featureTile, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
@@ -553,7 +556,9 @@ export default function MemberHomeScreen() {
             <Text style={[styles.tileTitle, { color: colors.text }]}>Give / Donate</Text>
             <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>Community Impact</Text>
           </Pressable>
+          ) : null}
 
+          {isGuest || featureToggles.guestPasses ? (
           <Pressable
             onPress={() => router.push('/(member)/guest-screen')}
             style={[styles.featureTile, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
@@ -567,9 +572,10 @@ export default function MemberHomeScreen() {
               {isGuest ? 'Guest Pass' : 'Guest Passes'}
             </Text>
             <Text style={[styles.tileSubtitle, { color: colors.textMuted }]}>
-              {isGuest ? 'Active Today' : '2 Free Annual'}
+              {isGuest ? 'Active Today' : `${config.guestPasses.complimentaryPassesPerYear} Free Annual`}
             </Text>
           </Pressable>
+          ) : null}
         </View>
 
         {/* Quick Actions */}
@@ -579,11 +585,13 @@ export default function MemberHomeScreen() {
             onPress={() => router.push('/(member)/(tabs)/schedules')}
             accessibilityHint="View and book classes"
           />
-          <SecondaryButton
-            title="Book a Private Lesson"
-            onPress={() => router.push('/(member)/book-lesson')}
-            accessibilityHint="Schedule one-on-one session with your trainer"
-          />
+          {featureToggles.lessonBooking ? (
+            <SecondaryButton
+              title="Book a Private Lesson"
+              onPress={() => router.push('/(member)/book-lesson')}
+              accessibilityHint="Schedule one-on-one session with your trainer"
+            />
+          ) : null}
         </View>
 
         {/* Branch Info Card */}
@@ -597,7 +605,7 @@ export default function MemberHomeScreen() {
         >
           <View style={styles.branchHeaderRow}>
             <Text style={[styles.branchTitle, { color: colors.text }]} allowFontScaling>
-              {BRANCH_NAME}
+              {branding.branchName}
             </Text>
             <View style={[styles.openNowBadge, { backgroundColor: colors.successBg }]}>
               <Text style={[styles.openNowText, { color: colors.success }]}>OPEN TODAY</Text>
@@ -608,10 +616,10 @@ export default function MemberHomeScreen() {
             Facility Hours:
           </Text>
           <Text style={[styles.bodyText, { color: colors.textMuted }]} allowFontScaling>
-            {HOURS_WEEKDAY}
+            {branding.hoursWeekday}
           </Text>
           <Text style={[styles.bodyText, { color: colors.textMuted }]} allowFontScaling>
-            {HOURS_WEEKEND}
+            {branding.hoursWeekend}
           </Text>
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -620,10 +628,10 @@ export default function MemberHomeScreen() {
             Address & Contact:
           </Text>
           <Text style={[styles.bodyText, styles.address, { color: colors.textMuted }]} allowFontScaling>
-            {BRANCH_ADDRESS}
+            {branding.address}
           </Text>
           <Text style={[styles.bodyText, styles.phone, { color: colors.textMuted }]} allowFontScaling>
-            Phone: {BRANCH_PHONE}
+            Phone: {branding.phone}
           </Text>
 
           <View style={styles.amenitiesWrap}>

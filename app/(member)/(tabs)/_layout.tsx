@@ -1,11 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
 import { tapTarget } from '@/theme/typography';
 
 export default function MemberTabsLayout() {
   const { colors } = useTheme();
+  const { communityForum } = useAppConfig().config.featureToggles;
 
   return (
     <Tabs
@@ -57,6 +59,7 @@ export default function MemberTabsLayout() {
       <Tabs.Screen
         name="community"
         options={{
+          href: communityForum ? undefined : null,
           title: 'Community',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="people" size={Math.max(size, 26)} color={color} />

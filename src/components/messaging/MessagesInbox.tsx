@@ -122,17 +122,25 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
     setPeopleLoading(true);
     try {
       if (iAmStaff) {
-        const members = await api.listAllMembers();
-        setPeople(
-          members.map((m) => ({
+        const [members, staff] = await Promise.all([api.listAllMembers(), api.listStaff()]);
+        setPeople([
+          ...staff.map((s) => ({
+            id: s.id,
+            name: s.name,
+            subtitle: s.roleLabel,
+            avatarUrl: s.avatarUrl,
+            isStaff: true,
+            role: s.staffRole ?? 'staff',
+          })),
+          ...members.map((m) => ({
             id: m.id,
             name: m.name,
             subtitle: m.email,
             avatarUrl: m.avatarUrl,
             isStaff: false,
             role: 'member',
-          }))
-        );
+          })),
+        ]);
       } else {
         const staff = await api.listStaff();
         setPeople(
@@ -157,6 +165,7 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
     if (!myId || starting) return;
     setStarting(person.id);
     try {
+      // Threads store the non-staff side as memberId; for staff-to-staff the other person fills it.
       const thread = await messageRepo.getOrCreateThread(
         api,
         iAmStaff ? person.id : myId,
@@ -243,16 +252,16 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
             {header}
             <View style={styles.listHeader}>
               <Text style={[styles.sectionTitle, { color: theme.muted }]}>
-                {iAmStaff ? 'MEMBER CONVERSATIONS' : 'CONVERSATIONS WITH YMCA STAFF'}
+                {iAmStaff ? 'CONVERSATIONS' : 'CONVERSATIONS WITH YMCA STAFF'}
               </Text>
               <Pressable
                 onPress={() => void openPicker()}
                 style={[styles.newBtn, { backgroundColor: theme.accent }]}
                 accessibilityRole="button"
-                accessibilityLabel={iAmStaff ? 'Message a member' : 'Message staff'}
+                accessibilityLabel={iAmStaff ? 'New message' : 'Message staff'}
               >
                 <Ionicons name="create-outline" size={15} color="#FFFFFF" />
-                <Text style={styles.newBtnText}>{iAmStaff ? 'Message a member' : 'Message staff'}</Text>
+                <Text style={styles.newBtnText}>{iAmStaff ? 'New message' : 'Message staff'}</Text>
               </Pressable>
             </View>
           </View>
@@ -266,7 +275,7 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
               <Text style={[styles.emptyTitle, { color: theme.text }]}>No conversations yet</Text>
               <Text style={[styles.emptySub, { color: theme.muted }]}>
                 {iAmStaff
-                  ? 'Tap "Message a member" to reach out to anyone at your branch.'
+                  ? 'Tap "New message" to reach out to a member or another staff member.'
                   : 'Tap "Message staff" to ask a trainer or the front desk a question.'}
               </Text>
             </View>
@@ -292,7 +301,7 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
               <Text style={[styles.cancel, { color: theme.muted }]}>Cancel</Text>
             </Pressable>
             <Text style={[styles.modalTitle, { color: theme.text }]}>
-              {iAmStaff ? 'Message a member' : 'Message staff'}
+              {iAmStaff ? 'New message' : 'Message staff'}
             </Text>
             <View style={{ width: 52 }} />
           </View>
@@ -301,7 +310,7 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder={iAmStaff ? 'Search members by name or email' : 'Search staff by name or role'}
+              placeholder={iAmStaff ? 'Search members or staff by name, role, or email' : 'Search staff by name or role'}
               placeholderTextColor={theme.muted}
               style={[styles.searchInput, { color: theme.text }]}
               autoCorrect={false}

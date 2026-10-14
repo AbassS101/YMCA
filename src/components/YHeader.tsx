@@ -5,6 +5,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/AppText';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { notificationRepo } from '@/repositories/notificationRepo';
@@ -21,6 +22,7 @@ export function YHeader({ subtitle, showActions = true }: YHeaderProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { session, api } = useSession();
+  const donationsOn = useAppConfig().config.featureToggles.donations;
   const { colors, isDark } = useTheme();
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
@@ -71,7 +73,7 @@ export function YHeader({ subtitle, showActions = true }: YHeaderProps) {
 
         {canShowActions ? (
           <View style={styles.actionsRow}>
-            {session.role === 'member' ? (
+            {session.role === 'member' && donationsOn ? (
               <Pressable
                 onPress={() => router.push('/(member)/donate')}
                 style={({ pressed }) => [

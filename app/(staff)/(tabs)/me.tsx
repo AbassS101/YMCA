@@ -11,6 +11,7 @@ import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme, type ThemeMode } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
+import { canOpenAdminCenter } from '@/domain/adminCenter';
 import { type Staff } from '@/domain/types';
 import { cardStyle } from '@/theme/card';
 import { colors } from '@/theme/colors';
@@ -80,7 +81,7 @@ const DEMO_ACCOUNTS = [
     color: '#4338CA',
   },
   {
-    name: 'Maya Brooks',
+    name: 'Liz',
     email: 'frontdesk@silverspring.ymca',
     role: 'Front Desk Membership Representative',
     icon: 'headset',
@@ -101,7 +102,7 @@ export default function StaffMeScreen() {
   const { themeMode, setThemeMode, colors: tc, isDark } = useTheme();
 
   const staffId = session?.userId ?? '';
-  const { can, theme: persona } = useStaffCapabilities();
+  const { can, canEditSection, theme: persona } = useStaffCapabilities();
 
   const [staff, setStaff] = useState<Staff | null>(null);
   const [error, setError] = useState(false);
@@ -162,8 +163,9 @@ export default function StaffMeScreen() {
   const roleBadgeLabel = persona.badge;
   const roleBadgeBg = isDark ? persona.darkSoftBg : persona.softBg;
   const roleBadgeColor = isDark ? '#FFFFFF' : persona.color;
+  const showAdminCenter = canOpenAdminCenter(session?.role);
   const hasStaffTools =
-    can('manageStaff') || can('manageTrainers') || can('manageSurveys') || can('broadcast') || can('manageComplaints');
+    can('manageStaff') || can('manageTrainers') || can('manageSurveys') || can('broadcast') || can('manageComplaints') || showAdminCenter;
 
   return (
     <View style={[styles.screen, { backgroundColor: tc.background }]}>
@@ -297,7 +299,26 @@ export default function StaffMeScreen() {
             </Pressable>
           ) : null}
 
-          {can('manageStaff') ? (
+          {showAdminCenter ? (
+            <Pressable
+              onPress={() => router.push('/(staff)/admin-center')}
+              style={[styles.adminActionBtn, { borderColor: tc.border, marginTop: 8 }]}
+              accessibilityRole="button"
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                <Ionicons name="settings" size={20} color={colors.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.adminActionTitle, { color: tc.text }]}>Admin Control Center</Text>
+                  <Text style={[styles.adminActionSub, { color: tc.textMuted }]}>
+                    Pricing, deals, and branch settings
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={tc.textMuted} />
+            </Pressable>
+          ) : null}
+
+          {canEditSection('lessonPricing') ? (
             <Pressable
               onPress={() => router.push('/(staff)/lesson-pricing')}
               style={[styles.adminActionBtn, { borderColor: tc.border, marginTop: 8 }]}

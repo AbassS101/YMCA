@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SEED } from '@/protivity/seed';
+import { normalizeAppConfig, type AppConfig, type ConfigAuditEntry } from '@/domain/appConfig';
 import { normalizePricing } from '@/domain/lessonPricing';
 import { personaForRole } from '@/domain/staffCapabilities';
 import { generateMembershipId } from '@/domain/householdAccess';
@@ -92,6 +93,8 @@ export type DemoState = {
   memberContacts: MemberContact[];
   leads: Lead[];
   enrollmentCampaigns: EnrollmentCampaign[];
+  appConfig: AppConfig;
+  configAudit: ConfigAuditEntry[];
   schemaVersion?: number;
   /** Monday of the week the stored dates are aligned to (see seedDateShift.ts). */
   seedWeekAnchor?: string;
@@ -508,6 +511,8 @@ function migrateState(raw: DemoState): DemoState {
     memberContacts: raw.memberContacts ?? seed.memberContacts,
     leads: raw.leads ?? seed.leads,
     enrollmentCampaigns: raw.enrollmentCampaigns ?? seed.enrollmentCampaigns,
+    appConfig: normalizeAppConfig(raw.appConfig),
+    configAudit: raw.configAudit ?? [],
   };
   delete migrated.childProfiles;
   return migrated;

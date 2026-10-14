@@ -116,7 +116,7 @@ const DEMO_PERSONAS = [
     highlights: 'Front desk check-in, cancellation approvals, plan changes, new members',
   },
   {
-    name: 'Maya Brooks',
+    name: 'Liz',
     email: 'frontdesk@silverspring.ymca',
     roleTitle: 'Front Desk Membership Representative',
     badge: 'FRONT DESK',

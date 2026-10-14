@@ -11,13 +11,14 @@ import { QuickActionBar } from '@/components/staff/QuickActionBar';
 import { SessionRequestsOversight } from '@/components/staff/SessionRequestsOversight';
 import { ActionButton, EmptyState, ListRow, SectionCard, StatusPill } from '@/components/staff/SectionCard';
 import { dialog } from '@/context/DialogContext';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import { getDemoToday } from '@/domain/demoClock';
 import { personaForRole } from '@/domain/staffCapabilities';
 import type { Member, Staff } from '@/domain/types';
-import { formatWellnessPrice, WELLNESS_TRAINING_PROGRAMS } from '@/domain/wellnessPrograms';
+import { formatWellnessPrice } from '@/domain/wellnessPrograms';
 import { radii } from '@/theme/typography';
 
 import { DashboardScaffold } from './DashboardScaffold';
@@ -36,6 +37,7 @@ type TrainerLoad = {
 export function WellnessDirectorDashboard({ staffId }: { staffId: string }) {
   const router = useRouter();
   const { api } = useSession();
+  const { config } = useAppConfig();
   const { colors: tc } = useTheme();
   const { theme } = useStaffCapabilities();
   const day = useTrainerDay(staffId);
@@ -264,7 +266,7 @@ export function WellnessDirectorDashboard({ staffId }: { staffId: string }) {
       />
 
       <SectionCard title="Wellness Programs" icon="fitness" accent={theme.color} subtitle="Branch member pricing">
-        {WELLNESS_TRAINING_PROGRAMS.map((p) => {
+        {config.wellnessPackages.map((p) => {
           const from = Math.min(...p.tiers.map((tier) => tier.branchMemberPerSession));
           return (
             <ListRow

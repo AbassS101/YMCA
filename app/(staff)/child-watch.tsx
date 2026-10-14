@@ -5,12 +5,11 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import {
-  MAX_MINUTES_PER_DAY,
-  ROOM_CAPACITY,
   demoNow,
   describeStatus,
   formatAge,
@@ -30,6 +29,7 @@ export default function StaffChildWatchScreen() {
   const { colors: tc } = useTheme();
   const { can } = useStaffCapabilities();
   const staffId = session?.userId ?? 'staff';
+  const { childWatch: rules, featureToggles } = useAppConfig().config;
 
   const [now, setNow] = useState(demoNow());
   const [visits, setVisits] = useState<ChildWatchVisit[]>([]);
@@ -65,7 +65,7 @@ export default function StaffChildWatchScreen() {
   const childById = useMemo(() => new Map(children.map((c) => [c.id, c])), [children]);
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const active = visits.filter((v) => !v.signedOutAt);
-  const status = getStatusAt(now);
+  const status = getStatusAt(now, rules);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -147,16 +147,20 @@ export default function StaffChildWatchScreen() {
           <Text style={{ color: tc.primary, fontWeight: '700' }}>Back</Text>
         </Pressable>
 
+        {!featureToggles.childWatch ? (
+          <Text style={styles.warn}>Child Watch is turned off in the Admin Control Center, so sign-in is paused.</Text>
+        ) : null}
+
         <View style={[styles.card, card]}>
           <Text style={[styles.h1, { color: tc.text }]}>{describeStatus(status)}</Text>
           <Text style={[styles.body, { color: tc.text }]}>
-            In the room: {active.length} of {ROOM_CAPACITY}
+            In the room: {active.length} of {rules.roomCapacity}
           </Text>
           <View style={[styles.meterTrack, { backgroundColor: tc.border }]}>
             <View
               style={[
                 styles.meterFill,
-                { width: `${Math.min(100, (active.length / ROOM_CAPACITY) * 100)}%`, backgroundColor: tc.primary },
+                { width: `${Math.min(100, (active.length / rules.roomCapacity) * 100)}%`, backgroundColor: tc.primary },
               ]}
             />
           </View>
@@ -170,7 +174,7 @@ export default function StaffChildWatchScreen() {
           const used = minutesUsedToday(visits, v.childId, now);
           const closingSoon =
             status.state !== 'closed' && status.closesAt.getTime() - now.getTime() <= 10 * 60000;
-          const overdue = used >= MAX_MINUTES_PER_DAY;
+          const overdue = used >= rules.maxMinutesPerDay;
           return (
             <View key={v.id} style={[styles.card, card]}>
               <Text style={[styles.h2, { color: tc.text }]}>
@@ -178,7 +182,7 @@ export default function StaffChildWatchScreen() {
                 {child ? ` · ${formatAge(child.birthDate, now)}` : ''}
               </Text>
               <Text style={[styles.body, { color: tc.textMuted }]}>
-                Parent: {parent?.name ?? v.memberId} · {used}/{MAX_MINUTES_PER_DAY} min
+                Parent: {parent?.name ?? v.memberId} · {used}/{rules.maxMinutesPerDay} min
               </Text>
               {child?.allergies ? <Text style={styles.warn}>Allergies: {child.allergies}</Text> : null}
               {overdue ? <Text style={styles.danger}>OVER 2 HOURS – parent pickup needed</Text> : null}

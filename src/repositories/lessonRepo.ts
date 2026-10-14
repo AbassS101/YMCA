@@ -117,8 +117,8 @@ export const pricingRepo = {
   get(api: ProtivityPort): Promise<LessonPricing> {
     return api.getLessonPricing();
   },
-  update(api: ProtivityPort, updates: Partial<LessonPricing>): Promise<LessonPricing> {
-    return api.updateLessonPricing(updates);
+  update(api: ProtivityPort, updates: Partial<LessonPricing>, requesterUserId?: string): Promise<LessonPricing> {
+    return api.updateLessonPricing(updates, requesterUserId);
   },
 };
 

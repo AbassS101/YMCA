@@ -17,6 +17,7 @@ import { SwimEnrollSheet } from '@/components/booking/SwimEnrollSheet';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { WellnessPackageModal } from '@/components/WellnessPackageModal';
 import { YHeader } from '@/components/YHeader';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { householdRepo } from '@/repositories/householdRepo';
@@ -32,9 +33,9 @@ import {
   formatCents,
   lessonPriceCents,
   pricingTierFor,
-  SWIM_CLASS_CAPACITY,
   swimClassPriceCents,
 } from '@/domain/lessonPricing';
+import { swimClassCapacity } from '@/domain/appConfig';
 import { dedupeByStart, sessionLengthsFor } from '@/domain/sessionAvailability';
 import type {
   BookableTime,
@@ -89,6 +90,7 @@ export default function BookLessonScreen() {
   }>();
   const { session, api } = useSession();
   const { colors } = useTheme();
+  const { featureToggles, swimClasses } = useAppConfig().config;
   const memberId = session?.userId ?? '';
   const today = getDemoToday();
 
@@ -131,6 +133,13 @@ export default function BookLessonScreen() {
   );
 
   const tier = pricingTierFor(member);
+
+  // Tabs follow the lesson-booking and swim-enrollment toggles.
+  const tabOptions = [
+    ...(featureToggles.lessonBooking ? [{ key: 'private' as const, label: 'Private Lessons' }] : []),
+    ...(featureToggles.swimClassEnrollment ? [{ key: 'classes' as const, label: 'Swim Classes' }] : []),
+  ];
+  const activeTab: Tab = tabOptions.some((t) => t.key === tab) ? tab : (tabOptions[0]?.key ?? tab);
 
   const instructors = useMemo(
     () =>
@@ -267,11 +276,11 @@ export default function BookLessonScreen() {
   useEffect(() => {
     if (typeof params.classId === 'string') {
       const c = AQUATICS_CLASSES.find((x) => x.id === params.classId);
-      if (c) {
+      if (c && !swimClasses.hidden.includes(c.id)) {
         setEnrollTarget(c);
       }
     }
-  }, [params.classId]);
+  }, [params.classId, swimClasses.hidden]);
 
   const selectedTime = times.find((t) => `${t.staffId}|${t.start}` === timeKey) ?? null;
   const selectedInstructor = selectedTime ? allStaff.find((s) => s.id === selectedTime.staffId) ?? null : null;
@@ -407,6 +416,7 @@ export default function BookLessonScreen() {
 
   const filteredClasses = AQUATICS_CLASSES.filter(
     (c) =>
+      !swimClasses.hidden.includes(c.id) &&
       (filters.day === 'All' ||
         c.day === filters.day ||
         (filters.day === 'Monday' && c.stageCode === 'Masters')) &&
@@ -430,21 +440,18 @@ export default function BookLessonScreen() {
       </Pressable>
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
 
-      {!isChange ? (
+      {!isChange && tabOptions.length > 1 ? (
         <View style={styles.tabsWrap}>
           <BookingTabs
-            tabs={[
-              { key: 'private' as const, label: 'Private Lessons' },
-              { key: 'classes' as const, label: 'Swim Classes' },
-            ]}
-            value={tab}
+            tabs={tabOptions}
+            value={activeTab}
             onChange={setTab}
           />
         </View>
       ) : null}
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {tab === 'private' ? (
+        {activeTab === 'private' ? (
           <>
             {!isChange ? <MySessionRequests onChanged={() => void loadTimes()} /> : null}
             <Pressable
@@ -654,7 +661,7 @@ export default function BookLessonScreen() {
                 offering={c}
                 priceCents={swimClassPriceCents(pricing, c, tier)}
                 otherTierCents={swimClassPriceCents(pricing, c, tier === 'full' ? 'program' : 'full')}
-                spotsLeft={SWIM_CLASS_CAPACITY - (counts[c.id] ?? 0)}
+                spotsLeft={swimClassCapacity(swimClasses, c.id) - (counts[c.id] ?? 0)}
                 enrolled={enrolledIds.has(c.id)}
                 onPress={() => setEnrollTarget(c)}
               />
@@ -663,7 +670,7 @@ export default function BookLessonScreen() {
         )}
       </ScrollView>
 
-      {tab === 'private' ? (
+      {activeTab === 'private' ? (
         <BookingSummaryBar
           title={
             selectedTime

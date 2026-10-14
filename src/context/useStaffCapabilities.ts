@@ -2,10 +2,12 @@
 
 import { useSession } from '@/context/SessionContext';
 import {
+  canEditConfigSection,
   capabilitiesForRole,
   personaForRole,
   personaTheme,
   type PersonaTheme,
+  type ConfigSection,
   type StaffCapability,
   type StaffPersona,
 } from '@/domain/staffCapabilities';
@@ -14,6 +16,10 @@ export type StaffCapabilities = {
   persona: StaffPersona | null;
   theme: PersonaTheme;
   can: (capability: StaffCapability) => boolean;
+  canManageBusinessConfig: boolean;
+  canManageSystemConfig: boolean;
+  /** Section-level edit rights: includes directors editing just their own section. */
+  canEditSection: (section: ConfigSection) => boolean;
   isAdmin: boolean;
   isITAdmin: boolean;
   isTrainer: boolean;
@@ -36,6 +42,9 @@ export function useStaffCapabilities(): StaffCapabilities {
       persona,
       theme: personaTheme(role),
       can: (capability: StaffCapability) => caps.has(capability),
+      canManageBusinessConfig: caps.has('manageBusinessConfig'),
+      canManageSystemConfig: caps.has('manageSystemConfig'),
+      canEditSection: (section: ConfigSection) => canEditConfigSection(role, section),
       isAdmin: persona === 'admin' || persona === 'it' || persona === 'wellnessDirector',
       isITAdmin: persona === 'it',
       isTrainer: persona === 'trainer',

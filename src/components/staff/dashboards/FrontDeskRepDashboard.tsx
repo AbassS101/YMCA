@@ -12,6 +12,7 @@ import { KpiRow } from '@/components/staff/KpiTile';
 import { PersonaHero } from '@/components/staff/PersonaHero';
 import { QuickActionBar } from '@/components/staff/QuickActionBar';
 import { ActionButton, EmptyState, ListRow, SectionCard } from '@/components/staff/SectionCard';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -33,6 +34,7 @@ type LogTarget = { title: string; memberId?: string; leadId?: string; purpose: C
 export function FrontDeskRepDashboard({ staffId }: { staffId: string }) {
   const router = useRouter();
   const { api } = useSession();
+  const { config } = useAppConfig();
   const { colors: tc } = useTheme();
   const { can, theme } = useStaffCapabilities();
   const canBilling = can('handleBillingIssues');
@@ -87,7 +89,9 @@ export function FrontDeskRepDashboard({ staffId }: { staffId: string }) {
                 { key: 'leads', label: 'Pipeline', icon: 'funnel-outline' as const, onPress: () => router.push('/(staff)/leads'), color: '#0284C7' },
               ]
             : []),
-          { key: 'childwatch', label: 'Child Watch', icon: 'happy-outline', onPress: () => router.push('/(staff)/child-watch'), color: '#D97706' },
+          ...(config.featureToggles.childWatch
+            ? [{ key: 'childwatch', label: 'Child Watch', icon: 'happy-outline' as const, onPress: () => router.push('/(staff)/child-watch'), color: '#D97706' }]
+            : []),
           { key: 'msg', label: 'Messages', icon: 'mail-outline', onPress: () => router.push('/(staff)/messages'), color: '#15803D' },
         ]}
       />

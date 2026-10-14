@@ -8,12 +8,12 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
 import {
   WELLNESS_AREAS_OF_EXPERTISE,
   WELLNESS_CONTACT_INFO,
   WELLNESS_PACKAGE_INCLUSIONS,
-  WELLNESS_TRAINING_PROGRAMS,
   type WellnessPackageTier,
   type WellnessProgramType,
   formatWellnessPrice,
@@ -33,24 +33,31 @@ export function WellnessPackagesView({
   defaultProgramId = 'personal-60',
 }: WellnessPackagesViewProps) {
   const { colors, isDark } = useTheme();
+  const { branding, wellnessPackages: programs } = useAppConfig().config;
+  const contact = {
+    ...WELLNESS_CONTACT_INFO,
+    phone: branding.phone,
+    phoneRaw: branding.phone.replace(/\D/g, ''),
+    email: branding.wellnessEmail,
+  };
   const [selectedProgramId, setSelectedProgramId] = useState<WellnessProgramType>(defaultProgramId);
   const [rateType, setRateType] = useState<'branch' | 'community'>('branch');
 
   const selectedProgram =
-    WELLNESS_TRAINING_PROGRAMS.find((p) => p.id === selectedProgramId) ??
-    WELLNESS_TRAINING_PROGRAMS[0];
+    programs.find((p) => p.id === selectedProgramId) ??
+    programs[0];
 
   const handlePhoneCall = () => {
-    Linking.openURL(`tel:${WELLNESS_CONTACT_INFO.phoneRaw}`).catch(() => {
-      Alert.alert('Phone', `Call the front desk at ${WELLNESS_CONTACT_INFO.phone}`);
+    Linking.openURL(`tel:${contact.phoneRaw}`).catch(() => {
+      Alert.alert('Phone', `Call the front desk at ${contact.phone}`);
     });
   };
 
   const handleEmail = () => {
     Linking.openURL(
-      `mailto:${WELLNESS_CONTACT_INFO.email}?subject=Inquiry%20-%20YMCA%20Wellness%20Training%20Programs`
+      `mailto:${contact.email}?subject=Inquiry%20-%20YMCA%20Wellness%20Training%20Programs`
     ).catch(() => {
-      Alert.alert('Email', `Email wellness at ${WELLNESS_CONTACT_INFO.email}`);
+      Alert.alert('Email', `Email wellness at ${contact.email}`);
     });
   };
 
@@ -91,11 +98,11 @@ export function WellnessPackagesView({
             onPress={handlePhoneCall}
             style={styles.quickContactItem}
             accessibilityRole="button"
-            accessibilityLabel={`Call ${WELLNESS_CONTACT_INFO.phone}`}
+            accessibilityLabel={`Call ${contact.phone}`}
           >
             <Ionicons name="call" size={15} color={colors.primary} />
             <Text style={[styles.quickContactText, { color: colors.primary }]}>
-              {WELLNESS_CONTACT_INFO.phone}
+              {contact.phone}
             </Text>
           </Pressable>
           <View style={[styles.quickContactDivider, { backgroundColor: colors.border }]} />
@@ -103,11 +110,11 @@ export function WellnessPackagesView({
             onPress={handleEmail}
             style={styles.quickContactItem}
             accessibilityRole="button"
-            accessibilityLabel={`Email ${WELLNESS_CONTACT_INFO.email}`}
+            accessibilityLabel={`Email ${contact.email}`}
           >
             <Ionicons name="mail" size={15} color={colors.primary} />
             <Text style={[styles.quickContactText, { color: colors.primary }]}>
-              {WELLNESS_CONTACT_INFO.email}
+              {contact.email}
             </Text>
           </Pressable>
         </View>
@@ -121,7 +128,7 @@ export function WellnessPackagesView({
       </View>
 
       <View style={styles.programTabsRow}>
-        {WELLNESS_TRAINING_PROGRAMS.map((prog) => {
+        {programs.map((prog) => {
           const isSelected = prog.id === selectedProgramId;
           return (
             <Pressable
@@ -469,7 +476,7 @@ export function WellnessPackagesView({
               Get Started or Inquire
             </Text>
             <Text style={[styles.supportBody, { color: colors.textMuted }]} allowFontScaling>
-              {WELLNESS_CONTACT_INFO.inBranchPrompt}
+              {contact.inBranchPrompt}
             </Text>
           </View>
         </View>
@@ -479,11 +486,11 @@ export function WellnessPackagesView({
             onPress={handlePhoneCall}
             style={[styles.contactActionBtn, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
             accessibilityRole="button"
-            accessibilityLabel={`Call desk at ${WELLNESS_CONTACT_INFO.phone}`}
+            accessibilityLabel={`Call desk at ${contact.phone}`}
           >
             <Ionicons name="call-outline" size={16} color={colors.primary} />
             <Text style={[styles.contactActionText, { color: colors.text }]}>
-              {WELLNESS_CONTACT_INFO.phone}
+              {contact.phone}
             </Text>
           </Pressable>
 
@@ -491,7 +498,7 @@ export function WellnessPackagesView({
             onPress={handleEmail}
             style={[styles.contactActionBtn, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
             accessibilityRole="button"
-            accessibilityLabel={`Email wellness at ${WELLNESS_CONTACT_INFO.email}`}
+            accessibilityLabel={`Email wellness at ${contact.email}`}
           >
             <Ionicons name="mail-outline" size={16} color={colors.primary} />
             <Text style={[styles.contactActionText, { color: colors.text }]}>

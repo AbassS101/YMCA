@@ -6,6 +6,9 @@ const DATE_TIME = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(.*)$/;
 /** Keys whose values are real calendar facts (not part of the demo week) and must never move. */
 const FIXED_KEYS = new Set(['birthDate', 'birthdate', 'dob']);
 
+/** Subtrees that are copied as-is: in-app settings and their change log are not part of the demo week. */
+const UNSHIFTED_KEYS = new Set(['appConfig', 'configAudit']);
+
 export function shiftDateString(value: string, weeks: number): string {
   if (weeks === 0) return value;
   const dateOnly = DATE_ONLY.exec(value);
@@ -36,7 +39,7 @@ export function shiftSeedDates<T>(input: T, weeks: number): T {
       for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
         // Record keys can also be dates (e.g. per-day maps); shift those too.
         const nk = DATE_ONLY.test(k) ? shiftDateString(k, weeks) : k;
-        out[nk] = walk(v, k);
+        out[nk] = UNSHIFTED_KEYS.has(k) ? JSON.parse(JSON.stringify(v)) : walk(v, k);
       }
       return out;
     }

@@ -19,21 +19,81 @@ export const MAX_MINUTES_PER_DAY = 120;
 export const MIN_AGE_WEEKS = 6;
 export const ROOM_CAPACITY = 25;
 
-export const CHILD_WATCH_INFO = {
-  title: 'Child Watch',
+/** The rules the status and sign-in checks run on; the app config can override them. */
+export type ChildWatchRules = {
+  hours: HoursWindow[][]; // index 0 = Sunday
+  signInCutoffMin: number;
+  maxMinutesPerDay: number;
+  minAgeWeeks: number;
+  roomCapacity: number;
+  /** Member-facing text. `{maxTime}` in the intro is replaced with the daily limit. */
+  intro: string;
+  note: string;
+  /** Contact line shown before the email address; blank hides the contact. */
+  contactText: string;
+  contactEmail: string;
+};
+
+export const DEFAULT_CHILD_WATCH_RULES: ChildWatchRules = {
+  hours: CHILD_WATCH_HOURS,
+  signInCutoffMin: SIGN_IN_CUTOFF_MIN,
+  maxMinutesPerDay: MAX_MINUTES_PER_DAY,
+  minAgeWeeks: MIN_AGE_WEEKS,
+  roomCapacity: ROOM_CAPACITY,
   intro:
-    'As a service to our valued members, the YMCA Silver Spring Child Watch program provides positive and fun on-site childcare during your visit to our facility for a maximum of 2 hours per day. Parents must remain in the building while their children are in Child Watch.',
-  ages: 'CHILD WATCH: (6 weeks and up)',
-  hoursLines: ['Monday – Friday: 9 am-12 pm, 4 pm-8 pm', 'Saturday – 9 am-12 pm'],
-  closedLine: 'Sunday – Closed',
-  cutoff: 'Sign in cut off is 30 minutes prior to closing time.',
-  noteTitle: 'Please Note:',
+    'As a service to our valued members, the YMCA Silver Spring Child Watch program provides positive and fun on-site childcare during your visit to our facility for a maximum of {maxTime} per day. Parents must remain in the building while their children are in Child Watch.',
   note:
     'All members must check-in at the Y Membership Desk before dropping children off in Child Watch. Children must be signed in and out of the Child Watch program every day. Parents must remain in the building at all times.',
   contactText:
     'If you have any questions or concerns regarding our Child Watch program, please contact Meena Suri, Senior Program Director, at ',
   contactEmail: 'Meena.Suri@ymcadc.org',
-} as const;
+};
+
+export const CHILD_WATCH_INFO = { title: 'Child Watch', noteTitle: 'Please Note:' } as const;
+
+/** 120 -> "2 hours", 60 -> "1 hour", 90 -> "90 minutes". */
+export function formatLimit(minutes: number): string {
+  if (minutes % 60 !== 0) return `${minutes} minutes`;
+  const hours = minutes / 60;
+  return hours === 1 ? '1 hour' : `${hours} hours`;
+}
+
+export function childWatchIntro(rules: ChildWatchRules): string {
+  return rules.intro.replace('{maxTime}', formatLimit(rules.maxMinutesPerDay));
+}
+
+export function childWatchAgesLine(rules: ChildWatchRules): string {
+  return `CHILD WATCH: (${rules.minAgeWeeks} weeks and up)`;
+}
+
+export function childWatchCutoffLine(rules: ChildWatchRules): string {
+  return `Sign in cut off is ${rules.signInCutoffMin} minutes prior to closing time.`;
+}
+
+const FULL_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function hourLabel(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${m === 0 ? '' : `:${String(m).padStart(2, '0')}`} ${h >= 12 ? 'pm' : 'am'}`;
+}
+
+/** Opening hours as display lines, Monday first; runs of days with the same hours share a line. */
+export function describeHoursLines(hours: HoursWindow[][]): { text: string; closed: boolean }[] {
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  const text = (day: number) =>
+    (hours[day] ?? []).map((w) => `${hourLabel(w.open)}-${hourLabel(w.close)}`).join(', ') || 'Closed';
+  const lines: { text: string; closed: boolean }[] = [];
+  for (let i = 0; i < order.length; ) {
+    let j = i;
+    while (j + 1 < order.length && text(order[j + 1]) === text(order[i])) j++;
+    const first = FULL_DAY_NAMES[order[i]];
+    const label = j > i ? `${first} – ${FULL_DAY_NAMES[order[j]]}:` : `${first} –`;
+    lines.push({ text: `${label} ${text(order[i])}`, closed: (hours[order[i]] ?? []).length === 0 });
+    i = j + 1;
+  }
+  return lines;
+}
 
 export type ChildWatchStatus =
   | { state: 'open'; signInUntil: Date; closesAt: Date }
@@ -55,13 +115,13 @@ export function demoNow(): Date {
   return d;
 }
 
-export function getStatusAt(now: Date): ChildWatchStatus {
-  const windows = CHILD_WATCH_HOURS[now.getDay()];
+export function getStatusAt(now: Date, rules: ChildWatchRules = DEFAULT_CHILD_WATCH_RULES): ChildWatchStatus {
+  const windows = rules.hours[now.getDay()] ?? [];
   for (const w of windows) {
     const open = at(now, w.open);
     const close = at(now, w.close);
     if (now >= open && now < close) {
-      const cutoff = new Date(close.getTime() - SIGN_IN_CUTOFF_MIN * 60000);
+      const cutoff = new Date(close.getTime() - rules.signInCutoffMin * 60000);
       return now < cutoff
         ? { state: 'open', signInUntil: cutoff, closesAt: close }
         : { state: 'signInClosed', closesAt: close };
@@ -70,7 +130,7 @@ export function getStatusAt(now: Date): ChildWatchStatus {
   for (let offset = 0; offset < 8; offset++) {
     const day = new Date(now);
     day.setDate(day.getDate() + offset);
-    for (const w of CHILD_WATCH_HOURS[day.getDay()]) {
+    for (const w of rules.hours[day.getDay()] ?? []) {
       const open = at(day, w.open);
       if (open > now) return { state: 'closed', nextOpen: open };
     }
@@ -133,33 +193,36 @@ export function minutesUsedToday(visits: ChildWatchVisit[], childId: string, now
 
 export type SignInCheck = { ok: true } | { ok: false; reason: string };
 
-export function validateSignIn(input: {
-  now: Date;
-  child: ChildProfile;
-  visits: ChildWatchVisit[];
-  parentCheckedInAtDesk: boolean;
-}): SignInCheck {
+export function validateSignIn(
+  input: {
+    now: Date;
+    child: ChildProfile;
+    visits: ChildWatchVisit[];
+    parentCheckedInAtDesk: boolean;
+  },
+  rules: ChildWatchRules = DEFAULT_CHILD_WATCH_RULES
+): SignInCheck {
   const { now, child, visits, parentCheckedInAtDesk } = input;
-  const status = getStatusAt(now);
+  const status = getStatusAt(now, rules);
   if (status.state === 'closed') {
     return { ok: false, reason: `Child Watch is closed. ${describeStatus(status)}.` };
   }
   if (status.state === 'signInClosed') {
-    return { ok: false, reason: 'Sign in cut off is 30 minutes prior to closing time.' };
+    return { ok: false, reason: childWatchCutoffLine(rules) };
   }
   if (!parentCheckedInAtDesk) {
     return { ok: false, reason: 'Check in at the Y Membership Desk before dropping children off in Child Watch.' };
   }
-  if (ageInWeeks(child.birthDate, now) < MIN_AGE_WEEKS) {
-    return { ok: false, reason: 'Child Watch is for children 6 weeks and up.' };
+  if (ageInWeeks(child.birthDate, now) < rules.minAgeWeeks) {
+    return { ok: false, reason: `Child Watch is for children ${rules.minAgeWeeks} weeks and up.` };
   }
   if (visits.some((v) => v.childId === child.id && !v.signedOutAt)) {
     return { ok: false, reason: `${child.firstName} is already signed in.` };
   }
-  if (minutesUsedToday(visits, child.id, now) >= MAX_MINUTES_PER_DAY) {
-    return { ok: false, reason: `${child.firstName} has used the maximum of 2 hours today.` };
+  if (minutesUsedToday(visits, child.id, now) >= rules.maxMinutesPerDay) {
+    return { ok: false, reason: `${child.firstName} has used the maximum of ${formatLimit(rules.maxMinutesPerDay)} today.` };
   }
-  if (visits.filter((v) => !v.signedOutAt).length >= ROOM_CAPACITY) {
+  if (visits.filter((v) => !v.signedOutAt).length >= rules.roomCapacity) {
     return { ok: false, reason: 'Child Watch is at capacity right now.' };
   }
   return { ok: true };

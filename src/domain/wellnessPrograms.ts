@@ -298,6 +298,39 @@ export function calculateMemberSavings(programId: WellnessProgramType, sessions:
   return tier.communityMemberPrice - tier.branchMemberPrice;
 }
 
+/** Lowest branch-member per-session rate across the given packages (the "from $35" price). */
+export function lowestWellnessRate(programs: WellnessTrainingProgram[]): number {
+  return Math.min(...programs.flatMap((p) => p.tiers.map((t) => t.branchMemberPerSession)));
+}
+
+/** Biggest branch-member saving over the community rate on any package ("save up to $180"). */
+export function largestWellnessSavings(programs: WellnessTrainingProgram[]): number {
+  return Math.max(0, ...programs.flatMap((p) => p.tiers.map((t) => t.communityMemberPrice - t.branchMemberPrice)));
+}
+
+/** Rate-card highlights for the Programs screen, built from the packages on offer. */
+export function wellnessRateHighlights(programs: WellnessTrainingProgram[]): string[] {
+  const lines: string[] = [];
+  const personal60 = programs.find((p) => p.id === 'personal-60');
+  const single = personal60?.tiers[0];
+  const biggest = personal60?.tiers[personal60.tiers.length - 1];
+  if (personal60 && single && biggest) {
+    const saving = biggest.communityMemberPrice - biggest.branchMemberPrice;
+    const pack = `${biggest.sessions}-pack at ${formatWellnessPrice(biggest.branchMemberPerSession)}/session`;
+    lines.push(
+      `Personal 60-Min (${formatWellnessPrice(single.branchMemberPerSession)}/session; ${pack}${saving > 0 ? ` saving ${formatWellnessPrice(saving)}+` : ''})`
+    );
+  }
+  const express = programs.find((p) => p.id === 'personal-30')?.tiers[0];
+  if (express) lines.push(`Personal 30-Min Express (${formatWellnessPrice(express.branchMemberPerSession)}/session) for focused conditioning`);
+  const partner = programs.find((p) => p.id === 'partner')?.tiers[0];
+  if (partner) {
+    const each = partner.branchMemberPerPersonPerSession ?? partner.branchMemberPerSession / 2;
+    lines.push(`Partner Wellness Training (${formatWellnessPrice(each)}/person/session) - workout with a friend`);
+  }
+  return lines;
+}
+
 /** Format currency helper */
 export function formatWellnessPrice(amount: number): string {
   return amount % 1 === 0 ? `$${amount}` : `$${amount.toFixed(2)}`;

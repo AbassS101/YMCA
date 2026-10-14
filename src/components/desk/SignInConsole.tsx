@@ -7,6 +7,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 import { DeskAlertPills } from '@/components/desk/DeskAlertPills';
 import { UpdateCardSheet } from '@/components/desk/UpdateCardSheet';
 import { ActionButton, EmptyState, ListRow, SectionCard, StatusPill } from '@/components/staff/SectionCard';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { getDemoToday } from '@/domain/demoClock';
@@ -52,6 +53,7 @@ export function SignInConsole({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [cardFor, setCardFor] = useState<MemberRow | null>(null);
   const today = getDemoToday();
+  const newMemberDays = useAppConfig().config.thresholds.newMemberDays;
 
   const results = useMemo(
     () => rows.filter(({ member }) => matchesMemberQuery(member, query)).slice(0, 5),
@@ -84,7 +86,7 @@ export function SignInConsole({
   };
 
   const checkIn = (row: MemberRow) => {
-    const alerts = deskAlertsFor(row.member, row.membership, today);
+    const alerts = deskAlertsFor(row.member, row.membership, today, newMemberDays);
     if (!hasBlockingAlert(alerts)) {
       void performCheckIn(row.member);
       return;
@@ -122,7 +124,7 @@ export function SignInConsole({
         ) : (
           results.map((row) => {
             const { member, membership } = row;
-            const alerts = deskAlertsFor(member, membership, today);
+            const alerts = deskAlertsFor(member, membership, today, newMemberDays);
             const checked = checkedInToday.has(member.id);
             return (
               <ListRow

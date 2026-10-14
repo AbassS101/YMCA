@@ -16,6 +16,7 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { TextField } from '@/components/TextField';
 import { YHeader } from '@/components/YHeader';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -27,7 +28,6 @@ import {
 } from '@/domain/householdAccess';
 import { tokenizePaymentInput } from '@/domain/paymentTokenizer';
 import {
-  YMCA_MEMBERSHIP_PLANS,
   effectiveEnrollmentFeeCents,
   type EnrollmentCampaign,
   type MembershipPlan,
@@ -44,17 +44,20 @@ function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-const DONATION_OPTIONS = [
-  { cents: 0, label: 'No add-on' },
-  { cents: 500, label: '+$5/mo' },
-  { cents: 1000, label: '+$10/mo' },
-  { cents: 2500, label: '+$25/mo' },
-];
-
 export default function JoinMembershipScreen() {
   const router = useRouter();
   const { session, api, login } = useSession();
   const { colors, isDark } = useTheme();
+  const { config } = useAppConfig();
+  const plans = config.membershipPlans;
+  const offeredPlans = plans.filter((p) => p.active);
+  const donationOptions = [
+    { cents: 0, label: 'No add-on' },
+    ...config.donations.roundUpOptionsCents.map((cents) => ({
+      cents,
+      label: `+$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}/mo`,
+    })),
+  ];
 
   const [selectedPlanId, setSelectedPlanId] = useState<string>('adult');
   const [name, setName] = useState('');
@@ -88,12 +91,11 @@ export default function JoinMembershipScreen() {
   const [birthDate, setBirthDate] = useState('');
   const [family, setFamily] = useState<FamilyDraft[]>([]);
 
-  const selectedPlan =
-    YMCA_MEMBERSHIP_PLANS.find((p) => p.id === selectedPlanId) ?? YMCA_MEMBERSHIP_PLANS[0];
+  const selectedPlan = offeredPlans.find((p) => p.id === selectedPlanId) ?? offeredPlans[0] ?? plans[0];
   const familyPlan = isFamilyPlan(selectedPlan);
   const validBirth = /^\d{4}-\d{2}-\d{2}$/.test(birthDate.trim());
   const buyerCheck = validBirth
-    ? canHoldSoloMembership(birthDate.trim(), selectedPlan.id, getDemoToday())
+    ? canHoldSoloMembership(birthDate.trim(), selectedPlan.id, getDemoToday(), plans)
     : null;
   const updateFamily = (idx: number, patch: Partial<FamilyDraft>) =>
     setFamily((prev) => prev.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
@@ -151,7 +153,7 @@ export default function JoinMembershipScreen() {
     }
     if (householdMembers.length > 0) {
       const people = [{ birthDate: birthDate.trim() }, ...householdMembers];
-      const household = validateHousehold(selectedPlan.id, people, getDemoToday());
+      const household = validateHousehold(selectedPlan.id, people, getDemoToday(), plans);
       if (!household.ok) {
         setFormError(household.reason);
         return;
@@ -261,8 +263,8 @@ export default function JoinMembershipScreen() {
           </AppText>
 
           <View style={styles.plansWrap}>
-            {YMCA_MEMBERSHIP_PLANS.map((plan) => {
-              const selected = plan.id === selectedPlanId;
+            {offeredPlans.map((plan) => {
+              const selected = plan.id === selectedPlan.id;
               return (
                 <Pressable
                   key={plan.id}
@@ -475,6 +477,8 @@ export default function JoinMembershipScreen() {
           </View>
 
           {/* Step 4: Optional Monthly Community Gift */}
+          {config.featureToggles.donations && donationOptions.length > 1 ? (
+          <>
           <AppText style={[styles.stepTitle, { color: colors.text, marginTop: 24 }]}>
             4. Support Community Health (Optional)
           </AppText>
@@ -490,7 +494,7 @@ export default function JoinMembershipScreen() {
               YMCA Silver Spring provides subsidized wellness memberships to local families and seniors in need. Add a tax-deductible monthly donation to your draft:
             </AppText>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              {DONATION_OPTIONS.map((opt) => {
+              {donationOptions.map((opt) => {
                 const active = donationCents === opt.cents;
                 return (
                   <Pressable
@@ -520,6 +524,8 @@ export default function JoinMembershipScreen() {
               })}
             </View>
           </View>
+          </>
+          ) : null}
 
           {/* Order Summary & Submit */}
           <View

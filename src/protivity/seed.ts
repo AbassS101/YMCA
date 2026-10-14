@@ -27,6 +27,7 @@ import type {
   UserForumInterests,
   UserRole,
 } from '@/domain/types';
+import { defaultAppConfig, type AppConfig, type ConfigAuditEntry } from '@/domain/appConfig';
 import { cloneDefaultPricing } from '@/domain/lessonPricing';
 import type {
   ArrivalRecord,
@@ -1702,6 +1703,8 @@ export type SeedState = {
   memberContacts: MemberContact[];
   leads: Lead[];
   enrollmentCampaigns: EnrollmentCampaign[];
+  appConfig: AppConfig;
+  configAudit: ConfigAuditEntry[];
 };
 
 const BASE_SEED: SeedState = {
@@ -1711,7 +1714,7 @@ const BASE_SEED: SeedState = {
       id: 'contact-seed-1',
       memberId: 'member-riley',
       staffId: 'staff-frontdesk',
-      staffName: 'Maya Brooks',
+      staffName: 'Liz',
       channel: 'call',
       purpose: 'billing',
       outcome: 'voicemail',
@@ -1807,6 +1810,8 @@ const BASE_SEED: SeedState = {
     },
   ],
   lessonPricing: cloneDefaultPricing(),
+  appConfig: defaultAppConfig(),
+  configAudit: [],
   swimEnrollments: [],
   childWatchVisits: [],
   members: [
@@ -2002,7 +2007,7 @@ const BASE_SEED: SeedState = {
     },
     {
       id: 'staff-frontdesk',
-      name: 'Maya Brooks',
+      name: 'Liz',
       email: 'frontdesk@silverspring.ymca',
       roleLabel: 'Front Desk Membership Representative',
       homeBranchId: BRANCH,

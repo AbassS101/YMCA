@@ -10,9 +10,11 @@ import { PersonaHero } from '@/components/staff/PersonaHero';
 import { QuickActionBar } from '@/components/staff/QuickActionBar';
 import { SessionRequestsOversight } from '@/components/staff/SessionRequestsOversight';
 import { ActionButton, EmptyState, ListRow, SectionCard, StatusPill } from '@/components/staff/SectionCard';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
+import { canOpenAdminCenter } from '@/domain/adminCenter';
 import { getDemoToday } from '@/domain/demoClock';
 import { formatShortDate } from '@/domain/displayDates';
 import { personaForRole, personaTheme } from '@/domain/staffCapabilities';
@@ -25,16 +27,13 @@ import { colors } from '@/theme/colors';
 import { DashboardScaffold } from './DashboardScaffold';
 import { BRANCH_ID, formatClockTime, formatLongDate, percent } from './format';
 
-const STALE_CANCEL_DAYS = 7;
-const FULL_CLASS_RATIO = 0.9;
-
 type ClassFill = { item: ScheduleItem; registered: number };
 type TeamMember = { staff: Staff; sessionsToday: number };
 type Attention = { key: string; title: string; detail: string; tone: string; route: string };
 
 export function AdminDashboard({ staffId }: { staffId: string }) {
   const router = useRouter();
-  const { api } = useSession();
+  const { api, session } = useSession();
   const { colors: tc } = useTheme();
   const { theme, isITAdmin, isWellnessDirector, can } = useStaffCapabilities();
   const seesComplaints = can('manageComplaints');
@@ -52,6 +51,8 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
   const [error, setError] = useState(false);
 
   const today = getDemoToday();
+  const { config } = useAppConfig();
+  const { staleCancelDays, fullClassRatio } = config.thresholds;
 
   const load = useCallback(async () => {
     if (staffId === '') return;
@@ -114,15 +115,15 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
   const newComplaints = feedback.filter((f) => f.status === 'submitted' && f.type === 'complaint');
   const staleCancels = cancels.filter((c) => {
     const age = (new Date(`${today}T12:00:00`).getTime() - new Date(c.requestedAt).getTime()) / 86_400_000;
-    return age >= STALE_CANCEL_DAYS;
+    return age >= staleCancelDays;
   });
-  const fullClasses = classes.filter((c) => c.item.capacity > 0 && c.registered / c.item.capacity >= FULL_CLASS_RATIO);
+  const fullClasses = classes.filter((c) => c.item.capacity > 0 && c.registered / c.item.capacity >= fullClassRatio);
 
   const attention: Attention[] = [
     ...(staleCancels.length > 0
       ? [{
           key: 'stale',
-          title: `${staleCancels.length} cancellation${staleCancels.length === 1 ? '' : 's'} waiting ${STALE_CANCEL_DAYS}+ days`,
+          title: `${staleCancels.length} cancellation${staleCancels.length === 1 ? '' : 's'} waiting ${staleCancelDays}+ days`,
           detail: 'Owned by the Membership Director. You can step in from any member profile.',
           tone: colors.scarlet,
           route: '/(staff)/members',
@@ -210,7 +211,12 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
             ? [{ key: 'feedback', label: 'Feedback', icon: 'chatbubbles-outline' as const, onPress: () => router.push('/(staff)/complaints-suggestions'), color: '#0284C7' }]
             : []),
           { key: 'schedules', label: 'Schedules', icon: 'calendar-outline', onPress: () => router.push('/(staff)/schedules'), color: '#D97706' },
-          { key: 'childwatch', label: 'Child Watch', icon: 'happy-outline', onPress: () => router.push('/(staff)/child-watch'), color: '#0D9488' },
+          ...(config.featureToggles.childWatch
+            ? [{ key: 'childwatch', label: 'Child Watch', icon: 'happy-outline' as const, onPress: () => router.push('/(staff)/child-watch'), color: '#0D9488' }]
+            : []),
+          ...(canOpenAdminCenter(session?.role)
+            ? [{ key: 'admin-center', label: 'Admin Center', icon: 'settings-outline' as const, onPress: () => router.push('/(staff)/admin-center'), color: '#B45309' }]
+            : []),
         ]}
       />
 

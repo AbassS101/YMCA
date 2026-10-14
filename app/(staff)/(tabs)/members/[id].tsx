@@ -22,6 +22,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import { callPhone } from '@/components/desk/BillingIssueCard';
@@ -31,12 +32,11 @@ import { UpdateCardSheet } from '@/components/desk/UpdateCardSheet';
 import { addDaysToDate, getDemoToday } from '@/domain/demoClock';
 import { deskAlertsFor } from '@/domain/deskAlerts';
 import { cancelRequestedCopy, formatShortDate } from '@/domain/displayDates';
-import { accessSummary, ageBand, ageOn, bandLabel, facilityAccess } from '@/domain/householdAccess';
+import { accessSummary, ageBand, ageOn, bandLabel, facilityAccess, findPlan } from '@/domain/householdAccess';
 import type { HouseholdView } from '@/domain/types';
 import { deskRepo } from '@/repositories/deskRepo';
 import { householdRepo } from '@/repositories/householdRepo';
 import {
-  YMCA_MEMBERSHIP_PLANS,
   type ClassRegistration,
   type ClientFitnessGoal,
   type ClientWorkoutLog,
@@ -66,6 +66,8 @@ export default function StaffMemberDetailScreen() {
   const memberId = id ?? '';
   const { session, api } = useSession();
   const staffId = session?.userId ?? '';
+  const { config } = useAppConfig();
+  const plans = config.membershipPlans;
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { can, isAdmin, isITAdmin, isMembershipDirector, isWellnessDirector } = useStaffCapabilities();
@@ -169,7 +171,7 @@ export default function StaffMemberDetailScreen() {
     }
   };
 
-  const deskAlerts = member ? deskAlertsFor(member, membership, getDemoToday()) : [];
+  const deskAlerts = member ? deskAlertsFor(member, membership, getDemoToday(), config.thresholds.newMemberDays) : [];
   const billingBroken = membership?.billingStatus === 'declined' || membership?.billingStatus === 'past_due';
 
   const load = useCallback(async () => {
@@ -353,7 +355,7 @@ export default function StaffMemberDetailScreen() {
 
   function openChangePlan() {
     if (!membership) return;
-    const current = YMCA_MEMBERSHIP_PLANS.find((p) => p.name === membership.rateName) || null;
+    const current = findPlan(membership.rateName, plans) ?? null;
     setSelectedPlan(current);
     setPlanModalVisible(true);
   }
@@ -1356,7 +1358,7 @@ export default function StaffMemberDetailScreen() {
             </View>
 
             <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ gap: 10, paddingBottom: 16 }}>
-              {YMCA_MEMBERSHIP_PLANS.map((plan) => {
+              {plans.filter((p) => p.active || p.id === findPlan(membership?.rateName, plans)?.id).map((plan) => {
                 const isSelected = selectedPlan?.name === plan.name;
                 return (
                   <Pressable

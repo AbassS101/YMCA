@@ -12,7 +12,9 @@ import {
 import { AppText } from '@/components/AppText';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { YHeader } from '@/components/YHeader';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
+import { childWatchCutoffLine, describeHoursLines, formatLimit } from '@/domain/childWatch';
 import { cardStyle } from '@/theme/card';
 import { radii, spacing, tapTarget, typography } from '@/theme/typography';
 
@@ -177,11 +179,26 @@ const CATEGORIES = ['All', 'Aquatics', 'Fitness', 'Courts', 'Family', 'Wellness'
 export default function BranchAmenitiesScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { config } = useAppConfig();
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
+  const rules = config.childWatch;
+  const amenities = AMENITIES.filter((a) => a.id !== 'child-watch' || config.featureToggles.childWatch).map((a) =>
+    a.id === 'child-watch'
+      ? {
+          ...a,
+          description: `Positive and fun on-site childcare during your visit, for children ${rules.minAgeWeeks} weeks and up. Maximum of ${formatLimit(rules.maxMinutesPerDay)} per day; parents must remain in the building.`,
+          details: [
+            ...describeHoursLines(rules.hours).map((l) => l.text),
+            childWatchCutoffLine(rules).replace(/\.$/, ''),
+            ...a.details.slice(-1),
+          ],
+        }
+      : a
+  );
   const filtered = selectedCategory === 'All'
-    ? AMENITIES
-    : AMENITIES.filter((a) => a.category === selectedCategory);
+    ? amenities
+    : amenities.filter((a) => a.category === selectedCategory);
 
   const cardTheme = {
     backgroundColor: colors.cardBg,

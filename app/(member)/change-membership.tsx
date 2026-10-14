@@ -17,9 +17,10 @@ import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { PrimaryOnlyNotice, usePrimaryGuard } from '@/context/usePrimaryGuard';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
+import { findPlan } from '@/domain/householdAccess';
 import {
-  YMCA_MEMBERSHIP_PLANS,
   type Member,
   type Membership,
   type MembershipPlan,
@@ -43,6 +44,8 @@ export default function ChangeMembershipScreen() {
   const { primaryName: billingOwner } = usePrimaryGuard();
   const { colors, isDark } = useTheme();
   const memberId = session?.userId ?? '';
+  const { config } = useAppConfig();
+  const plans = config.membershipPlans;
 
   const [member, setMember] = useState<Member | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
@@ -64,9 +67,7 @@ export default function ChangeMembershipScreen() {
       setMembership(nextMembership);
 
       // Match selected plan to current rateName if exists
-      const match = YMCA_MEMBERSHIP_PLANS.find(
-        (p) => p.name.toLowerCase() === nextMembership.rateName.toLowerCase()
-      );
+      const match = findPlan(nextMembership.rateName, plans);
       if (match) {
         setSelectedPlanId(match.id);
       }
@@ -75,7 +76,7 @@ export default function ChangeMembershipScreen() {
     } finally {
       setLoading(false);
     }
-  }, [api, memberId]);
+  }, [api, memberId, plans]);
 
   useFocusEffect(
     useCallback(() => {
@@ -86,11 +87,13 @@ export default function ChangeMembershipScreen() {
   const [timing, setTiming] = useState<'next_cycle' | 'immediate'>('next_cycle');
   const [cancelingScheduled, setCancelingScheduled] = useState(false);
 
-  const currentPlan = YMCA_MEMBERSHIP_PLANS.find(
-    (p) => p.name.toLowerCase() === (membership?.rateName ?? 'adult').toLowerCase()
-  ) ?? YMCA_MEMBERSHIP_PLANS[0];
+  // Retired plans still resolve for the member who is on one, but are not offered to switch to.
+  const currentPlan = findPlan(membership?.rateName ?? 'adult', plans) ?? plans[0];
+  const offeredPlans = plans.filter((p) => p.active || p.id === currentPlan.id);
+  // The member keeps the price they were signed up at, whatever the plan costs today.
+  const currentCents = membership?.monthlyAmountCents ?? currentPlan.monthlyAmountCents;
 
-  const selectedPlan = YMCA_MEMBERSHIP_PLANS.find((p) => p.id === selectedPlanId) ?? currentPlan;
+  const selectedPlan = offeredPlans.find((p) => p.id === selectedPlanId) ?? currentPlan;
 
   const isCurrent = currentPlan.id === selectedPlan.id;
 
@@ -104,7 +107,7 @@ export default function ChangeMembershipScreen() {
       dialog.show({
         title: 'Schedule Switch for Next Month',
         message: `Schedule switch from ${currentPlan.name} (${formatCents(
-          currentPlan.monthlyAmountCents
+          currentCents
         )}/mo) to ${selectedPlan.name} (${formatCents(
           selectedPlan.monthlyAmountCents
         )}/mo)?\n\nYour new rate and plan will take effect on ${formatBillingDate(
@@ -125,7 +128,7 @@ export default function ChangeMembershipScreen() {
       dialog.show({
         title: 'Confirm Immediate Switch',
         message: `Switch your plan immediately from ${currentPlan.name} (${formatCents(
-          currentPlan.monthlyAmountCents
+          currentCents
         )}/mo) to ${selectedPlan.name} (${formatCents(
           selectedPlan.monthlyAmountCents
         )}/mo)?\n\nYour benefits and updated monthly rate will take effect immediately today!`,
@@ -316,7 +319,7 @@ export default function ChangeMembershipScreen() {
         </View>
 
         {/* Plan Cards */}
-        {YMCA_MEMBERSHIP_PLANS.map((plan) => {
+        {offeredPlans.map((plan) => {
           const isSelected = plan.id === selectedPlanId;
           const isPlanCurrent = plan.name.toLowerCase() === (membership?.rateName ?? '').toLowerCase();
 

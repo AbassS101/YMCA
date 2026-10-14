@@ -4,7 +4,8 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { TextField } from '@/components/TextField';
 import { ChipRow, FieldLabel, Sheet } from '@/components/desk/Sheet';
-import { YMCA_MEMBERSHIP_PLANS, type Lead, type LeadSource } from '@/domain/types';
+import { useAppConfig } from '@/context/AppConfigContext';
+import type { Lead, LeadSource } from '@/domain/types';
 
 const SOURCES: { key: LeadSource; label: string }[] = [
   { key: 'walk_in', label: 'Walk-in' },
@@ -33,6 +34,9 @@ export function LeadFormSheet({
   const [email, setEmail] = useState('');
   const [source, setSource] = useState<LeadSource>('walk_in');
   const [planId, setPlanId] = useState('adult');
+  const plans = useAppConfig().config.membershipPlans;
+  const popularPlans = POPULAR_PLANS.flatMap((id) => plans.filter((p) => p.id === id && p.active));
+  const selectedPlanId = popularPlans.some((p) => p.id === planId) ? planId : popularPlans[0]?.id;
   const [notes, setNotes] = useState('');
   const [followUp, setFollowUp] = useState('');
   const [error, setError] = useState('');
@@ -63,7 +67,7 @@ export function LeadFormSheet({
         email: email.trim(),
         source,
         notes: notes.trim(),
-        interestPlanId: planId,
+        interestPlanId: selectedPlanId,
         nextFollowUpDate: followUp || undefined,
       });
     } catch (e) {
@@ -83,11 +87,8 @@ export function LeadFormSheet({
       <ChipRow options={SOURCES} value={source} onChange={setSource} />
       <FieldLabel>Interested in</FieldLabel>
       <ChipRow
-        options={POPULAR_PLANS.map((id) => ({
-          key: id,
-          label: YMCA_MEMBERSHIP_PLANS.find((p) => p.id === id)?.name ?? id,
-        }))}
-        value={planId}
+        options={popularPlans.map((p) => ({ key: p.id, label: p.name }))}
+        value={selectedPlanId ?? ''}
         onChange={setPlanId}
       />
       <TextField label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Goals, questions, best time to call" />

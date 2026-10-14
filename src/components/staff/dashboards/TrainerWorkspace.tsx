@@ -14,6 +14,7 @@ import { AvailabilitySettings } from '@/components/staff/AvailabilitySettings';
 import { SessionRequestsInbox } from '@/components/staff/SessionRequestsInbox';
 import { QuickActionBar } from '@/components/staff/QuickActionBar';
 import { ActionButton, EmptyState, SectionCard, StatusPill } from '@/components/staff/SectionCard';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -46,6 +47,7 @@ export function TrainerWorkspace({ day, staffId, accent, showQuickActions = true
   const isSwim = variant === 'swim';
   const router = useRouter();
   const { api } = useSession();
+  const forumOn = useAppConfig().config.featureToggles.communityForum;
   const { colors: tc, isDark } = useTheme();
   const { classes, lessons, lessonMembers, clients, reload } = day;
   const arrivedAt = day.arrivedAt ?? {};
@@ -175,7 +177,9 @@ export function TrainerWorkspace({ day, staffId, accent, showQuickActions = true
             { key: 'log', label: 'Log Workout', icon: 'barbell-outline', onPress: startWorkoutLog, color: accent },
             { key: 'slot', label: 'Availability', icon: 'time-outline', onPress: () => setSlotModalVisible(true), color: '#15803D' },
             { key: 'msg', label: 'Messages', icon: 'chatbubbles-outline', onPress: () => router.push('/(staff)/messages'), color: '#0284C7' },
-            { key: 'forum', label: 'Forum', icon: 'people-outline', onPress: () => router.push('/(member)/community-forum') },
+            ...(forumOn
+              ? [{ key: 'forum', label: 'Forum', icon: 'people-outline' as const, onPress: () => router.push('/(member)/community-forum') }]
+              : []),
           ]}
         />
       ) : null}

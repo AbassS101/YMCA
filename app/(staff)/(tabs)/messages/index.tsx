@@ -4,15 +4,17 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { MessagesInbox } from '@/components/messaging/MessagesInbox';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
 import { type ThemeColors } from '@/theme/colors';
 
 export default function StaffMessagesInboxScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const forumOn = useAppConfig().config.featureToggles.communityForum;
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const forumBanner = (
+  const forumBanner = !forumOn ? undefined : (
     <Pressable
       onPress={() => router.push('/(member)/community-forum')}
       style={({ pressed }) => [styles.forumCard, pressed && { backgroundColor: colors.primaryLight }]}

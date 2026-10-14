@@ -9,12 +9,13 @@ import { ChipRow, FieldLabel, Sheet } from '@/components/desk/Sheet';
 import { StaffScreen } from '@/components/staff/StaffScreen';
 import { ActionButton, EmptyState, SectionCard, StatusPill } from '@/components/staff/SectionCard';
 import { dialog } from '@/context/DialogContext';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import { getDemoToday } from '@/domain/demoClock';
 import { isCampaignRunning } from '@/domain/enrollmentCampaigns';
-import { YMCA_MEMBERSHIP_PLANS, type EnrollmentCampaign } from '@/domain/types';
+import { type EnrollmentCampaign } from '@/domain/types';
 import { deskRepo } from '@/repositories/deskRepo';
 
 type Draft = {
@@ -53,9 +54,10 @@ function toDraft(c: EnrollmentCampaign): Draft {
 export default function CampaignsScreen() {
   const { api, session } = useSession();
   const { colors: tc } = useTheme();
-  const { can, theme } = useStaffCapabilities();
+  const plans = useAppConfig().config.membershipPlans;
+  const { can, canManageBusinessConfig, theme } = useStaffCapabilities();
   const staffId = session?.userId ?? '';
-  const allowed = can('manageCampaigns');
+  const allowed = can('manageCampaigns') || canManageBusinessConfig;
   const today = getDemoToday();
 
   const [campaigns, setCampaigns] = useState<EnrollmentCampaign[]>([]);
@@ -163,7 +165,7 @@ export default function CampaignsScreen() {
               ) : null}
               <FieldLabel>Eligible plans (none selected = all plans)</FieldLabel>
               <View style={styles.chips}>
-                {YMCA_MEMBERSHIP_PLANS.map((p) => {
+                {plans.filter((p) => p.active || draft.planIds.includes(p.id)).map((p) => {
                   const on = draft.planIds.includes(p.id);
                   return (
                     <ActionButton

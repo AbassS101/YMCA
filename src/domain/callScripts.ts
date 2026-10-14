@@ -1,3 +1,4 @@
+import { defaultAppConfig, fillTemplate } from '@/domain/appConfig';
 import type { DeskAlertKind } from '@/domain/deskAlerts';
 import type { EnrollmentCampaign, Lead } from '@/domain/types';
 
@@ -52,6 +53,10 @@ export function salesCallScript(input: {
   ].join('\n\n');
 }
 
-export function welcomeCallScript(input: { memberName: string; repName: string }): string {
-  return `Hi ${firstName(input.memberName)}, this is ${input.repName} from the YMCA Silver Spring. I am calling to see how your first weeks are going and whether I can help with classes, trainers, or anything else.`;
+/** `template` is the configured welcome call script (config.templates.welcomeCall). */
+export function welcomeCallScript(
+  input: { memberName: string; repName: string },
+  template: string = defaultAppConfig().templates.welcomeCall
+): string {
+  return fillTemplate(template, { firstName: firstName(input.memberName), repName: input.repName });
 }

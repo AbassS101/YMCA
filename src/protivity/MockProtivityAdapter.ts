@@ -1,3 +1,19 @@
+import {
+  APP_CONFIG_SECTIONS,
+  applyConfigPatch,
+  CONFIG_SECTION_LABELS,
+  defaultAppConfig,
+  describeConfigChange,
+  FEATURE_TOGGLE_LABELS,
+  normalizeAppConfig,
+  swimClassCapacity,
+  type AppConfig,
+  type AppConfigPatch,
+  type AppConfigPlan,
+  type AppConfigSection,
+  type ConfigAuditEntry,
+  type FeatureToggles,
+} from '@/domain/appConfig';
 import { computeCancelDates } from '@/domain/cancelDates';
 import { demoNowIso, getDemoToday } from '@/domain/demoClock';
 import { AQUATICS_CLASSES } from '@/domain/aquaticsGuideData';
@@ -5,7 +21,6 @@ import {
   lessonPriceCents,
   normalizePricing,
   pricingTierFor,
-  SWIM_CLASS_CAPACITY,
   swimClassPriceCents,
 } from '@/domain/lessonPricing';
 import { activeCampaignFor } from '@/domain/enrollmentCampaigns';
@@ -17,7 +32,13 @@ import {
   type Interval,
 } from '@/domain/sessionAvailability';
 import { canInstantBook, canTransition, canViewSessionRequest } from '@/domain/sessionRequests';
-import { hasCapability, isStaffRole, type StaffCapability } from '@/domain/staffCapabilities';
+import {
+  canEditConfigSection,
+  hasCapability,
+  isStaffRole,
+  type ConfigSection,
+  type StaffCapability,
+} from '@/domain/staffCapabilities';
 import {
   ageOn,
   canHoldSoloMembership,
@@ -30,7 +51,6 @@ import {
   effectiveEnrollmentFeeCents,
   filterProfanity,
   isAdminRole,
-  YMCA_MEMBERSHIP_PLANS,
   type ArrivalRecord,
   type ArrivalResult,
   type BillingIssueRow,
@@ -92,6 +112,33 @@ import type { ProtivityPort } from '@/protivity/ProtivityPort';
 /** Calendar day from seeded ISO datetimes (YYYY-MM-DD), TZ-independent. */
 function scheduleCalendarDay(isoStart: string): string {
   return isoStart.slice(0, 10);
+}
+
+function configOf(state: DemoState): AppConfig {
+  return normalizeAppConfig(state.appConfig);
+}
+
+/** Throws when a feature has been turned off in the Admin Control Center. */
+function assertFeatureOn(state: DemoState, feature: keyof FeatureToggles): void {
+  if (!configOf(state).featureToggles[feature]) {
+    throw new Error(`${FEATURE_TOGGLE_LABELS[feature]}: this feature is turned off right now.`);
+  }
+}
+
+/** The configured plan a new signup lands on. Retired plans cannot be bought; unknown ids fall back to the first offered plan. */
+function planForSignup(state: DemoState, planIdOrName: string): AppConfigPlan {
+  const plans = configOf(state).membershipPlans;
+  const plan = findPlan(planIdOrName, plans) ?? plans.find((p) => p.active) ?? plans[0];
+  if (!plan.active) throw new Error(`${plan.name} is no longer offered.`);
+  return plan;
+}
+
+/** A retired plan cannot be switched to, unless the member is already on it. */
+function assertPlanOffered(plans: AppConfigPlan[], planName: string, currentRateName: string): void {
+  const target = findPlan(planName, plans);
+  if (target && !target.active && findPlan(currentRateName, plans)?.id !== target.id) {
+    throw new Error(`${target.name} is no longer offered.`);
+  }
 }
 
 function resolveCampaign(state: DemoState, planId: string, campaignId?: string): EnrollmentCampaign | null {
@@ -374,6 +421,42 @@ function assertStaffCapability(
   if (!hasCapability(requesterRole(state, requesterUserId), capability)) {
     throw new Error(`Your staff role is not permitted to ${action}.`);
   }
+}
+
+/** Unlike assertStaffCapability, config changes always need a requester: there is no member path. */
+function assertConfigSectionAccess(
+  state: DemoState,
+  requesterUserId: string | undefined,
+  section: ConfigSection
+): void {
+  if (!requesterUserId) throw new Error('Sign in as staff to change settings.');
+  if (!canEditConfigSection(requesterRole(state, requesterUserId), section)) {
+    throw new Error(`Your staff role is not permitted to change ${CONFIG_SECTION_LABELS[section]}.`);
+  }
+}
+
+/** Adds a change log entry (newest first). Skips no-op saves. A missing requester is logged as System. */
+function recordConfigAudit(
+  state: DemoState,
+  requesterUserId: string | undefined,
+  section: ConfigSection,
+  before: unknown,
+  after: unknown,
+  summary?: string
+): void {
+  if (JSON.stringify(before) === JSON.stringify(after)) return;
+  const staff = requesterUserId ? state.staff.find((s) => s.id === requesterUserId) : undefined;
+  (state.configAudit ?? (state.configAudit = [])).unshift({
+    id: `cfg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    at: demoNowIso(),
+    byId: requesterUserId ?? 'system',
+    byName: staff?.name ?? (requesterUserId ? 'Staff' : 'System'),
+    byRole: requesterUserId ? requesterRole(state, requesterUserId) ?? '' : 'system',
+    section,
+    summary: summary ?? describeConfigChange(section, before, after),
+    before,
+    after,
+  });
 }
 
 const COACH_STAFF_ROLES = new Set<string>(['trainer', 'swim_instructor', 'wellness_director', 'aquatics_director']);
@@ -694,13 +777,16 @@ export class MockProtivityAdapter implements ProtivityPort {
       throw new Error(`Member not found: ${memberId}`);
     }
     {
+      const plans = configOf(state).membershipPlans;
+      assertPlanOffered(plans, planName, state.memberships[membershipIdx].rateName);
       const people = householdMembersOf(state, memberId);
       // Unknown / custom plan names set by staff are allowed; known plans must fit the household.
-      if (people.length > 1 && findPlan(planName)) {
+      if (people.length > 1 && findPlan(planName, plans)) {
         const check = validateHousehold(
           planName,
           people.map((p) => ({ birthDate: p.birthDate ?? '1980-01-01' })),
-          getDemoToday()
+          getDemoToday(),
+          plans
         );
         if (!check.ok) throw new Error(check.reason);
       }
@@ -830,7 +916,12 @@ export class MockProtivityAdapter implements ProtivityPort {
   async getOrCreateThread(memberId: string, staffId: string): Promise<Thread> {
     const state = await loadStore();
     const existing = state.threads.find(
-      (t) => t.memberId === memberId && t.staffId === staffId
+      (t) =>
+        (t.memberId === memberId && t.staffId === staffId) ||
+        // Staff-to-staff threads: reuse the same conversation whichever side starts it.
+        (t.memberId === staffId &&
+          t.staffId === memberId &&
+          state.staff.some((s) => s.id === memberId))
     );
     if (existing) {
       return existing;
@@ -1036,6 +1127,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     options?: BookLessonOptions
   ): Promise<PrivateLesson> {
     const state = await loadStore();
+    assertFeatureOn(state, 'lessonBooking');
     const slot = state.lessonSlots.find((s) => s.id === slotId);
     if (!slot) {
       throw new Error(`Lesson slot not found: ${slotId}`);
@@ -1118,6 +1210,7 @@ export class MockProtivityAdapter implements ProtivityPort {
 
   async createSessionRequest(memberId: string, input: CreateSessionRequestInput): Promise<SessionRequest> {
     const state = await loadStore();
+    assertFeatureOn(state, 'sessionRequests');
     state.sessionRequests = state.sessionRequests ?? [];
     const staff = state.staff.find((s) => s.id === input.staffId);
     const member = state.members.find((m) => m.id === memberId);
@@ -1308,8 +1401,10 @@ export class MockProtivityAdapter implements ProtivityPort {
     return state.lessonPricing;
   }
 
-  async updateLessonPricing(updates: Partial<LessonPricing>): Promise<LessonPricing> {
+  async updateLessonPricing(updates: Partial<LessonPricing>, requesterUserId?: string): Promise<LessonPricing> {
     const state = await loadStore();
+    if (requesterUserId !== undefined) assertConfigSectionAccess(state, requesterUserId, 'lessonPricing');
+    const before = state.lessonPricing;
     const next = normalizePricing({ ...state.lessonPricing, ...updates });
     for (const key of ['training', 'swim'] as const) {
       for (const d of [30, 60] as const) {
@@ -1320,6 +1415,7 @@ export class MockProtivityAdapter implements ProtivityPort {
       }
     }
     state.lessonPricing = next;
+    recordConfigAudit(state, requesterUserId, 'lessonPricing', before, next);
     await saveStore(state);
     return next;
   }
@@ -1330,8 +1426,10 @@ export class MockProtivityAdapter implements ProtivityPort {
     participantName?: string
   ): Promise<SwimClassEnrollment> {
     const state = await loadStore();
+    assertFeatureOn(state, 'swimClassEnrollment');
     const offering = AQUATICS_CLASSES.find((c) => c.id === classId);
-    if (!offering) {
+    const swim = configOf(state).swimClasses;
+    if (!offering || swim.hidden.includes(classId)) {
       throw new Error('Swim class not found');
     }
     const member = state.members.find((m) => m.id === memberId);
@@ -1342,7 +1440,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     if (active.some((e) => e.memberId === memberId)) {
       throw new Error('Already enrolled in this class');
     }
-    if (active.length >= SWIM_CLASS_CAPACITY) {
+    if (active.length >= swimClassCapacity(swim, classId)) {
       throw new Error('Class is full');
     }
     const paidAmountCents = swimClassPriceCents(state.lessonPricing, offering, tier);
@@ -1441,6 +1539,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     if (idx === -1) {
       throw new Error(`Membership not found: ${memberId}`);
     }
+    assertPlanOffered(configOf(state).membershipPlans, planName, state.memberships[idx].rateName);
 
     const updatedMembership: Membership = {
       ...state.memberships[idx],
@@ -1513,15 +1612,14 @@ export class MockProtivityAdapter implements ProtivityPort {
     householdMembers?: HouseholdMemberInput[];
   }): Promise<{ member: Member; membership: Membership }> {
     const state = await loadStore();
-    const plan =
-      YMCA_MEMBERSHIP_PLANS.find((p) => p.id === input.planId) ??
-      YMCA_MEMBERSHIP_PLANS.find((p) => p.name.toLowerCase() === input.planId.toLowerCase()) ??
-      YMCA_MEMBERSHIP_PLANS[0];
+    const plan = planForSignup(state, input.planId);
+    const plans = configOf(state).membershipPlans;
+    if (input.donationCents && input.donationCents > 0) assertFeatureOn(state, 'donations');
     const campaign = resolveCampaign(state, plan.id, input.campaignId);
 
     const todayStr = getDemoToday();
     if (input.birthDate) {
-      const solo = canHoldSoloMembership(input.birthDate, plan.id, todayStr);
+      const solo = canHoldSoloMembership(input.birthDate, plan.id, todayStr, plans);
       if (!solo.ok) throw new Error(solo.reason);
     }
     const extras = input.householdMembers ?? [];
@@ -1529,7 +1627,8 @@ export class MockProtivityAdapter implements ProtivityPort {
       const check = validateHousehold(
         plan.id,
         [{ birthDate: input.birthDate ?? '1980-01-01' }, ...extras.map((e) => ({ birthDate: e.birthDate }))],
-        todayStr
+        todayStr,
+        plans
       );
       if (!check.ok) throw new Error(check.reason);
     }
@@ -1741,7 +1840,8 @@ export class MockProtivityAdapter implements ProtivityPort {
     assertPrimary(state, primaryId, 'add family members');
     const primary = state.members.find((m) => m.id === primaryId);
     if (!primary) throw new Error(`Member not found: ${primaryId}`);
-    const plan = findPlan(primary.type);
+    const plans = configOf(state).membershipPlans;
+    const plan = findPlan(primary.type, plans);
     if (!plan || !isFamilyPlan(plan)) {
       throw new Error(`${primary.type} covers one person. Change to a Family plan to add others.`);
     }
@@ -1753,7 +1853,8 @@ export class MockProtivityAdapter implements ProtivityPort {
         ...existing.map((m) => ({ birthDate: m.birthDate ?? '1980-01-01' })),
         { birthDate: input.birthDate },
       ],
-      today
+      today,
+      plans
     );
     if (!check.ok) throw new Error(check.reason);
     if (!primary.householdId) {
@@ -1779,11 +1880,12 @@ export class MockProtivityAdapter implements ProtivityPort {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(updates.birthDate) || Number.isNaN(Date.parse(updates.birthDate))) {
         throw new Error('Enter a valid birth date (YYYY-MM-DD).');
       }
-      const plan = findPlan(target.type);
+      const plans = configOf(state).membershipPlans;
+      const plan = findPlan(target.type, plans);
       const people = householdMembersOf(state, primaryId).map((m) => ({
         birthDate: m.id === memberId ? updates.birthDate! : m.birthDate ?? '1980-01-01',
       }));
-      const check = plan ? validateHousehold(plan.id, people, getDemoToday()) : ({ ok: true } as const);
+      const check = plan ? validateHousehold(plan.id, people, getDemoToday(), plans) : ({ ok: true } as const);
       if (!check.ok) throw new Error(check.reason);
     }
     if (updates.name !== undefined) target.name = updates.name.trim();
@@ -1971,6 +2073,11 @@ export class MockProtivityAdapter implements ProtivityPort {
     donation: Omit<Donation, 'id' | 'createdAt' | 'taxDeductibleId' | 'receiptNumber'>
   ): Promise<Donation> {
     const state = await loadStore();
+    assertFeatureOn(state, 'donations');
+    const { minimumGiftCents } = configOf(state).donations;
+    if (donation.amountCents < minimumGiftCents) {
+      throw new Error(`The minimum gift is $${(minimumGiftCents / 100).toFixed(2)}.`);
+    }
     const nowIso = new Date().toISOString();
     const receiptNumber = `YMCA-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
     const newDonation: Donation = {
@@ -2682,9 +2789,7 @@ export class MockProtivityAdapter implements ProtivityPort {
       throw new Error(`User with email ${input.email} already exists.`);
     }
 
-    const plan =
-      YMCA_MEMBERSHIP_PLANS.find((p) => p.id === input.planId || p.name === input.planId) ||
-      YMCA_MEMBERSHIP_PLANS[0];
+    const plan = planForSignup(state, input.planId);
 
     const newMemberId = `member-${Date.now()}`;
     const membershipId = String(Math.floor(100000 + Math.random() * 900000));
@@ -2788,6 +2893,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     replyToExcerpt?: string;
   }): Promise<ClassForumPost> {
     const state = await loadStore();
+    assertFeatureOn(state, 'communityForum');
     if (!state.classForumPosts) {
       state.classForumPosts = [];
     }
@@ -3063,6 +3169,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     mentionedUserNames?: string[];
   }): Promise<ForumTopic> {
     const state = await loadStore();
+    assertFeatureOn(state, 'communityForum');
     if (!state.forumTopics) {
       state.forumTopics = [];
     }
@@ -3378,6 +3485,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     replyToExcerpt?: string;
   }): Promise<ForumReply> {
     const state = await loadStore();
+    assertFeatureOn(state, 'communityForum');
     if (!state.forumReplies) {
       state.forumReplies = [];
     }
@@ -4265,8 +4373,7 @@ export class MockProtivityAdapter implements ProtivityPort {
     if (!lead) throw new Error(`Lead not found: ${leadId}`);
     if (lead.status === 'won') throw new Error('This lead has already been converted.');
     if (!lead.email.trim()) throw new Error('Add an email address to this lead before converting it to a member.');
-    const plan =
-      YMCA_MEMBERSHIP_PLANS.find((p) => p.id === input.planId) ?? YMCA_MEMBERSHIP_PLANS[0];
+    const plan = planForSignup(pre, input.planId);
     const campaign = resolveCampaign(pre, plan.id, lead.campaignId);
     const enrollmentFeeCents = effectiveEnrollmentFeeCents(plan, { campaign });
 
@@ -4335,7 +4442,9 @@ export class MockProtivityAdapter implements ProtivityPort {
     const list = state.enrollmentCampaigns ?? (state.enrollmentCampaigns = []);
     const idx = input.id ? list.findIndex((c) => c.id === input.id) : -1;
     if (idx !== -1) {
+      const before = list[idx];
       list[idx] = { ...list[idx], ...input, id: list[idx].id };
+      recordConfigAudit(state, requesterUserId, 'campaigns', before, list[idx], `Updated campaign "${list[idx].name}"`);
       await saveStore(state);
       return list[idx];
     }
@@ -4345,6 +4454,7 @@ export class MockProtivityAdapter implements ProtivityPort {
       createdByStaffId: requesterUserId,
     };
     list.unshift(created);
+    recordConfigAudit(state, requesterUserId, 'campaigns', null, created, `Created campaign "${created.name}"`);
     await saveStore(state);
     return created;
   }
@@ -4352,8 +4462,61 @@ export class MockProtivityAdapter implements ProtivityPort {
   async deleteCampaign(id: string, requesterUserId: string): Promise<void> {
     const state = await loadStore();
     assertStaffCapability(state, requesterUserId, 'manageCampaigns', 'manage enrollment campaigns');
+    const removed = (state.enrollmentCampaigns ?? []).find((c) => c.id === id);
     state.enrollmentCampaigns = (state.enrollmentCampaigns ?? []).filter((c) => c.id !== id);
+    if (removed) {
+      recordConfigAudit(state, requesterUserId, 'campaigns', removed, null, `Deleted campaign "${removed.name}"`);
+    }
     await saveStore(state);
+  }
+
+  // ==========================================
+  // App config (business settings)
+  // ==========================================
+  async getAppConfig(): Promise<AppConfig> {
+    const state = await loadStore();
+    return normalizeAppConfig(state.appConfig);
+  }
+
+  async updateAppConfig<S extends AppConfigSection>(
+    section: S,
+    patch: AppConfigPatch<S>,
+    requesterUserId: string
+  ): Promise<AppConfig> {
+    const state = await loadStore();
+    assertConfigSectionAccess(state, requesterUserId, section);
+    const current = normalizeAppConfig(state.appConfig);
+    const after = applyConfigPatch(current, section, patch);
+    recordConfigAudit(state, requesterUserId, section, current[section], after);
+    state.appConfig = { ...current, [section]: after } as AppConfig;
+    await saveStore(state);
+    return state.appConfig;
+  }
+
+  async resetAppConfigSection(section: AppConfigSection, requesterUserId: string): Promise<AppConfig> {
+    const state = await loadStore();
+    assertConfigSectionAccess(state, requesterUserId, section);
+    if (!APP_CONFIG_SECTIONS.includes(section)) throw new Error('Unknown settings section.');
+    const current = normalizeAppConfig(state.appConfig);
+    const after = defaultAppConfig()[section];
+    recordConfigAudit(
+      state,
+      requesterUserId,
+      section,
+      current[section],
+      after,
+      `Reset ${CONFIG_SECTION_LABELS[section]} to defaults`
+    );
+    state.appConfig = { ...current, [section]: after } as AppConfig;
+    await saveStore(state);
+    return state.appConfig;
+  }
+
+  async listConfigAudit(requesterUserId: string): Promise<ConfigAuditEntry[]> {
+    const state = await loadStore();
+    if (!requesterUserId) throw new Error('Sign in as staff to view the change log.');
+    assertStaffCapability(state, requesterUserId, 'viewConfigAudit', 'view the settings change log');
+    return [...(state.configAudit ?? [])];
   }
 }
 

@@ -21,11 +21,11 @@ import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
 import { formatShortDate } from '@/domain/displayDates';
 import {
-  YMCA_MEMBERSHIP_PLANS,
   type ClientFitnessGoal,
   type Member,
   type Membership,
 } from '@/domain/types';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
@@ -88,6 +88,8 @@ export default function StaffMembersScreen() {
   const [newAddress, setNewAddress] = useState('');
   const [newPassword, setNewPassword] = useState('ymca-demo');
   const [newPlanId, setNewPlanId] = useState('adult');
+  const offeredPlans = useAppConfig().config.membershipPlans.filter((p) => p.active);
+  const selectedNewPlanId = offeredPlans.find((p) => p.id === newPlanId)?.id ?? offeredPlans[0]?.id ?? newPlanId;
   const [submittingMember, setSubmittingMember] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -204,7 +206,7 @@ export default function StaffMembersScreen() {
         phone: newPhone.trim(),
         address: newAddress.trim(),
         password: newPassword.trim() || 'ymca-demo',
-        planId: newPlanId,
+        planId: selectedNewPlanId,
         homeBranchId: BRANCH_ID,
       });
       setCreateModalVisible(false);
@@ -513,8 +515,8 @@ export default function StaffMembersScreen() {
 
               <Text style={styles.fieldLabel}>Select Membership Plan</Text>
               <View style={{ gap: 8 }}>
-                {YMCA_MEMBERSHIP_PLANS.map((plan) => {
-                  const isSelected = newPlanId === plan.id;
+                {offeredPlans.map((plan) => {
+                  const isSelected = selectedNewPlanId === plan.id;
                   return (
                     <Pressable
                       key={plan.id}

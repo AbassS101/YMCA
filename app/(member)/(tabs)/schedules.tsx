@@ -20,8 +20,10 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 import { PaymentCheckoutModal } from '@/components/PaymentCheckoutModal';
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
+import { describeHoursLines } from '@/domain/childWatch';
 import { getClassShortSummary, requiresAdvanceRegistration } from '@/domain/classCatalog';
 import { getDemoToday } from '@/domain/demoClock';
 import type { ClassRegistration, Membership, ScheduleItem } from '@/domain/types';
@@ -114,6 +116,7 @@ function formatDurationStr(startIso: string, endIso: string): string {
 export default function MemberSchedulesScreen() {
   const router = useRouter();
   const { session, api } = useSession();
+  const { config } = useAppConfig();
   const { colors: tc, isDark } = useTheme();
   const memberId = session?.userId ?? '';
 
@@ -715,6 +718,7 @@ export default function MemberSchedulesScreen() {
           <View style={styles.listHeaderWrapper}>
             <MySessionRequests />
             {/* Quick Community Forum Banner (Scrolls naturally with list) */}
+            {config.featureToggles.communityForum ? (
             <Pressable
               onPress={() => router.push('/(member)/community-forum')}
               style={[
@@ -731,6 +735,7 @@ export default function MemberSchedulesScreen() {
                 Have a question or looking to connect? <Text style={{ color: tc.primary, fontWeight: '700' }}>Open Community Forum ›</Text>
               </Text>
             </Pressable>
+            ) : null}
 
             {/* Dedicated Aquatics Pool Schedule Callout Banner */}
             {activeChip === 'swim' || activeChip === 'pool' || activeChip === 'all' ? (
@@ -767,6 +772,7 @@ export default function MemberSchedulesScreen() {
             ) : null}
 
             {/* Child Watch is a service, not a class */}
+            {config.featureToggles.childWatch ? (
             <Pressable
               onPress={() => router.push('/(member)/child-watch')}
               style={[styles.slimForumBanner, { backgroundColor: tc.cardBg, borderColor: tc.border }]}
@@ -777,9 +783,10 @@ export default function MemberSchedulesScreen() {
                 <Ionicons name="happy-outline" size={14} color={tc.primary} />
               </View>
               <Text style={[styles.slimForumText, { color: tc.text }]} numberOfLines={1}>
-                Free Child Watch · Mon–Fri 9–12 & 4–8, Sat 9–12 <Text style={{ color: tc.primary, fontWeight: '700' }}>Details ›</Text>
+                Free Child Watch · {describeHoursLines(config.childWatch.hours).filter((l) => !l.closed).map((l) => l.text).join(' · ')} <Text style={{ color: tc.primary, fontWeight: '700' }}>Details ›</Text>
               </Text>
             </Pressable>
+            ) : null}
 
             {/* Filter Status Reset Pill if filters are active */}
             {hasActiveFilters ? (

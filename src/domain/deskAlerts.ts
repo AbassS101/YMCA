@@ -21,7 +21,7 @@ export type DeskAlert = {
 
 const SEVERITY_RANK = { critical: 0, warning: 1, info: 2 } as const;
 const GUEST_PLAN = '1-Day Guest Pass';
-const NEW_MEMBER_DAYS = 14;
+export const NEW_MEMBER_DAYS = 14;
 
 function daysBetween(fromIso: string, toIso: string): number {
   const from = new Date(`${fromIso.slice(0, 10)}T12:00:00`).getTime();
@@ -29,7 +29,12 @@ function daysBetween(fromIso: string, toIso: string): number {
   return Math.round((to - from) / 86_400_000);
 }
 
-export function deskAlertsFor(member: Member, membership: Membership | null | undefined, today: string): DeskAlert[] {
+export function deskAlertsFor(
+  member: Member,
+  membership: Membership | null | undefined,
+  today: string,
+  newMemberDays: number = NEW_MEMBER_DAYS
+): DeskAlert[] {
   const alerts: DeskAlert[] = [];
 
   if (member.status === 'cancelled') {
@@ -71,7 +76,7 @@ export function deskAlertsFor(member: Member, membership: Membership | null | un
     );
   } else if (membership?.joinedDate) {
     const age = daysBetween(membership.joinedDate, today);
-    if (age >= 0 && age <= NEW_MEMBER_DAYS) {
+    if (age >= 0 && age <= newMemberDays) {
       alerts.push({ kind: 'new_member', label: 'NEW MEMBER', detail: 'Joined recently. Offer a welcome tour.', severity: 'info', blocking: false });
     }
   }

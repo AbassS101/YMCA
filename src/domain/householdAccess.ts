@@ -41,10 +41,18 @@ export function ageBand(birthDate: string, today: string | Date): AgeBand {
   return ageBandForAge(ageOn(birthDate, today));
 }
 
-export function findPlan(idOrName: string | undefined): MembershipPlan | undefined {
+/** A plan list entry; configured plans may carry former names so older records still resolve. */
+export type PlanLike = MembershipPlan & { legacyNames?: string[]; minAge?: number; maxAge?: number };
+
+export function findPlan<T extends PlanLike = PlanLike>(idOrName: string | undefined, plans?: T[]): T | undefined {
   if (!idOrName) return undefined;
   const lower = idOrName.toLowerCase();
-  return YMCA_MEMBERSHIP_PLANS.find((p) => p.id === idOrName || p.name.toLowerCase() === lower);
+  return (plans ?? (YMCA_MEMBERSHIP_PLANS as PlanLike[] as T[])).find(
+    (p) =>
+      p.id === idOrName ||
+      p.name.toLowerCase() === lower ||
+      (p.legacyNames ?? []).some((n) => n.toLowerCase() === lower)
+  );
 }
 
 export function isFamilyPlan(plan: MembershipPlan | undefined): boolean {
@@ -57,11 +65,31 @@ export function isPickleballOnly(planIdOrName?: string): boolean {
 
 export type SoloCheck = { ok: true } | { ok: false; reason: string };
 
+/** The age limits a plan carries in the app config (on top of the built-in plan rules). */
+function planAgeProblem(plan: PlanLike, age: number): string | null {
+  const { minAge, maxAge } = plan;
+  if ((minAge === undefined || age >= minAge) && (maxAge === undefined || age <= maxAge)) return null;
+  if (minAge !== undefined && maxAge !== undefined) return `${plan.name} is for ages ${minAge} to ${maxAge}.`;
+  return minAge !== undefined ? `${plan.name} is for ages ${minAge} and up.` : `${plan.name} is for ages ${maxAge} and under.`;
+}
+
 /** Can this person buy / hold a membership on their own (not as part of a household)? */
-export function canHoldSoloMembership(birthDate: string, planId: string, today: string | Date): SoloCheck {
+export function canHoldSoloMembership(
+  birthDate: string,
+  planId: string,
+  today: string | Date,
+  plans?: PlanLike[]
+): SoloCheck {
   const age = ageOn(birthDate, today);
-  const plan = findPlan(planId);
+  const plan = findPlan(planId, plans);
   if (!plan) return { ok: false, reason: 'Unknown membership plan.' };
+  const base = soloRuleCheck(plan, age);
+  if (!base.ok) return base;
+  const problem = planAgeProblem(plan, age);
+  return problem ? { ok: false, reason: problem } : base;
+}
+
+function soloRuleCheck(plan: PlanLike, age: number): SoloCheck {
   if (age < TEEN_MIN_AGE) {
     return { ok: false, reason: 'Children under 13 must be added to a family plan.' };
   }
@@ -93,9 +121,10 @@ export type HouseholdPerson = { birthDate: string };
 export function validateHousehold(
   planIdOrName: string,
   people: HouseholdPerson[],
-  today: string | Date
+  today: string | Date,
+  plans?: PlanLike[]
 ): SoloCheck {
-  const plan = findPlan(planIdOrName);
+  const plan = findPlan(planIdOrName, plans);
   if (!plan) return { ok: false, reason: 'Unknown membership plan.' };
   const ages = people.map((p) => ageOn(p.birthDate, today));
   const adults = ages.filter((a) => a >= ADULT_MIN_AGE).length;
@@ -103,9 +132,11 @@ export function validateHousehold(
   const maxAdults = plan.maxAdults ?? 1;
 
   if (!isFamilyPlan(plan)) {
-    return ages.length > 1
-      ? { ok: false, reason: `${plan.name} covers one person. Choose a Family plan to add others.` }
-      : { ok: true };
+    if (ages.length > 1) {
+      return { ok: false, reason: `${plan.name} covers one person. Choose a Family plan to add others.` };
+    }
+    const problem = ages.length === 1 ? planAgeProblem(plan, ages[0]) : null;
+    return problem ? { ok: false, reason: problem } : { ok: true };
   }
   if (adults < 1) return { ok: false, reason: 'A family plan needs at least one adult (18+).' };
   if (adults > maxAdults) {
@@ -118,6 +149,10 @@ export function validateHousehold(
   }
   if (plan.id.startsWith('senior-family') && ages.some((a) => a < 65)) {
     return { ok: false, reason: 'Senior Family is for adults ages 65 and up.' };
+  }
+  for (const a of ages.filter((x) => x >= ADULT_MIN_AGE)) {
+    const problem = planAgeProblem(plan, a);
+    if (problem) return { ok: false, reason: problem };
   }
   return { ok: true };
 }

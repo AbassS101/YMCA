@@ -17,19 +17,15 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
 import { TextField } from '@/components/TextField';
 import { YHeader } from '@/components/YHeader';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
-import { YMCA_MEMBERSHIP_PLANS } from '@/domain/types';
+import { fillTemplate } from '@/domain/appConfig';
+import { formatCents } from '@/domain/lessonPricing';
 import { cardStyle } from '@/theme/card';
 import { colors } from '@/theme/colors';
 import { radii, spacing } from '@/theme/typography';
-
-const BRANCH_NAME = 'YMCA Silver Spring';
-const BRANCH_ADDRESS = '9800 Hastings Drive, Silver Spring, MD 20901';
-const BRANCH_PHONE = '(301) 585-2120';
-const HOURS_WEEKDAY = 'Mon–Fri 5:30 AM – 10:00 PM';
-const HOURS_WEEKEND = 'Sat 7:00 AM – 8:00 PM · Sun 8:00 AM – 8:00 PM';
 
 const GUEST_AMENITIES = [
   {
@@ -266,6 +262,10 @@ export default function GuestPassScreen() {
   const router = useRouter();
   const { session } = useSession();
   const { colors: tc, isDark } = useTheme();
+  const { config } = useAppConfig();
+  const { branding, guestPasses, templates } = config;
+  const passesOn = config.featureToggles.guestPasses;
+  const windowLabel = `${guestPasses.conversionWindowHours} hours`;
 
   const isGuest = session?.role === 'guest';
   const [activeTab, setActiveTab] = useState<'guest_pass' | 'issue_pass'>('guest_pass');
@@ -273,7 +273,8 @@ export default function GuestPassScreen() {
   // Issue pass state for members
   const [guestName, setGuestName] = useState('');
   const [guestEmail, setGuestEmail] = useState('');
-  const [remainingPasses, setRemainingPasses] = useState(2);
+  const [passesUsed, setPassesUsed] = useState(0);
+  const remainingPasses = Math.max(0, guestPasses.complimentaryPassesPerYear - passesUsed);
   const [issuing, setIssuing] = useState(false);
   const [issuedHistory, setIssuedHistory] = useState<
     { name: string; email: string; passCode: string; date: string }[]
@@ -284,6 +285,10 @@ export default function GuestPassScreen() {
   const currentDonationTier = GUEST_DONATION_TIERS[selectedDonationIndex];
 
   async function handleSendInvite() {
+    if (!passesOn) {
+      dialog.alert('Guest Passes Unavailable', 'Guest passes are turned off right now.', [{ text: 'OK' }], 'info');
+      return;
+    }
     if (!guestName.trim()) {
       dialog.alert('Missing Name', 'Please enter your guest’s full name.', [{ text: 'OK' }], 'alert');
       return;
@@ -292,7 +297,7 @@ export default function GuestPassScreen() {
     if (remainingPasses <= 0) {
       dialog.alert(
         'No Guest Passes Remaining',
-        'You have used all complimentary guest passes for this membership period. Additional single-day passes can be purchased at the front desk for $15.',
+        `You have used all complimentary guest passes for this membership period. Additional single-day passes can be purchased at the front desk for ${formatCents(guestPasses.dayPassAdultCents)}.`,
         [{ text: 'Got It' }],
         'info'
       );
@@ -308,13 +313,13 @@ export default function GuestPassScreen() {
         year: 'numeric',
       });
 
-      setRemainingPasses((prev) => prev - 1);
+      setPassesUsed((prev) => prev + 1);
       setIssuedHistory((prev) => [
         { name: guestName.trim(), email: guestEmail.trim(), passCode: code, date: todayStr },
         ...prev,
       ]);
 
-      const shareMessage = `Hi ${guestName.trim()}! I've sent you a complimentary 1-Day Guest Pass to the YMCA Silver Spring. Your Pass Code is ${code}. Present this pass code at the YMCA Silver Spring Member Services desk (9800 Hastings Drive, Silver Spring, MD)!`;
+      const shareMessage = fillTemplate(templates.guestPassShare, { guestName: guestName.trim(), passCode: code });
 
       dialog.alert(
         'Guest Pass Created!',
@@ -326,7 +331,7 @@ export default function GuestPassScreen() {
       try {
         await Share.share({
           message: shareMessage,
-          title: 'YMCA Silver Spring Guest Pass',
+          title: `${branding.branchName} Guest Pass`,
         });
       } catch {
         // user dismissed share
@@ -345,14 +350,14 @@ export default function GuestPassScreen() {
   };
 
   const handleCall = () => {
-    Linking.openURL('tel:3015852120').catch(() => {});
+    Linking.openURL(`tel:${branding.phone.replace(/\D/g, '')}`).catch(() => {});
   };
 
   const handleDirections = () => {
     const url = Platform.select({
-      ios: 'maps:0,0?q=YMCA+Silver+Spring+MD',
-      android: 'geo:0,0?q=9800+Hastings+Drive+Silver+Spring+MD+20901',
-      default: 'https://maps.google.com/?q=9800+Hastings+Drive+Silver+Spring+MD+20901',
+      ios: `maps:0,0?q=${encodeURIComponent(`${branding.branchName} ${branding.address}`)}`,
+      android: `geo:0,0?q=${encodeURIComponent(branding.address)}`,
+      default: `https://maps.google.com/?q=${encodeURIComponent(branding.address)}`,
     });
     if (url) Linking.openURL(url).catch(() => {});
   };
@@ -398,7 +403,7 @@ export default function GuestPassScreen() {
         </Pressable>
 
         {/* Dual Mode Switcher for Members */}
-        {!isGuest ? (
+        {!isGuest && passesOn ? (
           <View style={[styles.tabsWrap, { backgroundColor: tc.cardBg, borderColor: tc.border }]}>
             <Pressable
               onPress={() => setActiveTab('guest_pass')}
@@ -457,14 +462,14 @@ export default function GuestPassScreen() {
         {/* ------------------------------------------------------------- */}
         {/* VIEW 1: COMPLETE GUEST SCREEN & PASS EXPERIENCE                */}
         {/* ------------------------------------------------------------- */}
-        {activeTab === 'guest_pass' ? (
+        {activeTab === 'guest_pass' || !passesOn ? (
           <>
             {/* 1. DIGITAL GUEST PASS CARD WITH FULL BRIGHTNESS BARCODE */}
             <GuestPassCard
               guestName={currentGuestDisplayName}
               passCode={currentGuestPassCode}
-              branchName="YMCA Silver Spring"
-              validUntilLabel="Valid Today until 10:00 PM"
+              branchName={branding.branchName}
+              validUntilLabel={guestPasses.validUntilLabel}
               showActionShortcuts={false}
             />
 
@@ -473,7 +478,7 @@ export default function GuestPassScreen() {
               <View style={styles.cardHeaderRow}>
                 <Ionicons name="checkmark-done-circle" size={22} color="#16A34A" />
                 <AppText style={[styles.cardTitle, { color: tc.text }]}>
-                  How to Check In at {BRANCH_NAME}
+                  How to Check In at {branding.branchName}
                 </AppText>
               </View>
 
@@ -663,7 +668,7 @@ export default function GuestPassScreen() {
               </AppText>
 
               <AppText style={[styles.joinHeroDesc, { color: tc.textMuted }]}>
-                Turn today’s guest pass into a lifetime of strength, community, and vitality. Join YMCA Silver Spring within 48 hours of your guest visit and we will{' '}
+                Turn today’s guest pass into a lifetime of strength, community, and vitality. Join {branding.branchName} within {windowLabel} of your guest visit and we will{' '}
                 <AppText style={{ fontWeight: '800', color: colors.primary }}>
                   completely waive your one-time enrollment fee!
                 </AppText>{' '}
@@ -702,7 +707,7 @@ export default function GuestPassScreen() {
                 <AppText style={[styles.popularPlansTitle, { color: tc.text }]}>
                   Popular Silver Spring Membership Plans:
                 </AppText>
-                {YMCA_MEMBERSHIP_PLANS.slice(0, 4).map((p) => (
+                {config.membershipPlans.filter((p) => p.active).slice(0, 4).map((p) => (
                   <View
                     key={p.id}
                     style={[
@@ -753,7 +758,7 @@ export default function GuestPassScreen() {
               <View style={styles.cardHeaderRow}>
                 <Ionicons name="ribbon-outline" size={22} color={colors.primary} />
                 <AppText style={[styles.cardTitle, { color: tc.text }]}>
-                  About Us at {BRANCH_NAME}
+                  About Us at {branding.branchName}
                 </AppText>
               </View>
               <AppText style={[styles.aboutLead, { color: tc.text }]}>
@@ -997,13 +1002,13 @@ export default function GuestPassScreen() {
                 Location & Front Desk Contact
               </AppText>
               <AppText style={[styles.addressText, { color: tc.text }]}>
-                {BRANCH_ADDRESS}
+                {branding.address}
               </AppText>
               <AppText style={[styles.hoursLine, { color: tc.textMuted }]}>
-                {HOURS_WEEKDAY}
+                {branding.hoursWeekday}
               </AppText>
               <AppText style={[styles.hoursLine, { color: tc.textMuted }]}>
-                {HOURS_WEEKEND}
+                {branding.hoursWeekend}
               </AppText>
 
               <View style={styles.contactActionRow}>
@@ -1015,7 +1020,7 @@ export default function GuestPassScreen() {
                 >
                   <Ionicons name="call" size={16} color={colors.primary} />
                   <AppText style={[styles.quickContactBtnText, { color: colors.primary }]}>
-                    Call {BRANCH_PHONE}
+                    Call {branding.phone}
                   </AppText>
                 </Pressable>
 
@@ -1033,7 +1038,7 @@ export default function GuestPassScreen() {
               </View>
 
               <AppText style={[styles.frontDeskWelcomeNote, { color: tc.textMuted }]}>
-                Need assistance during your visit? Ask Maya Brooks or any member of our Member Services front desk team!
+                Need assistance during your visit? Ask Liz or any member of our Member Services front desk team!
               </AppText>
             </View>
 
@@ -1066,7 +1071,7 @@ export default function GuestPassScreen() {
                   • Purchasing Additional Day Passes
                 </AppText>
                 <AppText style={[styles.policyBody, { color: tc.textMuted }]}>
-                  Additional single-day passes can be purchased at the front desk: Adult $15 · Youth & Senior $10. Day pass fees can be credited toward your first month’s membership if you join within 48 hours!
+                  Additional single-day passes can be purchased at the front desk: Adult {formatCents(guestPasses.dayPassAdultCents)} · Youth & Senior {formatCents(guestPasses.dayPassYouthSeniorCents)}. Day pass fees can be credited toward your first month’s membership if you join within {windowLabel}!
                 </AppText>
               </View>
             </View>
@@ -1092,7 +1097,7 @@ export default function GuestPassScreen() {
                 </View>
               </View>
               <AppText style={[styles.balanceNote, { color: tc.text }]}>
-                Each YMCA Silver Spring membership includes 2 complimentary one-day guest passes per calendar year. Bring a workout buddy, family member, or friend!
+                Each {branding.branchName} membership includes {guestPasses.complimentaryPassesPerYear} complimentary one-day guest {guestPasses.complimentaryPassesPerYear === 1 ? 'pass' : 'passes'} per calendar year. Bring a workout buddy, family member, or friend!
               </AppText>
             </View>
 

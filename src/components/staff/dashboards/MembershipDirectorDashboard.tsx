@@ -9,6 +9,7 @@ import { KpiRow } from '@/components/staff/KpiTile';
 import { PersonaHero } from '@/components/staff/PersonaHero';
 import { QuickActionBar } from '@/components/staff/QuickActionBar';
 import { ActionButton, EmptyState, ListRow, SectionCard, StatusPill } from '@/components/staff/SectionCard';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -51,6 +52,7 @@ function statusTone(status: Member['status']): { label: string; color: string; b
 export function MembershipDirectorDashboard({ staffId }: { staffId: string }) {
   const router = useRouter();
   const { api } = useSession();
+  const { config } = useAppConfig();
   const { colors: tc } = useTheme();
   const { can, theme, isMembershipDirector } = useStaffCapabilities();
   const canDecide = can('approveCancellations');
@@ -207,7 +209,9 @@ export function MembershipDirectorDashboard({ staffId }: { staffId: string }) {
           ...(can('viewRepKpis')
             ? [{ key: 'reps', label: 'Rep Performance', icon: 'stats-chart-outline' as const, onPress: () => router.push('/(staff)/rep-performance'), color: '#0F766E' }]
             : []),
-          { key: 'childwatch', label: 'Child Watch', icon: 'happy-outline', onPress: () => router.push('/(staff)/child-watch'), color: '#D97706' },
+          ...(config.featureToggles.childWatch
+            ? [{ key: 'childwatch', label: 'Child Watch', icon: 'happy-outline' as const, onPress: () => router.push('/(staff)/child-watch'), color: '#D97706' }]
+            : []),
           { key: 'msg', label: 'Messages', icon: 'mail-outline', onPress: () => router.push('/(staff)/messages'), color: '#15803D' },
         ]}
       />
