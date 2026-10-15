@@ -534,7 +534,7 @@ export default function StaffSchedulesScreen() {
           start: `${date}T${slotStart}:00${easternOffset(date, Number(slotStart.slice(0, 2)))}`,
           end: `${date}T${slotEnd}:00${easternOffset(date, Number(slotEnd.slice(0, 2)))}`,
           location: slotLocation.trim(),
-        });
+        }, staffId);
       }
       setSlotModalVisible(false);
       setSlotRepeat(DEFAULT_REPEAT);
@@ -556,7 +556,7 @@ export default function StaffSchedulesScreen() {
 
   async function handleDeleteSlot(slotId: string) {
     try {
-      await api.deleteLessonSlot(slotId);
+      await api.deleteLessonSlot(slotId, staffId);
       await loadData();
     } catch {
       dialog.alert('Error', 'Could not remove slot.', [{ text: 'OK' }]);

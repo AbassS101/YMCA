@@ -774,6 +774,21 @@ export default function StaffMemberDetailScreen() {
                 </View>
               ) : null}
 
+              {/* Custom Metric Target */}
+              {fitnessGoal.metricTarget != null || fitnessGoal.metricCurrent != null ? (
+                <View style={styles.weightRow}>
+                  <View style={styles.weightBox}>
+                    <Text style={styles.weightVal}>{fitnessGoal.metricCurrent ?? '--'} {fitnessGoal.metricUnit ?? ''}</Text>
+                    <Text style={styles.weightLabel}>{fitnessGoal.metricLabel || 'Current'}</Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+                  <View style={styles.weightBox}>
+                    <Text style={[styles.weightVal, { color: '#15803D' }]}>{fitnessGoal.metricTarget ?? '--'} {fitnessGoal.metricUnit ?? ''}</Text>
+                    <Text style={styles.weightLabel}>Goal Target</Text>
+                  </View>
+                </View>
+              ) : null}
+
               {/* Injury / Safety Limitation Warning */}
               {fitnessGoal.injuriesOrLimitations ? (
                 <View style={styles.injuryCard}>

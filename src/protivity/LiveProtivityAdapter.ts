@@ -264,7 +264,7 @@ export class LiveProtivityAdapter implements ProtivityPort {
     _staffId: string,
     _memberId: string,
     _enabled: boolean,
-    _requesterUserId?: string
+    _requesterUserId: string
   ): Promise<Staff> {
     throw new ProtivityNotConnected();
   }
@@ -494,11 +494,11 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
-  async addLessonSlot(_slot: Omit<LessonSlot, 'id'>, _requesterUserId?: string): Promise<LessonSlot> {
+  async addLessonSlot(_slot: Omit<LessonSlot, 'id'>, _requesterUserId: string): Promise<LessonSlot> {
     throw new ProtivityNotConnected();
   }
 
-  async deleteLessonSlot(_slotId: string, _requesterUserId?: string): Promise<void> {
+  async deleteLessonSlot(_slotId: string, _requesterUserId: string): Promise<void> {
     throw new ProtivityNotConnected();
   }
 

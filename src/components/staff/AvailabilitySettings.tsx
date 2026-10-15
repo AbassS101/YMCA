@@ -52,8 +52,9 @@ export function AvailabilitySettings({ staffId, accent }: { staffId: string; acc
   };
 
   const removeInstant = async (memberId: string) => {
+    if (!session?.userId) return;
     try {
-      await sessionRequestRepo.setInstantBooking(api, staffId, memberId, false, session?.userId);
+      await sessionRequestRepo.setInstantBooking(api, staffId, memberId, false, session.userId);
       await load();
     } catch (e) {
       dialog.alert('Error', e instanceof Error ? e.message : 'Could not update.');

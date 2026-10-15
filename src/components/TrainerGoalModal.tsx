@@ -30,7 +30,21 @@ const CATEGORIES: { id: ClientFitnessGoal['category']; label: string; icon: stri
   { id: 'mobility', label: 'Mobility & Posture', icon: 'body-outline' },
   { id: 'wellness', label: 'General Wellness', icon: 'heart-outline' },
   { id: 'rehab', label: 'Joint Rehab & Recovery', icon: 'medkit-outline' },
+  { id: 'sports', label: 'Sports Performance', icon: 'basketball-outline' },
 ];
+
+const METRIC_HINTS: Record<
+  NonNullable<ClientFitnessGoal['category']>,
+  { label: string; unit: string; start: string; target: string }
+> = {
+  strength: { label: 'Back squat', unit: 'lbs', start: '95', target: '135' },
+  weight_loss: { label: 'Waist', unit: 'in', start: '36', target: '33' },
+  endurance: { label: '5K time', unit: 'min', start: '35', target: '28' },
+  mobility: { label: 'Sit-and-reach', unit: 'in', start: '8', target: '12' },
+  wellness: { label: 'Workouts per week', unit: 'days', start: '1', target: '3' },
+  rehab: { label: 'Knee flexion', unit: 'deg', start: '90', target: '120' },
+  sports: { label: 'Vertical jump', unit: 'in', start: '16', target: '20' },
+};
 
 interface TrainerGoalModalProps {
   visible: boolean;
@@ -67,6 +81,11 @@ export function TrainerGoalModal({
   const [startWeight, setStartWeight] = useState('');
   const [currentWeight, setCurrentWeight] = useState('');
   const [targetWeight, setTargetWeight] = useState('');
+  const [metricLabel, setMetricLabel] = useState('');
+  const [metricUnit, setMetricUnit] = useState('');
+  const [metricStart, setMetricStart] = useState('');
+  const [metricCurrent, setMetricCurrent] = useState('');
+  const [metricTarget, setMetricTarget] = useState('');
   const [injuries, setInjuries] = useState('');
   const [notes, setNotes] = useState('');
   const [memberNotes, setMemberNotes] = useState('');
@@ -88,6 +107,11 @@ export function TrainerGoalModal({
         setStartWeight(existingGoal.startWeightLbs ? String(existingGoal.startWeightLbs) : '');
         setCurrentWeight(existingGoal.currentWeightLbs ? String(existingGoal.currentWeightLbs) : '');
         setTargetWeight(existingGoal.targetWeightLbs ? String(existingGoal.targetWeightLbs) : '');
+        setMetricLabel(existingGoal.metricLabel || '');
+        setMetricUnit(existingGoal.metricUnit || '');
+        setMetricStart(existingGoal.metricStart != null ? String(existingGoal.metricStart) : '');
+        setMetricCurrent(existingGoal.metricCurrent != null ? String(existingGoal.metricCurrent) : '');
+        setMetricTarget(existingGoal.metricTarget != null ? String(existingGoal.metricTarget) : '');
         setInjuries(existingGoal.injuriesOrLimitations || '');
         setNotes(existingGoal.notes || '');
         setMemberNotes(existingGoal.memberNotes || '');
@@ -103,6 +127,11 @@ export function TrainerGoalModal({
         setStartWeight('');
         setCurrentWeight('');
         setTargetWeight('');
+        setMetricLabel('');
+        setMetricUnit('');
+        setMetricStart('');
+        setMetricCurrent('');
+        setMetricTarget('');
         setInjuries('');
         setNotes(
           mode === 'trainer'
@@ -170,6 +199,11 @@ export function TrainerGoalModal({
         startWeightLbs: strW,
         currentWeightLbs: curW,
         targetWeightLbs: tgtW,
+        metricLabel: metricLabel.trim() || undefined,
+        metricUnit: metricUnit.trim() || undefined,
+        metricStart: parseFloat(metricStart.trim()) || undefined,
+        metricCurrent: parseFloat(metricCurrent.trim()) || undefined,
+        metricTarget: parseFloat(metricTarget.trim()) || undefined,
         injuriesOrLimitations: injuries.trim() || undefined,
         specificWarnings: warnings.length > 0 ? warnings : undefined,
         notes: notes.trim() || undefined,
@@ -309,7 +343,66 @@ export function TrainerGoalModal({
               </View>
             </View>
 
+            {/* Measurable target for non-weight goals (strength, mobility, endurance, ...) */}
+            {category !== 'weight_loss' ? (
+              <View style={[styles.weightContainer, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: tc.cardBorder }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <Ionicons name="trending-up-outline" size={16} color={colors.primary} />
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: tc.text }}>
+                    Progress Target (optional)
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flex: 2 }}>
+                    <TextField
+                      label="What are you measuring?"
+                      value={metricLabel}
+                      onChangeText={setMetricLabel}
+                      placeholder={METRIC_HINTS[category ?? 'strength'].label}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <TextField
+                      label="Unit"
+                      value={metricUnit}
+                      onChangeText={setMetricUnit}
+                      placeholder={METRIC_HINTS[category ?? 'strength'].unit}
+                    />
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <TextField
+                      label="Starting"
+                      value={metricStart}
+                      onChangeText={setMetricStart}
+                      keyboardType="numeric"
+                      placeholder={METRIC_HINTS[category ?? 'strength'].start}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <TextField
+                      label="Current"
+                      value={metricCurrent}
+                      onChangeText={setMetricCurrent}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <TextField
+                      label="Target Goal"
+                      value={metricTarget}
+                      onChangeText={setMetricTarget}
+                      keyboardType="numeric"
+                      placeholder={METRIC_HINTS[category ?? 'strength'].target}
+                    />
+                  </View>
+                </View>
+              </View>
+            ) : null}
+
             {/* Weight Progression Card */}
+            {category === 'weight_loss' || startWeight || currentWeight || targetWeight ? (
             <View style={[styles.weightContainer, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: tc.cardBorder }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                 <Ionicons name="speedometer-outline" size={16} color={colors.primary} />
@@ -345,6 +438,7 @@ export function TrainerGoalModal({
                 </View>
               </View>
             </View>
+            ) : null}
 
             {/* Member's Personal Notes / Motivation (editable by member, viewable/editable by trainer) */}
             <TextField

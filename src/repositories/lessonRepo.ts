@@ -110,7 +110,7 @@ export const sessionRequestRepo = {
     staffId: string,
     memberId: string,
     enabled: boolean,
-    requesterUserId?: string
+    requesterUserId: string
   ) {
     return api.setInstantBooking(staffId, memberId, enabled, requesterUserId);
   },

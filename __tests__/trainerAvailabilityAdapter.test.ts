@@ -240,3 +240,17 @@ test('availability persists and saving with no conflicts reports none', async ()
   expect(availability.updatedBy).toBe('staff-celine');
   expect((await availabilityRepo.get(api, 'staff-celine', 'staff-admin')).weekly).toEqual(current.weekly);
 });
+
+test('slot edits and instant booking are scoped to the trainer’s department', async () => {
+  const slot = await api.addLessonSlot(
+    { staffId: 'staff-sarah', branchId: 'branch-silver-spring', start: at('13:00'), end: at('14:00'), location: 'Pool' },
+    'staff-alek'
+  );
+  await expect(api.deleteLessonSlot(slot.id, 'staff-celine')).rejects.toThrow();
+  await expect(api.deleteLessonSlot('slot-missing', 'staff-alek')).rejects.toThrow();
+  await expect(api.deleteLessonSlot(slot.id, 'staff-alek')).resolves.toBeUndefined();
+
+  await expect(api.setInstantBooking('staff-sarah', 'member-riley', true, 'staff-celine')).rejects.toThrow();
+  await expect(api.setInstantBooking('staff-sarah', 'member-riley', true, 'staff-alek')).resolves.toBeDefined();
+  await expect(api.setInstantBooking('staff-alex', 'member-riley', true, 'staff-alek')).rejects.toThrow();
+});

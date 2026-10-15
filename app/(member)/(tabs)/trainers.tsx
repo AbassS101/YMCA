@@ -730,6 +730,32 @@ export default function MemberTrainersScreen() {
                     </View>
                   ) : null}
 
+                  {/* Custom Metric Progress */}
+                  {clientGoal.metricTarget != null || clientGoal.metricCurrent != null ? (
+                    <View style={{ backgroundColor: isDark ? '#0F172A' : '#F8FAFC', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.cardBorder }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary, textTransform: 'uppercase', textAlign: 'center', marginBottom: 6 }}>
+                        {clientGoal.metricLabel || 'Progress'}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' }}>
+                        {clientGoal.metricStart != null ? (
+                          <View style={{ alignItems: 'center' }}>
+                            <Text style={{ fontSize: 15, fontWeight: '800', color: colors.textMuted }}>{clientGoal.metricStart} {clientGoal.metricUnit ?? ''}</Text>
+                            <Text style={{ fontSize: 10, color: colors.textMuted }}>Starting</Text>
+                          </View>
+                        ) : null}
+                        <View style={{ alignItems: 'center' }}>
+                          <Text style={{ fontSize: 16, fontWeight: '800', color: colors.text }}>{clientGoal.metricCurrent ?? '--'} {clientGoal.metricUnit ?? ''}</Text>
+                          <Text style={{ fontSize: 10, color: colors.textMuted }}>Current</Text>
+                        </View>
+                        <Ionicons name="arrow-forward" size={14} color={colors.primary} />
+                        <View style={{ alignItems: 'center' }}>
+                          <Text style={{ fontSize: 16, fontWeight: '800', color: '#15803D' }}>{clientGoal.metricTarget ?? '--'} {clientGoal.metricUnit ?? ''}</Text>
+                          <Text style={{ fontSize: 10, color: colors.textMuted }}>Goal Target</Text>
+                        </View>
+                      </View>
+                    </View>
+                  ) : null}
+
                   {/* Member's Personal Motivation / Routine Notes */}
                   {clientGoal.memberNotes ? (
                     <View style={{ backgroundColor: isDark ? '#1F2937' : '#F1F5F9', padding: 10, borderRadius: 6 }}>

@@ -59,7 +59,7 @@ export default function TrainerAvailabilityScreen() {
   const [pickedId, setPickedId] = useState<string | null>(null);
   // Tagged with its trainer so a slow load can never show (or save) another trainer's hours.
   const [loadedDraft, setLoadedDraft] = useState<{ staffId: string; input: TrainerAvailabilityInput } | null>(null);
-  const [preview, setPreview] = useState<LessonSlot[]>([]);
+  const [loadedPreview, setLoadedPreview] = useState<{ staffId: string; slots: LessonSlot[] } | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -82,13 +82,15 @@ export default function TrainerAvailabilityScreen() {
   }, [pickedId, paramId, trainers, actorId]);
   const target = trainers.find((t) => t.id === targetId);
   const draft = loadedDraft?.staffId === targetId ? loadedDraft.input : null;
+  const preview = useMemo(() => (loadedPreview?.staffId === targetId ? loadedPreview.slots : []), [loadedPreview, targetId]);
   const setDraft = (input: TrainerAvailabilityInput) => setLoadedDraft({ staffId: targetId, input });
   const defaultLocation = target?.lessonTypes?.length === 1 && target.lessonTypes[0] === 'swim' ? 'Indoor Lap Pool (Lane 1)' : 'Wellness Floor / Studio B';
 
   const loadPreview = useCallback(async () => {
     if (!targetId) return;
     const today = getDemoToday();
-    setPreview(await availabilityRepo.listWindows(api, targetId, today, addDaysToDate(today, PREVIEW_DAYS - 1)).catch(() => []));
+    const slots = await availabilityRepo.listWindows(api, targetId, today, addDaysToDate(today, PREVIEW_DAYS - 1)).catch(() => []);
+    setLoadedPreview({ staffId: targetId, slots });
   }, [api, targetId]);
 
   useEffect(() => {
@@ -97,7 +99,7 @@ export default function TrainerAvailabilityScreen() {
     availabilityRepo
       .get(api, targetId, actorId)
       .then((av) => live && setLoadedDraft({ staffId: targetId, input: toInput(av) }))
-      .catch((e) => dialog.alert('Error', e instanceof Error ? e.message : 'Could not load availability.'));
+      .catch((e) => live && dialog.alert('Error', e instanceof Error ? e.message : 'Could not load availability.'));
     void loadPreview();
     return () => {
       live = false;
@@ -170,7 +172,7 @@ export default function TrainerAvailabilityScreen() {
           <Text style={{ color: tc.textMuted, fontSize: 13 }}>
             Editing hours for {target.id === actorId ? 'yourself' : target.name}. Existing lessons are never cancelled by a change.
           </Text>
-          <WeeklyAvailabilityEditor value={draft} onChange={setDraft} accent={theme.color} defaultLocation={defaultLocation} />
+          <WeeklyAvailabilityEditor key={targetId} value={draft} onChange={setDraft} accent={theme.color} defaultLocation={defaultLocation} />
           <PrimaryButton title={saving ? 'Saving...' : 'Save hours'} onPress={() => void save()} disabled={saving} />
         </>
       ) : null}

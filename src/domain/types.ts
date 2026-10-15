@@ -639,6 +639,12 @@ export type ClientFitnessGoal = {
   startWeightLbs?: number;
   currentWeightLbs?: number;
   targetWeightLbs?: number;
+  // Generic measurable target for non-weight goals (e.g. "Back squat" lbs, "Sit-and-reach" in)
+  metricLabel?: string;
+  metricUnit?: string;
+  metricStart?: number;
+  metricCurrent?: number;
+  metricTarget?: number;
   notes?: string; // Trainer Strategy & Protocol
   memberNotes?: string; // Member Personal Motivation & Reflections
   updatedBy?: 'member' | 'trainer';

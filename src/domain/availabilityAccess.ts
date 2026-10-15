@@ -13,7 +13,9 @@ const COACH_STAFF_ROLES = new Set<string>(['trainer', 'swim_instructor', 'wellne
  */
 export function canManageTrainerAvailability(role: Role, actorId: string, target: Target): boolean {
   if (actorId === target.id) return hasCapability(role, 'manageOwnLessonSlots');
-  const types = target.lessonTypes ?? ['training'];
+  const types =
+    target.lessonTypes ??
+    (target.staffRole === 'swim_instructor' || target.staffRole === 'aquatics_director' ? ['swim'] : ['training']);
   switch (role) {
     case 'admin':
     case 'staff_admin':

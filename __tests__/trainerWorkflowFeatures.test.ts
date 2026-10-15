@@ -289,7 +289,7 @@ describe('Trainer Workflow & Capabilities', () => {
         start: '2026-09-17T11:00:00-04:00',
         end: '2026-09-17T12:00:00-04:00',
         location: 'Wellness Studio A',
-      });
+      }, 'staff-alex');
       expect(newSlot.id).toBeDefined();
 
       const slots = await adapter.listLessonSlots('staff-alex', '2026-09-17', '2026-09-17');

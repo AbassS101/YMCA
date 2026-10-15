@@ -190,7 +190,7 @@ export interface ProtivityPort {
     staffId: string,
     memberId: string,
     enabled: boolean,
-    requesterUserId?: string
+    requesterUserId: string
   ): Promise<Staff>;
   getLessonPricing(): Promise<LessonPricing>;
   updateLessonPricing(updates: Partial<LessonPricing>, requesterUserId: string): Promise<LessonPricing>;
@@ -259,8 +259,8 @@ export interface ProtivityPort {
     newEnd: string,
     newLocation?: string
   ): Promise<PrivateLesson>;
-  addLessonSlot(slot: Omit<LessonSlot, 'id'>, requesterUserId?: string): Promise<LessonSlot>;
-  deleteLessonSlot(slotId: string, requesterUserId?: string): Promise<void>;
+  addLessonSlot(slot: Omit<LessonSlot, 'id'>, requesterUserId: string): Promise<LessonSlot>;
+  deleteLessonSlot(slotId: string, requesterUserId: string): Promise<void>;
 
   // Trainer availability (weekly windows + date exceptions)
   getTrainerAvailability(staffId: string, requesterUserId: string): Promise<TrainerAvailability>;

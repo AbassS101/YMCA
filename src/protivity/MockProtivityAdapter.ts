@@ -491,7 +491,9 @@ function recordConfigAudit(
 const COACH_STAFF_ROLES = new Set<string>(['trainer', 'swim_instructor', 'wellness_director', 'aquatics_director']);
 
 function offersLessonType(s: Staff, t: LessonType): boolean {
-  return COACH_STAFF_ROLES.has(s.staffRole ?? '') && (s.lessonTypes ?? ['training']).includes(t);
+  const types: LessonType[] =
+    s.lessonTypes ?? (s.staffRole === 'swim_instructor' || s.staffRole === 'aquatics_director' ? ['swim'] : ['training']);
+  return COACH_STAFF_ROLES.has(s.staffRole ?? '') && types.includes(t);
 }
 
 function staffBusy(state: DemoState, staffId: string, excludeRequestId?: string): Interval[] {
@@ -1449,7 +1451,8 @@ export class MockProtivityAdapter implements ProtivityPort {
     if (!req) throw new Error('Request not found');
     if (req.staffId !== staffId) {
       const target = state.staff.find((s) => s.id === req.staffId);
-      if (!target || !canManageTrainerAvailability(requesterRole(state, staffId), staffId, target)) {
+      const role = requesterRole(state, staffId);
+      if (!target || !canManageTrainerAvailability(role, staffId, target) || !canViewSessionRequest(role, staffId, req)) {
         throw new Error('Only the requested instructor can respond.');
       }
     }
@@ -1542,20 +1545,16 @@ export class MockProtivityAdapter implements ProtivityPort {
     staffId: string,
     memberId: string,
     enabled: boolean,
-    requesterUserId?: string
+    requesterUserId: string
   ): Promise<Staff> {
     const state = await loadStore();
     const idx = state.staff.findIndex((s) => s.id === staffId);
     if (idx === -1) throw new Error(`Staff member not found: ${staffId}`);
     const target = state.staff[idx];
-    if (requesterUserId !== undefined && requesterUserId !== staffId) {
-      const role = requesterRole(state, requesterUserId);
-      const types = target.lessonTypes ?? ['training'];
-      const allowed =
-        isAdminRole(role) ||
-        (role === 'wellness_director' && types.includes('training')) ||
-        (role === 'aquatics_director' && types.includes('swim'));
-      if (!allowed) throw new Error('Your staff role is not permitted to change instant booking.');
+    if (requesterUserId !== staffId) {
+      if (!canManageTrainerAvailability(requesterRole(state, requesterUserId), requesterUserId, target)) {
+        throw new Error('Your staff role is not permitted to change instant booking.');
+      }
     }
     const current = new Set(target.instantBookMemberIds ?? []);
     if (enabled) current.add(memberId);
@@ -2624,9 +2623,9 @@ export class MockProtivityAdapter implements ProtivityPort {
     return lesson;
   }
 
-  async addLessonSlot(slot: Omit<LessonSlot, 'id'>, requesterUserId?: string): Promise<LessonSlot> {
+  async addLessonSlot(slot: Omit<LessonSlot, 'id'>, requesterUserId: string): Promise<LessonSlot> {
     const state = await loadStore();
-    if (requesterUserId !== undefined) assertCanManageAvailability(state, requesterUserId, slot.staffId);
+    assertCanManageAvailability(state, requesterUserId, slot.staffId);
     const newSlot: LessonSlot = {
       ...slot,
       id: `slot-${Date.now()}`,
@@ -2636,10 +2635,11 @@ export class MockProtivityAdapter implements ProtivityPort {
     return newSlot;
   }
 
-  async deleteLessonSlot(slotId: string, requesterUserId?: string): Promise<void> {
+  async deleteLessonSlot(slotId: string, requesterUserId: string): Promise<void> {
     const state = await loadStore();
     const existing = state.lessonSlots.find((s) => s.id === slotId);
-    if (requesterUserId !== undefined && existing) assertCanManageAvailability(state, requesterUserId, existing.staffId);
+    if (!existing) throw new Error('Availability window not found');
+    assertCanManageAvailability(state, requesterUserId, existing.staffId);
     state.lessonSlots = state.lessonSlots.filter((s) => s.id !== slotId);
     await saveStore(state);
   }

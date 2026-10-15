@@ -164,7 +164,7 @@ describe('Staff Admin and Trainer Capabilities', () => {
         start: '2026-09-17T14:00:00-04:00',
         end: '2026-09-17T15:00:00-04:00',
         location: 'Wellness Center Free Weights',
-      });
+      }, 'staff-alex');
       expect(slot.id).toBeDefined();
 
       const slots = await adapter.listLessonSlots('staff-alex', '2026-09-01', '2026-09-30');
@@ -198,8 +198,8 @@ describe('Staff Admin and Trainer Capabilities', () => {
         start: '2026-09-20T10:00:00-04:00',
         end: '2026-09-20T11:00:00-04:00',
         location: 'Studio A',
-      });
-      await adapter.deleteLessonSlot(openSlot.id);
+      }, 'staff-alex');
+      await adapter.deleteLessonSlot(openSlot.id, 'staff-alex');
       const slotsAfter = await adapter.listLessonSlots('staff-alex', '2026-09-01', '2026-09-30');
       expect(slotsAfter.some((s) => s.id === openSlot.id)).toBe(false);
     });

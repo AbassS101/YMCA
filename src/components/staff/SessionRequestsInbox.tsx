@@ -54,7 +54,7 @@ export function SessionRequestsInbox({ staffId, accent, onChanged }: { staffId: 
 
   const load = useCallback(async () => {
     try {
-      const all = await sessionRequestRepo.list(api, { staffId });
+      const all = await sessionRequestRepo.list(api, { staffId, viewerId: session?.userId });
       setRequests(
         all.filter(
           (r) =>

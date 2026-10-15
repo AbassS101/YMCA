@@ -46,7 +46,7 @@ type TrainerWorkspaceProps = {
 export function TrainerWorkspace({ day, staffId, accent, showQuickActions = true, variant = 'training' }: TrainerWorkspaceProps) {
   const isSwim = variant === 'swim';
   const router = useRouter();
-  const { api } = useSession();
+  const { api, session } = useSession();
   const forumOn = useAppConfig().config.featureToggles.communityForum;
   const { colors: tc, isDark } = useTheme();
   const { classes, lessons, lessonMembers, clients, reload } = day;
@@ -143,7 +143,7 @@ export function TrainerWorkspace({ day, staffId, accent, showQuickActions = true
           start: `${date}T${slotStart}:00${easternOffset(date, Number(slotStart.slice(0, 2)))}`,
           end: `${date}T${slotEnd}:00${easternOffset(date, Number(slotEnd.slice(0, 2)))}`,
           location: slotLocation.trim(),
-        });
+        }, session?.userId ?? staffId);
       }
       setSlotModalVisible(false);
       setSlotRepeat(DEFAULT_REPEAT);
