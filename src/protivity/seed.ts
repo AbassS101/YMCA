@@ -2062,6 +2062,22 @@ const BASE_SEED: SeedState = {
       homeBranchId: BRANCH,
       staffRole: 'maintenance',
     },
+    {
+      id: 'staff-cw-director',
+      name: 'Dana',
+      email: 'childwatch@silverspring.ymca',
+      roleLabel: 'Child Watch Director',
+      homeBranchId: BRANCH,
+      staffRole: 'child_watch_director',
+    },
+    {
+      id: 'staff-cw-supervisor',
+      name: 'Priya',
+      email: 'cwsupervisor@silverspring.ymca',
+      roleLabel: 'Child Watch Supervisor',
+      homeBranchId: BRANCH,
+      staffRole: 'child_watch_supervisor',
+    },
   ],
   memberships: [
     {
@@ -2361,6 +2377,18 @@ const BASE_SEED: SeedState = {
       password: 'ymca-demo',
       userId: 'staff-maint',
       role: 'maintenance',
+    },
+    {
+      email: 'childwatch@silverspring.ymca',
+      password: 'ymca-demo',
+      userId: 'staff-cw-director',
+      role: 'child_watch_director',
+    },
+    {
+      email: 'cwsupervisor@silverspring.ymca',
+      password: 'ymca-demo',
+      userId: 'staff-cw-supervisor',
+      role: 'child_watch_supervisor',
     },
   ],
   classForumPosts: [

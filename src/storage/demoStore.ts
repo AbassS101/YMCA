@@ -369,6 +369,12 @@ function migrateState(raw: DemoState): DemoState {
     const maint = seed.staff.find((s) => s.id === 'staff-maint');
     if (maint) mergedStaff = [...mergedStaff, maint];
   }
+  for (const cwId of ['staff-cw-director', 'staff-cw-supervisor']) {
+    if (!mergedStaff.some((s) => s.id === cwId)) {
+      const cw = seed.staff.find((s) => s.id === cwId);
+      if (cw) mergedStaff = [...mergedStaff, cw];
+    }
+  }
 
   let mergedMembers = raw.members ?? seed.members;
   if ((raw.schemaVersion ?? 0) < 8) {
@@ -442,6 +448,12 @@ function migrateState(raw: DemoState): DemoState {
   if (!mergedCreds.some((c) => c.email === 'maintenance@silverspring.ymca')) {
     const maintCred = seed.credentials.find((c) => c.email === 'maintenance@silverspring.ymca');
     if (maintCred) mergedCreds = [...mergedCreds, maintCred];
+  }
+  for (const cwEmail of ['childwatch@silverspring.ymca', 'cwsupervisor@silverspring.ymca']) {
+    if (!mergedCreds.some((c) => c.email === cwEmail)) {
+      const cwCred = seed.credentials.find((c) => c.email === cwEmail);
+      if (cwCred) mergedCreds = [...mergedCreds, cwCred];
+    }
   }
   if (!mergedCreds.some((c) => c.email === 'guest@silverspring.ymca')) {
     const guestCred = seed.credentials.find((c) => c.email === 'guest@silverspring.ymca');

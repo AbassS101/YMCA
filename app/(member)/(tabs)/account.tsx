@@ -127,6 +127,27 @@ const DEMO_ACCOUNTS = [
     icon: 'id-card' as const,
     color: '#0891B2',
   },
+  {
+    name: 'Marcus',
+    email: 'maintenance@silverspring.ymca',
+    role: 'Facilities & Maintenance Lead',
+    icon: 'construct' as const,
+    color: '#B45309',
+  },
+  {
+    name: 'Dana',
+    email: 'childwatch@silverspring.ymca',
+    role: 'Child Watch Director',
+    icon: 'happy' as const,
+    color: '#DB2777',
+  },
+  {
+    name: 'Priya',
+    email: 'cwsupervisor@silverspring.ymca',
+    role: 'Child Watch Supervisor',
+    icon: 'happy' as const,
+    color: '#EA580C',
+  },
 ];
 
 function MenuRow({

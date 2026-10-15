@@ -101,6 +101,20 @@ const DEMO_ACCOUNTS = [
     icon: 'construct',
     color: '#B45309',
   },
+  {
+    name: 'Dana',
+    email: 'childwatch@silverspring.ymca',
+    role: 'Child Watch Director',
+    icon: 'happy',
+    color: '#DB2777',
+  },
+  {
+    name: 'Priya',
+    email: 'cwsupervisor@silverspring.ymca',
+    role: 'Child Watch Supervisor',
+    icon: 'happy',
+    color: '#EA580C',
+  },
 ];
 
 export default function StaffMeScreen() {
