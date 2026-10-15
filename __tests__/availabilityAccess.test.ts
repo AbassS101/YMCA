@@ -1,4 +1,4 @@
-import { canManageTrainerAvailability, manageableTrainers } from '@/domain/availabilityAccess';
+import { canManageTrainerAvailability, canViewTrainerAvailability, manageableTrainers, viewableTrainers } from '@/domain/availabilityAccess';
 import type { Staff } from '@/domain/types';
 
 const t = (id: string, staffRole: Staff['staffRole'], lessonTypes?: Staff['lessonTypes']) => ({ id, staffRole, lessonTypes });
@@ -51,5 +51,44 @@ describe('manageableTrainers', () => {
     expect(manageableTrainers('aquatics_director', 'a', all).map((s) => s.id)).toEqual(['swim', 'both']);
     expect(manageableTrainers('trainer', 'pt', all).map((s) => s.id)).toEqual(['pt']);
     expect(manageableTrainers('desk', 'desk', all)).toEqual([]);
+  });
+});
+
+describe('canViewTrainerAvailability', () => {
+  it('lets admins, membership director and front desk see every trainer', () => {
+    for (const role of ['admin', 'staff_admin', 'it_admin', 'membership_director', 'desk', 'staff']) {
+      expect(canViewTrainerAvailability(role, 'someone', pt)).toBe(true);
+      expect(canViewTrainerAvailability(role, 'someone', swim)).toBe(true);
+    }
+  });
+
+  it('keeps directors to their own department', () => {
+    expect(canViewTrainerAvailability('wellness_director', 'w', pt)).toBe(true);
+    expect(canViewTrainerAvailability('wellness_director', 'w', swim)).toBe(false);
+    expect(canViewTrainerAvailability('aquatics_director', 'a', swim)).toBe(true);
+    expect(canViewTrainerAvailability('aquatics_director', 'a', pt)).toBe(false);
+  });
+
+  it('denies peer trainers, child watch roles and members', () => {
+    expect(canViewTrainerAvailability('trainer', 'other', pt)).toBe(false);
+    expect(canViewTrainerAvailability('swim_instructor', 'other', swim)).toBe(false);
+    expect(canViewTrainerAvailability('child_watch_supervisor', 'x', pt)).toBe(false);
+    expect(canViewTrainerAvailability('child_watch_director', 'x', pt)).toBe(false);
+    expect(canViewTrainerAvailability('member', 'x', pt)).toBe(false);
+    expect(canViewTrainerAvailability(undefined, 'x', pt)).toBe(false);
+  });
+
+  it('still lets a trainer see themselves', () => {
+    expect(canViewTrainerAvailability('trainer', 'pt', pt)).toBe(true);
+  });
+});
+
+describe('viewableTrainers', () => {
+  const all = [pt, swim, both, t('desk', 'desk')];
+  it('lists coaching staff only, scoped by role', () => {
+    expect(viewableTrainers('membership_director', 'm', all).map((s) => s.id)).toEqual(['pt', 'swim', 'both']);
+    expect(viewableTrainers('desk', 'd', all).map((s) => s.id)).toEqual(['pt', 'swim', 'both']);
+    expect(viewableTrainers('aquatics_director', 'a', all).map((s) => s.id)).toEqual(['swim', 'both']);
+    expect(viewableTrainers('child_watch_director', 'c', all)).toEqual([]);
   });
 });

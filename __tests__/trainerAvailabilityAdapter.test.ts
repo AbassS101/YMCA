@@ -254,3 +254,15 @@ test('slot edits and instant booking are scoped to the trainer’s department', 
   await expect(api.setInstantBooking('staff-sarah', 'member-riley', true, 'staff-alek')).resolves.toBeDefined();
   await expect(api.setInstantBooking('staff-alex', 'member-riley', true, 'staff-alek')).rejects.toThrow();
 });
+
+test('membership director and front desk can view hours but not change them; other departments cannot view', async () => {
+  const mine = { weekly: weeklyFor(3), effectiveFrom: '2026-01-01', exceptions: [] };
+  for (const viewer of ['staff-desk', 'staff-frontdesk', 'staff-admin']) {
+    await expect(api.getTrainerAvailability('staff-celine', viewer)).resolves.toBeDefined();
+  }
+  for (const viewer of ['staff-desk', 'staff-frontdesk']) {
+    await expect(api.saveTrainerAvailability('staff-celine', mine, viewer)).rejects.toThrow();
+  }
+  // The aquatics director has no view of a wellness trainer's hours.
+  await expect(api.getTrainerAvailability('staff-celine', 'staff-alek')).rejects.toThrow();
+});

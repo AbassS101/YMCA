@@ -11,7 +11,8 @@ export type UserRole =
   | 'aquatics_director'
   | 'membership_director'
   | 'child_watch_supervisor'
-  | 'child_watch_director';
+  | 'child_watch_director'
+  | 'maintenance';
 export type MemberStatus = 'active' | 'paused' | 'cancel_pending' | 'cancelled';
 export type StaffRole =
   | 'it_admin'
@@ -24,7 +25,8 @@ export type StaffRole =
   | 'aquatics_director'
   | 'membership_director'
   | 'child_watch_supervisor'
-  | 'child_watch_director';
+  | 'child_watch_director'
+  | 'maintenance';
 export type ScheduleCategory = 'groupEx' | 'swim' | 'event' | 'seniors';
 
 export type ChildProfile = {
@@ -1303,7 +1305,21 @@ export type FeedbackCategory =
   | 'hours_schedules'
   | 'locker_rooms'
   | 'programs_events'
-  | 'other';
+  | 'other'
+  | MaintenanceCategory;
+
+export type MaintenanceCategory =
+  | 'maint_hvac'
+  | 'maint_plumbing'
+  | 'maint_pool_equipment'
+  | 'maint_gym_equipment'
+  | 'maint_lighting'
+  | 'maint_cleaning'
+  | 'maint_safety'
+  | 'maint_other';
+
+export type FeedbackDepartment = 'member_services' | 'maintenance';
+export type FeedbackUrgency = 'low' | 'normal' | 'urgent';
 
 export type FeedbackStatus = 'submitted' | 'under_review' | 'resolved';
 
@@ -1319,6 +1335,14 @@ export type ComplaintSuggestion = {
   memberEmail?: string;
   isAnonymous?: boolean;
   status: FeedbackStatus;
+  /** Who handles it. Missing means member services (the original complaints queue). */
+  department?: FeedbackDepartment;
+  /** Maintenance tickets: where the problem is, e.g. "Lap pool deck". */
+  location?: string;
+  urgency?: FeedbackUrgency;
+  /** Set when a staff member (not a member) filed the ticket. */
+  submittedByStaffId?: string;
+  submittedByStaffName?: string;
   staffResponse?: string;
   respondedByStaffId?: string;
   respondedByStaffName?: string;
@@ -1342,6 +1366,26 @@ export const FEEDBACK_CATEGORIES: {
   { id: 'programs_events', label: 'Programs & Youth Activities', icon: 'fitness-outline', description: 'Child Watch, summer camps, and sports leagues' },
   { id: 'other', label: 'General / Other', icon: 'chatbox-ellipses-outline', description: 'Other thoughts, ideas, or feedback' },
 ];
+
+export const MAINTENANCE_CATEGORIES: {
+  id: MaintenanceCategory;
+  label: string;
+  icon: string;
+  description: string;
+}[] = [
+  { id: 'maint_hvac', label: 'Heating & Cooling', icon: 'thermometer-outline', description: 'Too hot, too cold, or airflow problems' },
+  { id: 'maint_plumbing', label: 'Plumbing & Showers', icon: 'water-outline', description: 'Leaks, drains, water pressure, hot water' },
+  { id: 'maint_pool_equipment', label: 'Pool Equipment', icon: 'boat-outline', description: 'Pumps, lane lines, lifts, chemical or water issues' },
+  { id: 'maint_gym_equipment', label: 'Gym Equipment Repair', icon: 'barbell-outline', description: 'Broken machines, benches, or racks' },
+  { id: 'maint_lighting', label: 'Lighting & Electrical', icon: 'bulb-outline', description: 'Burnt-out lights, outlets, or power issues' },
+  { id: 'maint_cleaning', label: 'Cleaning & Spills', icon: 'sparkles-outline', description: 'Spills, trash, restocking, or odors' },
+  { id: 'maint_safety', label: 'Safety Hazard', icon: 'warning-outline', description: 'Slip risks, damaged floors, or exposed hazards' },
+  { id: 'maint_other', label: 'Other Facility Issue', icon: 'construct-outline', description: 'Anything else about the building' },
+];
+
+export function isMaintenanceTicket(item: Pick<ComplaintSuggestion, 'department'>): boolean {
+  return item.department === 'maintenance';
+}
 
 export type SurveyType = 'poll' | 'survey';
 

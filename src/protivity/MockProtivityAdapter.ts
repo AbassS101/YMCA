@@ -15,7 +15,7 @@ import {
   type FeatureToggles,
 } from '@/domain/appConfig';
 import { computeCancelDates } from '@/domain/cancelDates';
-import { canManageTrainerAvailability } from '@/domain/availabilityAccess';
+import { canManageTrainerAvailability, canViewTrainerAvailability, isCoachStaff } from '@/domain/availabilityAccess';
 import { addDaysToDate, demoNowIso, getDemoToday } from '@/domain/demoClock';
 import { AQUATICS_CLASSES } from '@/domain/aquaticsGuideData';
 import {
@@ -76,6 +76,7 @@ import {
   type ClientFitnessGoal,
   type ClientWorkoutLog,
   type ComplaintSuggestion,
+  type FeedbackDepartment,
   type Donation,
   type FeedbackStatus,
   type ForumContentReportInput,
@@ -422,6 +423,7 @@ function credentialRoleForStaffRole(staffRole?: StaffRole): UserRole {
     case 'membership_director':
     case 'child_watch_supervisor':
     case 'child_watch_director':
+    case 'maintenance':
       return staffRole;
     default:
       return 'staff';
@@ -553,6 +555,16 @@ function assertCanManageAvailability(state: DemoState, requesterUserId: string, 
   if (!target) throw new Error(`Staff member not found: ${staffId}`);
   if (!canManageTrainerAvailability(requesterRole(state, requesterUserId), requesterUserId, target)) {
     throw new Error('Your staff role is not permitted to manage this trainer\u2019s availability.');
+  }
+  return target;
+}
+
+/** Throws unless the requester may see this trainer's full hours (read-only unless they can also manage). */
+function assertCanViewAvailability(state: DemoState, requesterUserId: string, staffId: string): Staff {
+  const target = state.staff.find((s) => s.id === staffId);
+  if (!target) throw new Error(`Staff member not found: ${staffId}`);
+  if (!isCoachStaff(target) || !canViewTrainerAvailability(requesterRole(state, requesterUserId), requesterUserId, target)) {
+    throw new Error('Your staff role is not permitted to view this trainer’s availability.');
   }
   return target;
 }
@@ -2646,7 +2658,7 @@ export class MockProtivityAdapter implements ProtivityPort {
 
   async getTrainerAvailability(staffId: string, requesterUserId: string): Promise<TrainerAvailability> {
     const state = await loadStore();
-    assertCanManageAvailability(state, requesterUserId, staffId);
+    assertCanViewAvailability(state, requesterUserId, staffId);
     return (
       state.trainerAvailability?.[staffId] ?? {
         staffId,
@@ -4187,9 +4199,16 @@ export class MockProtivityAdapter implements ProtivityPort {
   // ==========================================
   // Complaints & Suggestions
   // ==========================================
-  async listComplaintsSuggestions(branchId?: string, memberId?: string): Promise<ComplaintSuggestion[]> {
+  async listComplaintsSuggestions(
+    branchId?: string,
+    memberId?: string,
+    department: FeedbackDepartment | 'all' = 'member_services'
+  ): Promise<ComplaintSuggestion[]> {
     const state = await loadStore();
     let list = state.complaintsSuggestions ?? [];
+    if (department !== 'all') {
+      list = list.filter((item) => (item.department ?? 'member_services') === department);
+    }
     if (branchId) {
       list = list.filter((item) => !item.branchId || item.branchId === branchId);
     }
@@ -4214,6 +4233,17 @@ export class MockProtivityAdapter implements ProtivityPort {
       state.complaintsSuggestions = [];
     }
     state.complaintsSuggestions.unshift(item);
+    if (item.department === 'maintenance') {
+      const urgent = item.urgency === 'urgent';
+      const where = item.location ? ` (${item.location})` : '';
+      const heading = `${urgent ? 'URGENT maintenance report' : 'New maintenance report'}: ${item.title}`;
+      const recipients = state.staff.filter(
+        (x) => x.staffRole === 'maintenance' || (urgent && (x.staffRole === 'staff_admin' || x.staffRole === 'admin'))
+      );
+      for (const s of recipients) {
+        notifyUser(state, s.id, heading, `${item.details.slice(0, 140)}${where}`);
+      }
+    }
     await saveStore(state);
     return item;
   }

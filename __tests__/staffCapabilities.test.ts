@@ -40,12 +40,13 @@ const ALL: StaffCapability[] = [
   'viewConfigAudit',
   'runChildWatchRoom',
   'manageChildWatchProgram',
+  'manageMaintenance',
 ];
 
 // Staff Admin runs the business settings but not the system-level ones.
 const STAFF_ADMIN = ALL.filter((c) => c !== 'manageSystemConfig');
 const CONFIG_CAPS: StaffCapability[] = ['manageBusinessConfig', 'manageSystemConfig', 'viewConfigAudit'];
-const CHILD_WATCH_CAPS: StaffCapability[] = ['runChildWatchRoom', 'manageChildWatchProgram'];
+const CHILD_WATCH_CAPS: StaffCapability[] = ['runChildWatchRoom', 'manageChildWatchProgram', 'manageMaintenance'];
 
 const REP: StaffCapability[] = [
   'viewAllMembers',
@@ -106,6 +107,7 @@ const EXPECTED: Record<string, StaffCapability[]> = {
     'manageChildWatchProgram',
     'takeAttendance',
   ],
+  maintenance: ['manageMaintenance', 'broadcast'],
   staff: REP,
   desk: REP,
   member: [],

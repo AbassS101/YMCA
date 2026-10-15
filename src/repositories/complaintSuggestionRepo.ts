@@ -1,9 +1,14 @@
-import type { ComplaintSuggestion, FeedbackStatus } from '@/domain/types';
+import type { ComplaintSuggestion, FeedbackDepartment, FeedbackStatus } from '@/domain/types';
 import type { ProtivityPort } from '@/protivity/ProtivityPort';
 
 export const complaintSuggestionRepo = {
-  async list(api: ProtivityPort, branchId?: string, memberId?: string): Promise<ComplaintSuggestion[]> {
-    const items = await api.listComplaintsSuggestions(branchId, memberId);
+  async list(
+    api: ProtivityPort,
+    branchId?: string,
+    memberId?: string,
+    department: FeedbackDepartment | 'all' = 'member_services'
+  ): Promise<ComplaintSuggestion[]> {
+    const items = await api.listComplaintsSuggestions(branchId, memberId, department);
     // Resolve names from the live staff/member records so replies always show
     // the current configured names rather than stale stored copies.
     const staffList = await api.listStaff().catch(() => []);
@@ -29,6 +34,12 @@ export const complaintSuggestionRepo = {
         return next;
       })
     );
+  },
+
+  /** Maintenance tickets a staff member filed themselves. */
+  async listMaintenanceByStaff(api: ProtivityPort, branchId: string, staffId: string): Promise<ComplaintSuggestion[]> {
+    const items = await complaintSuggestionRepo.list(api, branchId, undefined, 'maintenance');
+    return items.filter((i) => i.submittedByStaffId === staffId);
   },
 
   async create(

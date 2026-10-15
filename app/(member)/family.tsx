@@ -242,7 +242,7 @@ export default function FamilyScreen() {
                         center and a scannable card.
                       </Text>
                       <Pressable
-                        onPress={() => router.push('/(member)/(tabs)/trainers')}
+                        onPress={() => router.push('/(member)/(tabs)/staff')}
                         accessibilityRole="button"
                         accessibilityLabel="Book gym orientation with a trainer"
                       >

@@ -74,13 +74,19 @@ export default function MemberTabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="staff"
+        options={{
+          title: 'Staff',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="id-card" size={Math.max(size, 26)} color={color} />
+          ),
+          tabBarAccessibilityLabel: 'Staff',
+        }}
+      />
+      <Tabs.Screen
         name="trainers"
         options={{
-          title: 'Trainers',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="fitness" size={Math.max(size, 26)} color={color} />
-          ),
-          tabBarAccessibilityLabel: 'Trainers',
+          href: null,
         }}
       />
       <Tabs.Screen

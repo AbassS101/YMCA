@@ -212,6 +212,7 @@ export function MembershipDirectorDashboard({ staffId }: { staffId: string }) {
           ...(config.featureToggles.childWatch
             ? [{ key: 'childwatch', label: 'Child Watch', icon: 'happy-outline' as const, onPress: () => router.push('/(staff)/child-watch'), color: '#D97706' }]
             : []),
+          { key: 'hours', label: 'Trainer Hours', icon: 'time-outline', onPress: () => router.push('/(staff)/trainer-availability'), color: '#15803D' },
           { key: 'msg', label: 'Messages', icon: 'mail-outline', onPress: () => router.push('/(staff)/messages'), color: '#15803D' },
         ]}
       />

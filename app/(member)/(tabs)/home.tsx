@@ -225,7 +225,7 @@ export default function MemberHomeScreen() {
           ) : (
             <MemberCheckInCard
               member={member}
-              onBookOrientation={() => router.push('/(member)/(tabs)/trainers')}
+              onBookOrientation={() => router.push('/(member)/(tabs)/staff')}
               onClose={() => {
                 if (memberId) {
                   void streakRepo.getStreakProfile(memberId).then(setStreakProfile);

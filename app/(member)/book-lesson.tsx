@@ -84,6 +84,7 @@ export default function BookLessonScreen() {
   const params = useLocalSearchParams<{
     changeLessonId?: string;
     staffId?: string;
+    date?: string;
     tab?: string;
     classId?: string;
     type?: string;
@@ -114,7 +115,9 @@ export default function BookLessonScreen() {
     typeof params.staffId === 'string' && params.staffId.length > 0 ? params.staffId : null
   );
   const [times, setTimes] = useState<BookableTime[]>([]);
-  const [selectedDay, setSelectedDay] = useState(today);
+  const [selectedDay, setSelectedDay] = useState(
+    typeof params.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(params.date) && params.date >= today ? params.date : today
+  );
   const [timeKey, setTimeKey] = useState<string | null>(null);
   const [paymentTiming, setPaymentTiming] = useState<PaymentTiming>('before');
   const [swimmerName, setSwimmerName] = useState('');

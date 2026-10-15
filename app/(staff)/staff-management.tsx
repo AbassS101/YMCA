@@ -277,6 +277,7 @@ export default function StaffManagementScreen() {
             { key: 'trainer', label: 'Trainers' },
             { key: 'swim_instructor', label: 'Swim' },
             { key: 'desk', label: 'Membership Rep' },
+            { key: 'maintenance', label: 'Maintenance' },
           ].map((f) => (
             <Pressable
               key={f.key}
@@ -463,6 +464,7 @@ export default function StaffManagementScreen() {
                   { key: 'trainer', label: 'Trainer / Coach', desc: 'Teaches classes & private lessons' },
                   { key: 'swim_instructor', label: 'Swim Instructor', desc: 'Teaches swim classes & private swim lessons' },
                   { key: 'desk', label: 'Front Desk Membership Rep', desc: 'Sign-in, member calls, billing follow-up & sales' },
+                  { key: 'maintenance', label: 'Maintenance', desc: 'Handles facility repair reports & suggestions' },
                 ]
                   .filter((r) => !limitedToLowerRoles || !isTopLevelStaffRole(r.key))
                   .map((r) => {

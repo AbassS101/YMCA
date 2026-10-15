@@ -21,6 +21,7 @@ import type {
   ClientFitnessGoal,
   ClientWorkoutLog,
   ComplaintSuggestion,
+  FeedbackDepartment,
   Donation,
   FeedbackStatus,
   ForumContentReportInput,
@@ -438,7 +439,12 @@ export interface ProtivityPort {
   updateSupportTicketStatus(ticketId: string, status: TicketStatus): Promise<SupportTicket>;
 
   // Complaints & Suggestions
-  listComplaintsSuggestions(branchId?: string, memberId?: string): Promise<ComplaintSuggestion[]>;
+  /** Defaults to member-services tickets; pass 'maintenance' or 'all' for the facilities queue. */
+  listComplaintsSuggestions(
+    branchId?: string,
+    memberId?: string,
+    department?: FeedbackDepartment | 'all'
+  ): Promise<ComplaintSuggestion[]>;
   createComplaintSuggestion(input: Omit<ComplaintSuggestion, 'id' | 'createdAt' | 'status'>): Promise<ComplaintSuggestion>;
   updateComplaintSuggestionStatus(
     id: string,

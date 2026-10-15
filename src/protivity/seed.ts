@@ -2054,6 +2054,14 @@ const BASE_SEED: SeedState = {
       homeBranchId: BRANCH,
       staffRole: 'desk',
     },
+    {
+      id: 'staff-maint',
+      name: 'Marcus',
+      email: 'maintenance@silverspring.ymca',
+      roleLabel: 'Facilities & Maintenance Lead',
+      homeBranchId: BRANCH,
+      staffRole: 'maintenance',
+    },
   ],
   memberships: [
     {
@@ -2347,6 +2355,12 @@ const BASE_SEED: SeedState = {
       password: 'ymca-demo',
       userId: 'staff-frontdesk',
       role: 'staff',
+    },
+    {
+      email: 'maintenance@silverspring.ymca',
+      password: 'ymca-demo',
+      userId: 'staff-maint',
+      role: 'maintenance',
     },
   ],
   classForumPosts: [

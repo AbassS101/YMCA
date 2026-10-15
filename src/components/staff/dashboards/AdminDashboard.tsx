@@ -210,6 +210,7 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
           ...(seesComplaints
             ? [{ key: 'feedback', label: 'Feedback', icon: 'chatbubbles-outline' as const, onPress: () => router.push('/(staff)/complaints-suggestions'), color: '#0284C7' }]
             : []),
+          { key: 'hours', label: 'Trainer Hours', icon: 'time-outline', onPress: () => router.push('/(staff)/trainer-availability'), color: '#15803D' },
           { key: 'schedules', label: 'Schedules', icon: 'calendar-outline', onPress: () => router.push('/(staff)/schedules'), color: '#D97706' },
           ...(config.featureToggles.childWatch
             ? [{ key: 'childwatch', label: 'Child Watch', icon: 'happy-outline' as const, onPress: () => router.push('/(staff)/child-watch'), color: '#0D9488' }]

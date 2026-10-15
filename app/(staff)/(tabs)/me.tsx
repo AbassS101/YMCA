@@ -94,6 +94,13 @@ const DEMO_ACCOUNTS = [
     icon: 'person',
     color: '#2563EB',
   },
+  {
+    name: 'Marcus',
+    email: 'maintenance@silverspring.ymca',
+    role: 'Facilities & Maintenance Lead',
+    icon: 'construct',
+    color: '#B45309',
+  },
 ];
 
 export default function StaffMeScreen() {
@@ -265,6 +272,28 @@ export default function StaffMeScreen() {
             })}
           </View>
         </View>
+
+        <Pressable
+          onPress={() => router.push('/(staff)/maintenance')}
+          style={[styles.adminActionBtn, { borderColor: tc.border, backgroundColor: tc.cardBg }]}
+          accessibilityRole="button"
+          accessibilityLabel={can('manageMaintenance') ? 'Open the maintenance request queue' : 'Report a problem to maintenance'}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+            <Ionicons name="construct" size={20} color="#B45309" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.adminActionTitle, { color: tc.text }]}>
+                {can('manageMaintenance') ? 'Maintenance Requests' : 'Report to Maintenance'}
+              </Text>
+              <Text style={[styles.adminActionSub, { color: tc.textMuted }]}>
+                {can('manageMaintenance')
+                  ? 'Work the queue of member and staff facility reports'
+                  : 'Flag something broken or suggest a facility improvement'}
+              </Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={tc.textMuted} />
+        </Pressable>
 
         {hasStaffTools ? (
         <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>

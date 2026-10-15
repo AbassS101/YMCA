@@ -178,6 +178,7 @@ export function TrainerWorkspace({ day, staffId, accent, showQuickActions = true
             { key: 'avail', label: 'Availability', icon: 'calendar-outline', onPress: () => router.push({ pathname: '/(staff)/trainer-availability', params: { staffId } }), color: '#15803D' },
             { key: 'slot', label: 'One-off window', icon: 'time-outline', onPress: () => setSlotModalVisible(true), color: '#0F766E' },
             { key: 'msg', label: 'Messages', icon: 'chatbubbles-outline', onPress: () => router.push('/(staff)/messages'), color: '#0284C7' },
+            { key: 'maint', label: 'Report to Maintenance', icon: 'construct-outline', onPress: () => router.push('/(staff)/maintenance'), color: '#B45309' },
             ...(forumOn
               ? [{ key: 'forum', label: 'Forum', icon: 'people-outline' as const, onPress: () => router.push('/(member)/community-forum') }]
               : []),

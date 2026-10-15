@@ -1,6 +1,7 @@
 import { AdminDashboard } from '@/components/staff/dashboards/AdminDashboard';
 import { AquaticsDirectorDashboard } from '@/components/staff/dashboards/AquaticsDirectorDashboard';
 import { FrontDeskRepDashboard } from '@/components/staff/dashboards/FrontDeskRepDashboard';
+import { MaintenanceDashboard } from '@/components/staff/dashboards/MaintenanceDashboard';
 import { MembershipDirectorDashboard } from '@/components/staff/dashboards/MembershipDirectorDashboard';
 import { SwimInstructorDashboard } from '@/components/staff/dashboards/SwimInstructorDashboard';
 import { TrainerDashboard } from '@/components/staff/dashboards/TrainerDashboard';
@@ -23,6 +24,8 @@ export default function StaffTodayScreen() {
       return <AquaticsDirectorDashboard staffId={staffId} />;
     case 'membershipDirector':
       return <MembershipDirectorDashboard staffId={staffId} />;
+    case 'maintenance':
+      return <MaintenanceDashboard staffId={staffId} />;
     case 'frontDesk':
       return <FrontDeskRepDashboard staffId={staffId} />;
     default:

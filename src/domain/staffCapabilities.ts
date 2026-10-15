@@ -10,7 +10,8 @@ export type StaffPersona =
   | 'membershipDirector'
   | 'frontDesk'
   | 'childWatchSupervisor'
-  | 'childWatchDirector';
+  | 'childWatchDirector'
+  | 'maintenance';
 
 export type StaffCapability =
   | 'viewAllMembers'
@@ -43,7 +44,8 @@ export type StaffCapability =
   | 'manageSystemConfig'
   | 'viewConfigAudit'
   | 'runChildWatchRoom'
-  | 'manageChildWatchProgram';
+  | 'manageChildWatchProgram'
+  | 'manageMaintenance';
 
 const ALL_CAPABILITIES: readonly StaffCapability[] = [
   'viewAllMembers',
@@ -77,6 +79,7 @@ const ALL_CAPABILITIES: readonly StaffCapability[] = [
   'viewConfigAudit',
   'runChildWatchRoom',
   'manageChildWatchProgram',
+  'manageMaintenance',
 ];
 
 // Staff Admin runs the business settings but not the system-level ones (toggles, branding, thresholds).
@@ -100,7 +103,8 @@ const WELLNESS_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = ALL_CAPABILIT
     c !== 'manageSystemConfig' &&
     c !== 'viewConfigAudit' &&
     c !== 'runChildWatchRoom' &&
-    c !== 'manageChildWatchProgram'
+    c !== 'manageChildWatchProgram' &&
+    c !== 'manageMaintenance'
 );
 
 const AQUATICS_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = [
@@ -131,6 +135,8 @@ const MEMBERSHIP_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = [
   'viewRepKpis',
   'runChildWatchRoom',
 ];
+
+const MAINTENANCE_CAPABILITIES: readonly StaffCapability[] = ['manageMaintenance', 'broadcast'];
 
 const FRONT_DESK_CAPABILITIES: readonly StaffCapability[] = [
   'viewAllMembers',
@@ -178,6 +184,8 @@ export function personaForRole(role?: UserRole | StaffRole | string | null): Sta
       return 'childWatchSupervisor';
     case 'child_watch_director':
       return 'childWatchDirector';
+    case 'maintenance':
+      return 'maintenance';
     case 'staff':
     case 'desk':
       return 'frontDesk';
@@ -207,6 +215,8 @@ export function capabilitiesForRole(role?: UserRole | StaffRole | string | null)
       return new Set(CHILD_WATCH_SUPERVISOR_CAPABILITIES);
     case 'childWatchDirector':
       return new Set(CHILD_WATCH_DIRECTOR_CAPABILITIES);
+    case 'maintenance':
+      return new Set(MAINTENANCE_CAPABILITIES);
     default:
       return new Set();
   }
@@ -272,7 +282,7 @@ export function isDirectorRole(role?: UserRole | StaffRole | string | null): boo
 export type PersonaTheme = {
   badge: string;
   title: string;
-  icon: 'star' | 'shield-checkmark' | 'barbell' | 'water' | 'fitness' | 'business' | 'person' | 'happy';
+  icon: 'star' | 'shield-checkmark' | 'barbell' | 'water' | 'fitness' | 'business' | 'person' | 'happy' | 'construct';
   color: string;
   softBg: string;
   darkSoftBg: string;
@@ -358,6 +368,14 @@ export const PERSONA_THEMES: Record<StaffPersona, PersonaTheme> = {
     color: '#BE123C',
     softBg: '#FFE4E6',
     darkSoftBg: '#4C0519',
+  },
+  maintenance: {
+    badge: 'MAINTENANCE',
+    title: 'Facilities & Maintenance',
+    icon: 'construct',
+    color: '#B45309',
+    softBg: '#FEF3C7',
+    darkSoftBg: '#451A03',
   },
 };
 

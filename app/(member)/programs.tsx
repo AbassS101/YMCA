@@ -43,7 +43,7 @@ const PROGRAMS: ProgramSection[] = [
       'Specialized expertise: chronic disease, corrective rehab, weight loss, athletics',
     ],
     ctaText: 'View Packages & Rates',
-    ctaRoute: '/(member)/(tabs)/trainers?tab=packages',
+    ctaRoute: '/(member)/(tabs)/staff?tab=packages',
   },
   {
     id: 'camps',
@@ -59,7 +59,7 @@ const PROGRAMS: ProgramSection[] = [
       'Financial assistance and sibling discounts available',
     ],
     ctaText: 'Register or Inquire at Wellness Desk',
-    ctaRoute: '/(member)/(tabs)/trainers',
+    ctaRoute: '/(member)/(tabs)/staff',
   },
   {
     id: 'swim-academy',
@@ -132,7 +132,7 @@ const PROGRAMS: ProgramSection[] = [
       'Book anytime directly with our personal trainers in the app',
     ],
     ctaText: 'Book with Doc or Jane Doe',
-    ctaRoute: '/(member)/(tabs)/trainers',
+    ctaRoute: '/(member)/(tabs)/staff',
   },
 ];
 
@@ -237,7 +237,7 @@ export default function ProgramsScreen() {
           </AppText>
           <SecondaryButton
             title="Message Wellness Desk"
-            onPress={() => router.push('/(member)/(tabs)/trainers')}
+            onPress={() => router.push('/(member)/(tabs)/staff')}
           />
         </View>
       </ScrollView>

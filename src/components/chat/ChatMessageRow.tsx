@@ -13,6 +13,7 @@ export function roleTag(role: string): { label: string; color: string } | null {
   if (role === 'it_admin') return { label: 'IT ADMIN', color: '#6D28D9' };
   if (role === 'admin' || role === 'staff_admin') return { label: 'STAFF ADMIN', color: '#7C3AED' };
   if (role === 'child_watch_director') return { label: 'CHILD WATCH DIR', color: '#B45309' };
+  if (role === 'maintenance') return { label: 'MAINTENANCE', color: '#B45309' };
   if (role === 'child_watch_supervisor') return { label: 'CHILD WATCH SUP', color: '#B45309' };
   if (role === 'wellness_director') return { label: 'WELLNESS DIR', color: '#9D174D' };
   if (role === 'aquatics_director') return { label: 'AQUATICS DIR', color: '#0369A1' };

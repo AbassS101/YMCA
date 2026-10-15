@@ -114,7 +114,7 @@ const AMENITIES: AmenityItem[] = [
     ],
     scheduleAction: {
       label: 'Meet Personal Trainers',
-      route: '/(member)/(tabs)/trainers',
+      route: '/(member)/(tabs)/staff',
     },
   },
   {

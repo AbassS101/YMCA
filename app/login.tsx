@@ -127,6 +127,17 @@ const DEMO_PERSONAS = [
     highlights: 'Member sign-in, billing follow-up, leads, campaigns & call scripts',
   },
   {
+    name: 'Marcus',
+    email: 'maintenance@silverspring.ymca',
+    roleTitle: 'Facilities & Maintenance Lead',
+    badge: 'MAINTENANCE',
+    badgeBg: '#FEF3C7',
+    badgeColor: '#B45309',
+    borderColor: '#D97706',
+    icon: 'construct' as const,
+    highlights: 'Facility repair queue, member & staff reports, urgent alerts, reply & resolve',
+  },
+  {
     name: 'Taylor Smith',
     email: 'guest@silverspring.ymca',
     roleTitle: 'Guest Pass Holder · Visitor',
