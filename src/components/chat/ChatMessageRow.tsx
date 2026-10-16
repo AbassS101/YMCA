@@ -1,5 +1,6 @@
 import React, { memo, useRef } from 'react';
-import { Keyboard, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { AppText as Text } from '@/components/AppText';
 import { Ionicons } from '@expo/vector-icons';
 import ReanimatedSwipeable, {
   type SwipeableMethods,

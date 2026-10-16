@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { Linking, StyleSheet, Text, type StyleProp, type TextStyle } from 'react-native';
+import { Linking, StyleSheet, type StyleProp, type TextStyle } from 'react-native';
+import { AppText as Text } from '@/components/AppText';
 import { filterProfanity } from '@/domain/types';
 import type { ChatTheme } from './chatTheme';
 

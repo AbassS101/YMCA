@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { AppText as Text } from '@/components/AppText';
 import { Ionicons } from '@expo/vector-icons';
 import { filterProfanity } from '@/domain/types';
 import { useChatTheme } from './chatTheme';

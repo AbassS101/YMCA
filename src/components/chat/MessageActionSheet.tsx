@@ -1,5 +1,6 @@
 import React from 'react';
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { AppText as Text } from '@/components/AppText';
 import { Ionicons } from '@expo/vector-icons';
 import { filterProfanity } from '@/domain/types';
 import { useChatTheme } from './chatTheme';

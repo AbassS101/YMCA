@@ -22,6 +22,7 @@ import {
   type AppNotification,
   type ForumTopic,
   type ForumTopicCategory,
+  type ScheduleCategory,
   type ScheduleItem,
   type UserForumInterests,
 } from '@/domain/types';
@@ -38,6 +39,14 @@ import { ClassForumModal } from '@/components/ClassForumModal';
 import { ReportContentSheet } from '@/components/chat/ReportContentSheet';
 import { YHeader } from '@/components/YHeader';
 import { colors } from '@/theme/colors';
+import {
+  CLASS_CATEGORY_COLOR,
+  CLASS_CATEGORY_LABEL,
+  findClassChatGroup,
+  groupClassChats,
+  weekdaysLabel,
+  type ClassChatGroup,
+} from '@/domain/classChats';
 
 const BRANCH_ID = 'silver-spring';
 
@@ -51,6 +60,9 @@ type FilterTab =
   | 'chatted_or_created';
 
 type ClassFilterTab = 'all' | 'interested' | 'recently_chatted';
+type ClassSort = 'name' | 'soonest' | 'recent';
+const CLASS_CATEGORY_ORDER: ScheduleCategory[] = ['groupEx', 'swim', 'seniors', 'event'];
+const WEEKDAY_CHIPS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 type SpaceMode = 'general' | 'classes';
 
 export type CommunityForumViewProps = {
@@ -62,12 +74,6 @@ function formatClassTime(isoStr?: string): string {
   if (!isoStr) return '';
   const d = new Date(isoStr);
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-}
-
-function formatClassDay(isoStr?: string): string {
-  if (!isoStr) return '';
-  const d = new Date(isoStr);
-  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 export function CommunityForumView({ isTabScreen = false, onBack }: CommunityForumViewProps) {
@@ -99,6 +105,9 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
   const [classSearch, setClassSearch] = useState('');
   const [activeFilterTab, setActiveFilterTab] = useState<FilterTab>('all');
   const [activeClassFilterTab, setActiveClassFilterTab] = useState<ClassFilterTab>('all');
+  const [classCategory, setClassCategory] = useState<ScheduleCategory | 'all'>('all');
+  const [classDay, setClassDay] = useState<number | 'all'>('all');
+  const [classSort, setClassSort] = useState<ClassSort>('name');
   const [selectedCategory, setSelectedCategory] = useState<
     ForumTopicCategory | 'all' | 'interested' | 'recently_chatted' | 'my_topics'
   >('all');
@@ -245,15 +254,6 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
       });
   }, [topics, currentUserId, hasUserChattedInTopic]);
 
-  // Recently chatted classes list
-  const recentlyChattedClasses = useMemo(() => {
-    if (recentlyChattedClassIds.length === 0) return [];
-    const byId = new Map(classes.map((c) => [c.id, c]));
-    return recentlyChattedClassIds
-      .map((id) => byId.get(id))
-      .filter((c): c is ScheduleItem => Boolean(c));
-  }, [classes, recentlyChattedClassIds]);
-
   // Filtered topics
   const filteredTopics = useMemo(() => {
     const list = topics.filter((topic) => {
@@ -328,26 +328,78 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
     hasUserChattedInTopic,
   ]);
 
-  // Filtered classes
-  const filteredClasses = useMemo(() => {
-    return classes.filter((c) => {
-      if (activeClassFilterTab === 'interested' && !interests.classIds.includes(c.id)) {
-        return false;
-      }
-      if (activeClassFilterTab === 'recently_chatted' && !recentlyChattedClassIds.includes(c.id)) {
-        return false;
-      }
-      if (classSearch.trim()) {
-        const q = classSearch.toLowerCase();
+  // One chat per class (all sessions of a recurring class share a thread)
+  const classGroups = useMemo(() => groupClassChats(classes), [classes]);
+
+  const isGroupStarred = useCallback(
+    (g: ClassChatGroup) => g.ids.some((id) => interests.classIds.includes(id)),
+    [interests.classIds]
+  );
+  const hasChattedGroup = useCallback(
+    (g: ClassChatGroup) => g.ids.some((id) => recentlyChattedClassIds.includes(id)),
+    [recentlyChattedClassIds]
+  );
+
+  const starredGroupCount = useMemo(
+    () => classGroups.filter(isGroupStarred).length,
+    [classGroups, isGroupStarred]
+  );
+  const chattedGroupCount = useMemo(
+    () => classGroups.filter(hasChattedGroup).length,
+    [classGroups, hasChattedGroup]
+  );
+
+  const filteredClassGroups = useMemo(() => {
+    const q = classSearch.trim().toLowerCase();
+    const recentRank = (g: ClassChatGroup) => {
+      const idx = recentlyChattedClassIds.findIndex((id) => g.ids.includes(id));
+      return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+    };
+    const list = classGroups.filter((g) => {
+      if (activeClassFilterTab === 'interested' && !isGroupStarred(g)) return false;
+      if (activeClassFilterTab === 'recently_chatted' && !hasChattedGroup(g)) return false;
+      if (classCategory !== 'all' && g.category !== classCategory) return false;
+      if (classDay !== 'all' && !g.weekdays.includes(classDay)) return false;
+      if (q) {
         return (
-          c.title.toLowerCase().includes(q) ||
-          c.instructorName.toLowerCase().includes(q) ||
-          c.location.toLowerCase().includes(q)
+          g.title.toLowerCase().includes(q) ||
+          g.instructorName.toLowerCase().includes(q) ||
+          g.location.toLowerCase().includes(q)
         );
       }
       return true;
     });
-  }, [classes, classSearch, activeClassFilterTab, interests.classIds, recentlyChattedClassIds]);
+    if (classSort === 'soonest') {
+      return [...list].sort((a, b) => a.next.start.localeCompare(b.next.start));
+    }
+    if (classSort === 'recent') {
+      return [...list].sort((a, b) => recentRank(a) - recentRank(b) || a.title.localeCompare(b.title));
+    }
+    return list;
+  }, [
+    classGroups,
+    classSearch,
+    activeClassFilterTab,
+    classCategory,
+    classDay,
+    classSort,
+    isGroupStarred,
+    hasChattedGroup,
+    recentlyChattedClassIds,
+  ]);
+
+  const classFiltersActive =
+    Boolean(classSearch.trim()) ||
+    activeClassFilterTab !== 'all' ||
+    classCategory !== 'all' ||
+    classDay !== 'all';
+
+  const clearClassFilters = () => {
+    setClassSearch('');
+    setActiveClassFilterTab('all');
+    setClassCategory('all');
+    setClassDay('all');
+  };
 
   const handleCreateTopic = async (data: {
     title: string;
@@ -409,7 +461,15 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
   const handleToggleInterestedClass = async (classId: string) => {
     if (!api || !currentUserId) return;
     try {
-      const updated = await forumRepo.toggleInterestedClass(api, currentUserId, classId);
+      const group = findClassChatGroup(classGroups, classId);
+      const ids = group?.ids ?? [classId];
+      const starredIds = ids.filter((id) => interests.classIds.includes(id));
+      // Unstar every session id when starred; otherwise star only the canonical id.
+      const toToggle = starredIds.length > 0 ? starredIds : [ids[0]];
+      let updated = interests;
+      for (const id of toToggle) {
+        updated = await forumRepo.toggleInterestedClass(api, currentUserId, id);
+      }
       setInterests(updated);
     } catch {
       // noop
@@ -472,7 +532,7 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
       const matchClass = classes.find((c) => c.id === notif.relatedId);
       if (matchClass) {
         setSpaceMode('classes');
-        openClassForum(matchClass);
+        openClassForum(findClassChatGroup(classGroups, matchClass.id)?.next ?? matchClass);
         return;
       }
     }
@@ -646,7 +706,7 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
                 },
               ]}
             >
-              Class Chats ({classes.length})
+              Class Chats ({classGroups.length})
             </Text>
           </Pressable>
         </View>
@@ -765,7 +825,9 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
                 <Text style={{ fontWeight: '700', color: tc.text }}>
                   {searchQuery ? `"${searchQuery}"` : ''}
                   {activeFilterTab !== 'all' ? ` [${activeFilterTab.replace('_', ' ')}]` : ''}
-                  {selectedCategory !== 'all' ? ` [${selectedCategory}]` : ''}
+                  {selectedCategory !== 'all'
+                    ? ` [${FORUM_CATEGORIES.find((c) => c.id === selectedCategory)?.label ?? selectedCategory.replace('_', ' ')}]`
+                    : ''}
                 </Text>{' '}
                 ({filteredTopics.length} {filteredTopics.length === 1 ? 'topic' : 'topics'})
               </Text>
@@ -862,13 +924,13 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
       ) : (
         /* ===================== CLASS DISCUSSIONS MODE ===================== */
         <>
-          {/* Class Search Bar */}
+          {/* Search */}
           <View style={[styles.searchControlRow, { backgroundColor: tc.cardBg }]}>
             <View style={[styles.searchInputWrapper, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: tc.border }]}>
               <Ionicons name="search-outline" size={17} color={tc.textMuted} />
               <TextInput
                 style={[styles.searchInput, { color: tc.text }]}
-                placeholder="Search class name, instructor, or room..."
+                placeholder="Search class, instructor, or room..."
                 placeholderTextColor={tc.textMuted}
                 value={classSearch}
                 onChangeText={setClassSearch}
@@ -881,91 +943,137 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
             </View>
           </View>
 
-          {/* Class Filter Tabs */}
-          <View style={[styles.filterBarContainer, { backgroundColor: tc.cardBg, borderBottomColor: tc.border }]}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterBarContent}
-            >
-              <Pressable
-                onPress={() => setActiveClassFilterTab('all')}
-                style={[
-                  styles.filterPill,
-                  activeClassFilterTab === 'all'
-                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
-                ]}
-              >
-                <Ionicons
-                  name="calendar"
-                  size={13}
-                  color={activeClassFilterTab === 'all' ? '#FFFFFF' : colors.primary}
-                />
-                <Text
-                  style={[
-                    styles.filterPillText,
-                    { color: activeClassFilterTab === 'all' ? '#FFFFFF' : tc.text },
-                  ]}
-                >
-                  All Classes ({classes.length})
-                </Text>
-              </Pressable>
+          {/* Filters: view, category, day */}
+          <View style={[styles.classFilterPanel, { backgroundColor: tc.cardBg, borderBottomColor: tc.border }]}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterBarContent}>
+              {(
+                [
+                  { key: 'all', label: `All ${classGroups.length}`, icon: 'apps-outline', color: colors.primary },
+                  { key: 'interested', label: `Starred ${starredGroupCount}`, icon: 'star', color: '#D97706' },
+                  { key: 'recently_chatted', label: `My chats ${chattedGroupCount}`, icon: 'chatbubbles', color: colors.primary },
+                ] as const
+              ).map((f) => {
+                const active = activeClassFilterTab === f.key;
+                return (
+                  <Pressable
+                    key={f.key}
+                    onPress={() => setActiveClassFilterTab(f.key)}
+                    style={[
+                      styles.filterPill,
+                      active
+                        ? { backgroundColor: f.color, borderColor: f.color }
+                        : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Ionicons name={f.icon} size={13} color={active ? '#FFFFFF' : f.color} />
+                    <Text style={[styles.filterPillText, { color: active ? '#FFFFFF' : tc.text }]}>{f.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
 
-              <Pressable
-                onPress={() => setActiveClassFilterTab('interested')}
-                style={[
-                  styles.filterPill,
-                  activeClassFilterTab === 'interested'
-                    ? { backgroundColor: '#D97706', borderColor: '#D97706' }
-                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
-                ]}
-              >
-                <Ionicons
-                  name="star"
-                  size={13}
-                  color={activeClassFilterTab === 'interested' ? '#FFFFFF' : '#D97706'}
-                />
-                <Text
-                  style={[
-                    styles.filterPillText,
-                    { color: activeClassFilterTab === 'interested' ? '#FFFFFF' : tc.text },
-                  ]}
-                >
-                  Starred ({interests.classIds.length})
-                </Text>
-              </Pressable>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterBarContent}>
+              {(['all', ...CLASS_CATEGORY_ORDER] as const).map((cat) => {
+                const active = classCategory === cat;
+                const color = cat === 'all' ? colors.primary : CLASS_CATEGORY_COLOR[cat];
+                const count =
+                  cat === 'all' ? classGroups.length : classGroups.filter((g) => g.category === cat).length;
+                if (cat !== 'all' && count === 0) return null;
+                return (
+                  <Pressable
+                    key={cat}
+                    onPress={() => setClassCategory(cat)}
+                    style={[
+                      styles.categoryChip,
+                      active
+                        ? { backgroundColor: color + '1F', borderColor: color }
+                        : { backgroundColor: 'transparent', borderColor: tc.border },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    {cat !== 'all' ? <View style={[styles.categoryDot, { backgroundColor: color }]} /> : null}
+                    <Text style={[styles.categoryChipText, { color: active ? color : tc.textMuted }]}>
+                      {cat === 'all' ? 'All types' : CLASS_CATEGORY_LABEL[cat]} · {count}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
 
-              <Pressable
-                onPress={() => setActiveClassFilterTab('recently_chatted')}
-                style={[
-                  styles.filterPill,
-                  activeClassFilterTab === 'recently_chatted'
-                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                    : { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', borderColor: tc.border },
-                ]}
-              >
-                <Ionicons
-                  name="chatbubbles"
-                  size={13}
-                  color={activeClassFilterTab === 'recently_chatted' ? '#FFFFFF' : colors.primary}
-                />
-                <Text
-                  style={[
-                    styles.filterPillText,
-                    { color: activeClassFilterTab === 'recently_chatted' ? '#FFFFFF' : tc.text },
-                  ]}
-                >
-                  Recently Chatted ({recentlyChattedClassIds.length})
-                </Text>
-              </Pressable>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterBarContent}>
+              {(['all', 1, 2, 3, 4, 5, 6, 0] as const).map((d) => {
+                const active = classDay === d;
+                return (
+                  <Pressable
+                    key={String(d)}
+                    onPress={() => setClassDay(d)}
+                    style={[
+                      styles.dayChip,
+                      active
+                        ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                        : { backgroundColor: 'transparent', borderColor: tc.border },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.dayChipText, { color: active ? '#FFFFFF' : tc.textMuted }]}>
+                      {d === 'all' ? 'Any day' : WEEKDAY_CHIPS[d]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </ScrollView>
           </View>
 
-          {/* Class List */}
+          {/* Result summary + sort */}
+          <View style={styles.classSummaryRow}>
+            <Text style={[styles.activeFilterTagText, { color: tc.textMuted }]}>
+              <Text style={{ fontWeight: '800', color: tc.text }}>{filteredClassGroups.length}</Text>{' '}
+              {filteredClassGroups.length === 1 ? 'class chat' : 'class chats'}
+            </Text>
+            <View style={styles.classSortWrap}>
+              {classFiltersActive ? (
+                <Pressable onPress={clearClassFilters} hitSlop={6}>
+                  <Text style={[styles.clearFilterLink, { color: colors.primary }]}>Clear filters</Text>
+                </Pressable>
+              ) : null}
+              {(
+                [
+                  { key: 'name', label: 'A–Z' },
+                  { key: 'soonest', label: 'Next up' },
+                  { key: 'recent', label: 'Recent' },
+                ] as const
+              ).map((o) => (
+                <Pressable
+                  key={o.key}
+                  onPress={() => setClassSort(o.key)}
+                  hitSlop={4}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: classSort === o.key }}
+                >
+                  <Text
+                    style={[
+                      styles.classSortText,
+                      {
+                        color: classSort === o.key ? colors.primary : tc.textMuted,
+                        fontWeight: classSort === o.key ? '800' : '600',
+                      },
+                    ]}
+                  >
+                    {o.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          {/* Class chat list */}
           <FlatList
-            data={filteredClasses}
-            keyExtractor={(item) => item.id}
+            data={filteredClassGroups}
+            keyExtractor={(item) => item.key}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
             }
@@ -977,120 +1085,92 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
               loading ? (
                 <View style={styles.emptyContainer}>
                   <ActivityIndicator size="large" color={colors.primary} />
-                  <Text style={[styles.emptyText, { color: tc.textMuted }]}>Loading class discussions...</Text>
+                  <Text style={[styles.emptyText, { color: tc.textMuted }]}>Loading class chats...</Text>
                 </View>
               ) : (
                 <View style={[styles.emptyCard, { backgroundColor: tc.cardBg, borderColor: tc.border }]}>
                   <Ionicons name="calendar-outline" size={44} color={tc.textMuted} />
-                  <Text style={[styles.emptyTitle, { color: tc.text }]}>No Classes Found</Text>
+                  <Text style={[styles.emptyTitle, { color: tc.text }]}>No Class Chats Found</Text>
                   <Text style={[styles.emptySub, { color: tc.textMuted }]}>
-                    {activeClassFilterTab === 'interested'
-                      ? 'Star classes to filter them here for quick access.'
-                      : activeClassFilterTab === 'recently_chatted'
+                    {activeClassFilterTab === 'interested' && !classSearch && classCategory === 'all' && classDay === 'all'
+                      ? 'Star a class chat to pin it here for quick access.'
+                      : activeClassFilterTab === 'recently_chatted' && !classSearch && classCategory === 'all' && classDay === 'all'
                         ? "You haven't posted in any class chats yet."
-                        : 'No class chats match your search query.'}
+                        : 'Nothing matches the current filters.'}
                   </Text>
+                  {classFiltersActive ? (
+                    <Pressable onPress={clearClassFilters} style={[styles.emptyActionBtn, { backgroundColor: colors.primary }]}>
+                      <Text style={styles.emptyActionBtnText}>Clear filters</Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               )
             }
             renderItem={({ item }) => {
-              const isClassInterested = interests.classIds.includes(item.id);
-              const hasChattedClass = recentlyChattedClassIds.includes(item.id);
+              const starred = isGroupStarred(item);
+              const chatted = hasChattedGroup(item);
+              const accent = CLASS_CATEGORY_COLOR[item.category];
+              const days = weekdaysLabel(item.weekdays);
               return (
                 <Pressable
-                  onPress={() => openClassForum(item)}
+                  onPress={() => openClassForum(item.next)}
                   style={[
                     styles.classCard,
-                    {
-                      backgroundColor: tc.cardBg,
-                      borderColor: tc.cardBorder,
-                      borderWidth: 1,
-                    },
+                    { backgroundColor: tc.cardBg, borderColor: tc.cardBorder, borderWidth: 1 },
                   ]}
                   accessibilityRole="button"
                   accessibilityLabel={`Open chat for ${item.title}`}
                 >
-                  <View style={styles.classCardLeft}>
-                    <View style={[styles.classIconCircle, { backgroundColor: isDark ? '#0C2A4A' : '#EFF6FF' }]}>
-                      <Ionicons name="chatbubbles" size={20} color={colors.primary} />
-                    </View>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <Text style={[styles.classCardTitle, { color: tc.text }]}>{item.title}</Text>
-                        {hasChattedClass ? (
-                          <View
-                            style={[
-                              styles.classChattedBadge,
-                              {
-                                backgroundColor: isDark ? '#0C2A4A' : '#EFF6FF',
-                                borderColor: isDark ? '#1E3A8A' : '#BFDBFE',
-                              },
-                            ]}
-                          >
-                            <Ionicons
-                              name="chatbubbles"
-                              size={10}
-                              color={isDark ? '#60A5FA' : '#1D4ED8'}
-                            />
-                            <Text
-                              style={[
-                                styles.classChattedBadgeText,
-                                { color: isDark ? '#60A5FA' : '#1D4ED8' },
-                              ]}
-                            >
-                              Active
-                            </Text>
-                          </View>
-                        ) : null}
-                      </View>
-                      <Text style={[styles.classCardInstructor, { color: tc.textMuted }]}>
-                        {item.instructorName} · {item.location}
-                      </Text>
-                      <Text style={[styles.classCardTime, { color: colors.primary }]}>
-                        {formatClassDay(item.start)} at {formatClassTime(item.start)}
-                      </Text>
-                    </View>
+                  <View style={[styles.classAccent, { backgroundColor: accent }]} />
+                  <View style={[styles.classIconCircle, { backgroundColor: accent + '1A' }]}>
+                    <Ionicons name="chatbubbles" size={19} color={accent} />
                   </View>
-                  <View style={styles.classCardRight}>
-                    <Pressable
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        void handleToggleInterestedClass(item.id);
-                      }}
-                      hitSlop={8}
-                      style={[
-                        styles.classInterestBtn,
-                        {
-                          backgroundColor: isClassInterested
-                            ? isDark
-                              ? '#2E2211'
-                              : '#FEF3C7'
-                            : isDark
-                              ? '#1E293B'
-                              : '#F8FAFC',
-                          borderColor: isClassInterested
-                            ? isDark
-                              ? '#B45309'
-                              : '#FDE68A'
-                            : tc.border,
-                        },
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        isClassInterested ? 'Interested in class chat' : 'Mark class chat as Interested'
-                      }
-                    >
-                      <Ionicons
-                        name={isClassInterested ? 'star' : 'star-outline'}
-                        size={15}
-                        color={isClassInterested ? '#D97706' : tc.textMuted}
-                      />
-                    </Pressable>
-                    <View style={styles.classOpenBtn}>
-                      <Text style={[styles.classCardActionText, { color: colors.primary }]}>Open</Text>
-                      <Ionicons name="chevron-forward" size={13} color={colors.primary} />
+                  <View style={{ flex: 1, gap: 3, minWidth: 0 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={[styles.classCardTitle, { color: tc.text, flexShrink: 1 }]} numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      {chatted ? (
+                        <View
+                          style={[
+                            styles.classChattedBadge,
+                            { backgroundColor: isDark ? '#0C2A4A' : '#EFF6FF', borderColor: isDark ? '#1E3A8A' : '#BFDBFE' },
+                          ]}
+                        >
+                          <Text style={[styles.classChattedBadgeText, { color: isDark ? '#60A5FA' : '#1D4ED8' }]}>
+                            JOINED
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
+                    <Text style={[styles.classCardInstructor, { color: tc.textMuted }]} numberOfLines={1}>
+                      {item.instructorName} · {item.location}
+                    </Text>
+                    <Text style={[styles.classCardTime, { color: accent }]} numberOfLines={1}>
+                      {days ? `${days} · ` : ''}
+                      {formatClassTime(item.next.start)}
+                      {item.sessionCount > 1 ? ` · ${item.sessionCount} sessions` : ''}
+                    </Text>
                   </View>
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      void handleToggleInterestedClass(item.ids[0]);
+                    }}
+                    hitSlop={8}
+                    style={[
+                      styles.classInterestBtn,
+                      {
+                        backgroundColor: starred ? (isDark ? '#2E2211' : '#FEF3C7') : isDark ? '#1E293B' : '#F8FAFC',
+                        borderColor: starred ? (isDark ? '#B45309' : '#FDE68A') : tc.border,
+                      },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={starred ? 'Unstar class chat' : 'Star class chat'}
+                  >
+                    <Ionicons name={starred ? 'star' : 'star-outline'} size={15} color={starred ? '#D97706' : tc.textMuted} />
+                  </Pressable>
+                  <Ionicons name="chevron-forward" size={16} color={tc.textMuted} />
                 </Pressable>
               );
             }}
@@ -1221,7 +1301,12 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
         visible={classModalVisible}
         onClose={() => setClassModalVisible(false)}
         scheduleItem={selectedClassItem}
-        isInterested={Boolean(selectedClassItem && interests.classIds.includes(selectedClassItem.id))}
+        isInterested={Boolean(
+          selectedClassItem &&
+            (findClassChatGroup(classGroups, selectedClassItem.id)?.ids ?? [selectedClassItem.id]).some((id) =>
+              interests.classIds.includes(id)
+            )
+        )}
         onToggleInterested={(classId) => void handleToggleInterestedClass(classId)}
         onPostCreated={(classId) => {
           setRecentlyChattedClassIds((prev) => [
@@ -1522,8 +1607,11 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingTop: 6,
-    gap: 10,
+    paddingTop: 12,
+    gap: 12,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -1590,12 +1678,52 @@ const styles = StyleSheet.create({
   classCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    gap: 10,
+    paddingVertical: 12,
+    paddingLeft: 16,
+    paddingRight: 12,
+    borderRadius: 14,
+    gap: 12,
+    overflow: 'hidden',
   },
+  classAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+  },
+  classFilterPanel: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 6,
+    gap: 6,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  categoryDot: { width: 7, height: 7, borderRadius: 4 },
+  categoryChipText: { fontSize: 12, fontWeight: '700' },
+  dayChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  dayChipText: { fontSize: 12, fontWeight: '700' },
+  classSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  classSortWrap: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  classSortText: { fontSize: 12 },
   classCardLeft: {
     flex: 1,
     flexDirection: 'row',

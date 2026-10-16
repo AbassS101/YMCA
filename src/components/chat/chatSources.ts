@@ -96,15 +96,32 @@ export function forumSource(api: any, topic: ForumTopic, me: ChatIdentity): Chat
   };
 }
 
-export function classSource(api: any, item: ScheduleItem, me: ChatIdentity): ChatSource {
+/**
+ * `classIds` are all session ids that share this class's chat (see classChats.ts).
+ * Reads merge every session's posts; new posts go to the canonical (first) id.
+ */
+export function classSource(
+  api: any,
+  item: ScheduleItem,
+  me: ChatIdentity,
+  classIds: string[] = [item.id]
+): ChatSource {
+  const ids = classIds.length ? classIds : [item.id];
   return {
     async list() {
-      const list = await classForumRepo.list(api, item.id);
-      return list.map(classPostToMessage);
+      const lists = await Promise.all(ids.map((id) => classForumRepo.list(api, id)));
+      return lists
+        .flat()
+        .sort((a, b) => {
+          if (a.pinned && !b.pinned) return -1;
+          if (!a.pinned && b.pinned) return 1;
+          return a.createdAt.localeCompare(b.createdAt);
+        })
+        .map(classPostToMessage);
     },
     async send(draft) {
       const p = await classForumRepo.create(api, {
-        classId: item.id,
+        classId: ids[0],
         authorId: me.userId,
         authorName: me.name,
         authorRole: me.role,

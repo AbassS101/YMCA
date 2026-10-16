@@ -70,54 +70,64 @@ function ForumTopicCardImpl({
       accessibilityRole="button"
       accessibilityLabel={`Open topic ${topic.title}`}
     >
-      <View style={[styles.bar, { backgroundColor: category.color }]} />
-      <UserAvatar uri={topic.authorAvatarUrl} name={topic.authorName} size={40} />
-
-      <View style={styles.main}>
-        <View style={styles.line}>
-          {topic.pinned ? <Ionicons name="pin" size={12} color="#D97706" /> : null}
-          <Text style={[styles.title, { color: tc.text }]} numberOfLines={1}>
-            {filterProfanity(topic.title)}
-          </Text>
-          <Text style={[styles.time, { color: tc.textMuted }]}>{formatRelativeTime(topic.updatedAt)}</Text>
-        </View>
-        <Text style={[styles.excerpt, { color: tc.textMuted }]} numberOfLines={1}>
-          <Text style={{ fontWeight: '700', color: tc.text }}>{topic.authorName}: </Text>
-          {filterProfanity(topic.content)}
+      <View style={styles.topRow}>
+        <UserAvatar uri={topic.authorAvatarUrl} name={topic.authorName} size={24} />
+        <Text style={[styles.author, { color: tc.text }]} numberOfLines={1}>
+          {topic.authorName}
         </Text>
-        <View style={styles.meta}>
-          <Text style={[styles.cat, { color: category.color }]}>#{category.label.toLowerCase().replace(/\s+/g, '-')}</Text>
-          <View style={styles.stat}>
-            <Ionicons name="chatbubble-outline" size={12} color={tc.textMuted} />
-            <Text style={[styles.statText, { color: tc.textMuted }]}>{topic.replyCount ?? 0}</Text>
+        <Text style={[styles.time, { color: tc.textMuted }]}>· {formatRelativeTime(topic.updatedAt)}</Text>
+        <View style={{ flex: 1 }} />
+        {topic.pinned ? (
+          <View style={[styles.badge, { backgroundColor: isDark ? '#2E2211' : '#FEF3C7' }]}>
+            <Ionicons name="pin" size={10} color="#D97706" />
+            <Text style={[styles.badgeText, { color: isDark ? '#FBBF24' : '#92400E' }]}>Pinned</Text>
           </View>
-          <Pressable onPress={onToggleLike} hitSlop={8} style={styles.stat} accessibilityLabel="Like topic">
+        ) : null}
+        {onToggleInterested ? (
+          <Pressable onPress={onToggleInterested} hitSlop={10} accessibilityLabel="Follow topic">
             <Ionicons
-              name={isLiked ? 'heart' : 'heart-outline'}
-              size={13}
-              color={isLiked ? '#DC2626' : tc.textMuted}
+              name={isInterested ? 'star' : 'star-outline'}
+              size={18}
+              color={isInterested ? '#D97706' : tc.textMuted}
             />
-            <Text style={[styles.statText, { color: isLiked ? '#DC2626' : tc.textMuted }]}>{topic.likes}</Text>
           </Pressable>
-          {topic.hasStaffReply ? (
-            <View style={styles.stat}>
-              <Ionicons name="checkmark-circle" size={13} color="#16A34A" />
-              <Text style={[styles.statText, { color: '#16A34A' }]}>Staff replied</Text>
-            </View>
-          ) : null}
-          {chatted ? <Ionicons name="chatbubbles" size={12} color={colors.primary} /> : null}
-        </View>
+        ) : null}
       </View>
 
-      {onToggleInterested ? (
-        <Pressable onPress={onToggleInterested} hitSlop={10} accessibilityLabel="Follow topic">
-          <Ionicons
-            name={isInterested ? 'star' : 'star-outline'}
-            size={18}
-            color={isInterested ? '#D97706' : tc.textMuted}
-          />
+      <Text style={[styles.title, { color: tc.text }]} numberOfLines={2}>
+        {filterProfanity(topic.title)}
+      </Text>
+      <Text style={[styles.excerpt, { color: tc.textMuted }]} numberOfLines={2}>
+        {filterProfanity(topic.content)}
+      </Text>
+
+      <View style={styles.meta}>
+        <View style={[styles.badge, { backgroundColor: `${category.color}1F` }]}>
+          <Ionicons name={category.icon as any} size={11} color={category.color} />
+          <Text style={[styles.badgeText, { color: category.color }]}>{category.label}</Text>
+        </View>
+        <View style={{ flex: 1 }} />
+        <Pressable
+          onPress={onToggleLike}
+          hitSlop={8}
+          style={[styles.pill, { backgroundColor: isLiked ? '#FEE2E2' : isDark ? '#1E293B' : '#F1F5F9' }]}
+          accessibilityLabel="Like topic"
+        >
+          <Ionicons name={isLiked ? 'heart' : 'heart-outline'} size={14} color={isLiked ? '#DC2626' : tc.textMuted} />
+          <Text style={[styles.statText, { color: isLiked ? '#DC2626' : tc.textMuted }]}>{topic.likes}</Text>
         </Pressable>
-      ) : null}
+        <View style={[styles.pill, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
+          <Ionicons name="chatbubble-outline" size={13} color={tc.textMuted} />
+          <Text style={[styles.statText, { color: tc.textMuted }]}>{topic.replyCount ?? 0}</Text>
+        </View>
+        {topic.hasStaffReply ? (
+          <View style={[styles.pill, { backgroundColor: isDark ? '#052E16' : '#DCFCE7' }]}>
+            <Ionicons name="shield-checkmark" size={13} color="#16A34A" />
+            <Text style={[styles.statText, { color: '#16A34A' }]}>Staff</Text>
+          </View>
+        ) : null}
+        {chatted ? <Ionicons name="chatbubbles" size={13} color={colors.primary} /> : null}
+      </View>
     </Pressable>
   );
 }
@@ -126,24 +136,20 @@ export const ForumTopicCard = React.memo(ForumTopicCardImpl);
 
 const styles = StyleSheet.create({
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 10,
-    paddingRight: 12,
-    paddingLeft: 14,
-    borderRadius: 12,
+    gap: 8,
+    padding: 14,
+    borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
-  bar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },
-  main: { flex: 1, minWidth: 0, gap: 2 },
-  line: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  title: { flex: 1, fontSize: 15, fontWeight: '800' },
-  time: { fontSize: 11, fontWeight: '600' },
-  excerpt: { fontSize: 13 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 2 },
-  cat: { fontSize: 11, fontWeight: '700' },
-  stat: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  statText: { fontSize: 11, fontWeight: '700' },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  author: { fontSize: 13, fontWeight: '700', flexShrink: 1 },
+  time: { fontSize: 12, fontWeight: '500' },
+  title: { fontSize: 17, fontWeight: '800', lineHeight: 22 },
+  excerpt: { fontSize: 14, lineHeight: 20 },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  badgeText: { fontSize: 11, fontWeight: '800' },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 14 },
+  statText: { fontSize: 12, fontWeight: '700' },
 });

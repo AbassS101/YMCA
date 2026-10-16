@@ -139,7 +139,28 @@ export function ForumTopicDetailModal({
   );
 
   const opBlock = (
-    <View style={[styles.op, { borderBottomColor: theme.border }]}>
+    <View style={[styles.op, { borderBottomColor: theme.border, backgroundColor: theme.surface }]}>
+      <View style={styles.opMeta}>
+        <View style={[styles.categoryChip, { backgroundColor: `${category.color}1F` }]}>
+          <Ionicons name={category.icon as any} size={12} color={category.color} />
+          <Text style={[styles.categoryChipText, { color: category.color }]}>{category.label}</Text>
+        </View>
+        {currentTopic.pinned ? (
+          <View style={[styles.categoryChip, { backgroundColor: '#FEF3C7' }]}>
+            <Ionicons name="pin" size={12} color="#D97706" />
+            <Text style={[styles.categoryChipText, { color: '#92400E' }]}>Pinned</Text>
+          </View>
+        ) : null}
+        {currentTopic.hasStaffReply ? (
+          <View style={[styles.categoryChip, { backgroundColor: '#DCFCE7' }]}>
+            <Ionicons name="shield-checkmark" size={12} color="#15803D" />
+            <Text style={[styles.categoryChipText, { color: '#15803D' }]}>Staff answered</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <Text style={[styles.opTitle, { color: theme.text }]}>{currentTopic.title}</Text>
+
       <View style={styles.opAuthor}>
         <UserAvatar uri={currentTopic.authorAvatarUrl} name={currentTopic.authorName} size={42} />
         <View style={{ flex: 1 }}>
@@ -158,7 +179,6 @@ export function ForumTopicDetailModal({
         </View>
       </View>
 
-      <Text style={[styles.opTitle, { color: theme.text }]}>{currentTopic.title}</Text>
       <RichText text={currentTopic.content} theme={theme} />
 
       {mentionNames.length > 0 ? (
@@ -191,6 +211,11 @@ export function ForumTopicDetailModal({
             {isFollowing ? 'Following' : 'Follow'}
           </Text>
         </Pressable>
+      </View>
+      <View style={[styles.repliesBar, { borderTopColor: theme.border }]}>
+        <Text style={[styles.repliesLabel, { color: theme.muted }]}>
+          {(currentTopic.replyCount ?? 0) === 1 ? '1 REPLY' : `${currentTopic.replyCount ?? 0} REPLIES`}
+        </Text>
       </View>
     </View>
   );
@@ -254,6 +279,7 @@ export function ForumTopicDetailModal({
           me={me}
           enabled={visible}
           header={opBlock}
+          layout="thread"
           placeholder={isStaffUser ? 'Reply as YMCA staff (@ to tag)' : 'Message this thread (@ to tag)'}
           maxLength={1000}
           emptyTitle="No replies yet"
@@ -305,13 +331,18 @@ const styles = StyleSheet.create({
   iconBtn: { minWidth: 36, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 },
   headerText: { flex: 1, fontSize: 15, fontWeight: '800' },
-  op: { paddingHorizontal: 14, paddingVertical: 14, gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, marginBottom: 6 },
+  op: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 10, gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, marginBottom: 6 },
+  opMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  categoryChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  categoryChipText: { fontSize: 11, fontWeight: '800' },
+  repliesBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 4 },
+  repliesLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
   opAuthor: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   nameLine: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   opName: { fontSize: 15, fontWeight: '800' },
   tag: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
   tagText: { color: '#FFFFFF', fontSize: 9, fontWeight: '800', letterSpacing: 0.4 },
-  opTitle: { fontSize: 20, fontWeight: '800', lineHeight: 26 },
+  opTitle: { fontSize: 22, fontWeight: '800', lineHeight: 28 },
   opActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14 },
   pillText: { fontSize: 12, fontWeight: '700' },

@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { AppText as Text } from '@/components/AppText';
 
 import { useTheme } from '@/context/ThemeContext';
 import { SWIM_STAGES, type AquaticsClassOffering } from '@/domain/aquaticsGuideData';

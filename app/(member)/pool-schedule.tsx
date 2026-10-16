@@ -6,9 +6,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { AppText as Text } from '@/components/AppText';
 
 import { FindLapLaneModal } from '@/components/FindLapLaneModal';
 import { PoolLaneDiagram } from '@/components/PoolLaneDiagram';

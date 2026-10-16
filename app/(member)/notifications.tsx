@@ -1,14 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { AppText as Text } from '@/components/AppText';
 
 import { AppText } from '@/components/AppText';
 import { ErrorBanner } from '@/components/ErrorBanner';
@@ -90,6 +91,13 @@ function badgeForType(type: NotificationType): { label: string; bg: string; text
 }
 
 type TabKey = 'all' | 'mentions_replies' | 'announcements' | 'events' | 'membership';
+type ViewMode = 'unread' | 'all';
+
+const UNDO_WINDOW_MS = 6000;
+const noticeStorageKey = (userId: string) => `notices_read_${userId}`;
+
+type UndoToast = { id: number; message: string; undo: () => void };
+type PendingAction = { timer: ReturnType<typeof setTimeout>; commit: () => void };
 
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -102,6 +110,12 @@ export default function NotificationsScreen() {
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('unread');
+  const [readNoticeIds, setReadNoticeIds] = useState<Set<string>>(new Set());
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState<UndoToast | null>(null);
+  const pendingRef = useRef<Map<string, PendingAction>>(new Map());
+  const toastId = useRef(0);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -127,21 +141,137 @@ export default function NotificationsScreen() {
     }, [load])
   );
 
-  const handleMarkAllRead = async () => {
-    try {
-      await notificationRepo.markAllRead(api, userId);
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    } catch {
-      // ignore
-    }
+  // Read notices are persisted locally per user.
+  useEffect(() => {
+    if (!userId) return;
+    AsyncStorage.getItem(noticeStorageKey(userId))
+      .then((raw) => setReadNoticeIds(new Set(raw ? (JSON.parse(raw) as string[]) : [])))
+      .catch(() => undefined);
+  }, [userId]);
+
+  // Actions are held back for a few seconds so they can be undone, then committed.
+  const finalize = useCallback((key: string) => {
+    const action = pendingRef.current.get(key);
+    if (!action) return;
+    clearTimeout(action.timer);
+    pendingRef.current.delete(key);
+    action.commit();
+  }, []);
+
+  useEffect(() => {
+    const pending = pendingRef.current;
+    return () => {
+      for (const key of Array.from(pending.keys())) {
+        const action = pending.get(key);
+        if (!action) continue;
+        clearTimeout(action.timer);
+        action.commit();
+      }
+      pending.clear();
+    };
+  }, []);
+
+  const scheduleAction = useCallback(
+    (ids: string[], message: string, commit: () => void) => {
+      const key = `${Date.now()}-${Math.random()}`;
+      setPendingIds((prev) => new Set([...prev, ...ids]));
+      const release = () =>
+        setPendingIds((prev) => {
+          const next = new Set(prev);
+          ids.forEach((id) => next.delete(id));
+          return next;
+        });
+      const timer = setTimeout(() => {
+        finalize(key);
+        setToast((t) => (t && t.id === toastId.current ? null : t));
+      }, UNDO_WINDOW_MS);
+      pendingRef.current.set(key, {
+        timer,
+        commit: () => {
+          commit();
+          release();
+        },
+      });
+      toastId.current += 1;
+      setToast({
+        id: toastId.current,
+        message,
+        undo: () => {
+          const action = pendingRef.current.get(key);
+          if (action) clearTimeout(action.timer);
+          pendingRef.current.delete(key);
+          release();
+          setToast(null);
+        },
+      });
+    },
+    [finalize]
+  );
+
+  const commitNoticesRead = useCallback(
+    (ids: string[]) => {
+      setReadNoticeIds((prev) => {
+        const next = new Set([...prev, ...ids]);
+        AsyncStorage.setItem(noticeStorageKey(userId), JSON.stringify([...next])).catch(
+          () => undefined
+        );
+        return next;
+      });
+    },
+    [userId]
+  );
+
+  const commitNotificationsRead = useCallback(
+    (ids: string[]) => {
+      setNotifications((prev) =>
+        prev.map((n) => (ids.includes(n.id) ? { ...n, read: true } : n))
+      );
+      void Promise.all(ids.map((id) => notificationRepo.markRead(api, id, userId))).catch(
+        () => setError(true)
+      );
+    },
+    [api, userId]
+  );
+
+  const handleMarkNoticeRead = (ann: Announcement) =>
+    scheduleAction([`a:${ann.id}`], 'Notice marked as read', () =>
+      commitNoticesRead([ann.id])
+    );
+
+  const handleMarkNotificationRead = (notif: AppNotification) =>
+    scheduleAction([`n:${notif.id}`], 'Marked as read', () =>
+      commitNotificationsRead([notif.id])
+    );
+
+  const handleMarkAllRead = () => {
+    const unreadIds = notifications
+      .filter((n) => !n.read && !pendingIds.has(`n:${n.id}`))
+      .map((n) => n.id);
+    const noticeIds = visibleNotices.map((a) => a.id);
+    if (unreadIds.length === 0 && noticeIds.length === 0) return;
+    scheduleAction(
+      [...unreadIds.map((id) => `n:${id}`), ...noticeIds.map((id) => `a:${id}`)],
+      `${unreadIds.length + noticeIds.length} items marked as read`,
+      () => {
+        if (unreadIds.length) {
+          setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+          void notificationRepo.markAllRead(api, userId).catch(() => setError(true));
+        }
+        if (noticeIds.length) commitNoticesRead(noticeIds);
+      }
+    );
   };
 
   const handleNotificationPress = async (notif: AppNotification) => {
-    if (!notif.read) {
-      await notificationRepo.markRead(api, notif.id, userId);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
-      );
+    if (!notif.read && !pendingIds.has(`n:${notif.id}`)) {
+      try {
+        await notificationRepo.markRead(api, notif.id, userId);
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
+        );
+      } catch {
+        // ignore
+      }
     }
 
     if (notif.link) {
@@ -149,13 +279,24 @@ export default function NotificationsScreen() {
     }
   };
 
+  const isRead = (n: AppNotification) => n.read || pendingIds.has(`n:${n.id}`);
+
+  const visibleNotices = useMemo(
+    () =>
+      announcements.filter(
+        (a) => a.pinned && !readNoticeIds.has(a.id) && !pendingIds.has(`a:${a.id}`)
+      ),
+    [announcements, readNoticeIds, pendingIds]
+  );
+
   const unreadCount = useMemo(
-    () => notifications.filter((n) => !n.read).length,
-    [notifications]
+    () => notifications.filter((n) => !n.read && !pendingIds.has(`n:${n.id}`)).length,
+    [notifications, pendingIds]
   );
 
   const filteredNotifications = useMemo(() => {
     return notifications.filter((n) => {
+      if (viewMode === 'unread' && (n.read || pendingIds.has(`n:${n.id}`))) return false;
       if (activeTab === 'mentions_replies') {
         return (
           n.type === 'forum_mention' ||
@@ -169,7 +310,7 @@ export default function NotificationsScreen() {
       if (activeTab === 'membership') return n.type === 'membership' || n.type === 'donation';
       return true;
     });
-  }, [notifications, activeTab]);
+  }, [notifications, activeTab, viewMode, pendingIds]);
 
   const cardTheme = {
     backgroundColor: colors.cardBg,
@@ -214,9 +355,9 @@ export default function NotificationsScreen() {
               </AppText>
             </Pressable>
 
-            {unreadCount > 0 ? (
+            {unreadCount + visibleNotices.length > 0 ? (
               <Pressable
-                onPress={() => void handleMarkAllRead()}
+                onPress={handleMarkAllRead}
                 style={styles.markReadBtn}
                 accessibilityRole="button"
               >
@@ -229,17 +370,19 @@ export default function NotificationsScreen() {
         </View>
 
         {/* Pinned Announcements Board */}
-        {announcements.filter((a) => a.pinned).length > 0 ? (
+        {visibleNotices.length > 0 ? (
           <View style={styles.pinnedSection}>
             <View style={styles.sectionHeaderRow}>
               <Ionicons name="megaphone" size={18} color={colors.primary} />
               <AppText style={[styles.sectionHeading, { color: colors.text }]}>
                 Branch Notices & Alerts
               </AppText>
+              <View style={[styles.countPill, { backgroundColor: colors.primary }]}>
+                <AppText style={styles.countPillText}>{visibleNotices.length}</AppText>
+              </View>
             </View>
 
-            {announcements
-              .filter((a) => a.pinned)
+            {visibleNotices
               .map((ann) => (
                 <View
                   key={ann.id}
@@ -290,25 +433,70 @@ export default function NotificationsScreen() {
                     {ann.body}
                   </AppText>
 
-                  {ann.actionUrl ? (
+                  <View style={styles.annActions}>
+                    {ann.actionUrl ? (
+                      <Pressable
+                        onPress={() => router.push(ann.actionUrl as any)}
+                        style={[styles.annActionBtn, { backgroundColor: colors.primaryLight }]}
+                      >
+                        <AppText style={[styles.annActionText, { color: colors.primary }]}>
+                          {ann.actionLabel || 'Learn More'} ›
+                        </AppText>
+                      </Pressable>
+                    ) : (
+                      <View />
+                    )}
                     <Pressable
-                      onPress={() => router.push(ann.actionUrl as any)}
-                      style={[styles.annActionBtn, { backgroundColor: colors.primaryLight }]}
+                      onPress={() => handleMarkNoticeRead(ann)}
+                      style={[styles.readBtn, { borderColor: colors.border }]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Mark notice ${ann.title} as read`}
                     >
+                      <Ionicons name="checkmark-done" size={14} color={colors.primary} />
                       <AppText style={[styles.annActionText, { color: colors.primary }]}>
-                        {ann.actionLabel || 'Learn More'} ›
+                        Mark as read
                       </AppText>
                     </Pressable>
-                  ) : null}
+                  </View>
                 </View>
               ))}
           </View>
         ) : null}
 
+        {/* Unread / All toggle */}
+        <View style={[styles.segment, { backgroundColor: colors.primaryLight }]}>
+          {(
+            [
+              { key: 'unread', label: `Unread (${unreadCount})` },
+              { key: 'all', label: `All (${notifications.length})` },
+            ] as const
+          ).map((seg) => {
+            const active = viewMode === seg.key;
+            return (
+              <Pressable
+                key={seg.key}
+                onPress={() => setViewMode(seg.key)}
+                style={[styles.segmentItem, active && { backgroundColor: colors.cardBg }]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+              >
+                <AppText
+                  style={[
+                    styles.segmentText,
+                    { color: active ? colors.primary : colors.textMuted },
+                  ]}
+                >
+                  {seg.label}
+                </AppText>
+              </Pressable>
+            );
+          })}
+        </View>
+
         {/* Filter Tabs */}
         <View style={styles.tabRow}>
           {[
-            { key: 'all', label: `All (${notifications.length})` },
+            { key: 'all', label: 'Everything' },
             { key: 'mentions_replies', label: '@ Mentions & Replies' },
             { key: 'announcements', label: 'Notices' },
             { key: 'events', label: 'Events' },
@@ -352,12 +540,15 @@ export default function NotificationsScreen() {
               All Caught Up!
             </AppText>
             <AppText style={[styles.emptyDesc, { color: colors.textMuted }]}>
-              You have no notifications in this category. We will notify you when new announcements, mentions, or schedule updates occur.
+              {viewMode === 'unread'
+                ? 'No unread items in this category. Switch to "All" to review earlier notifications.'
+                : 'You have no notifications in this category. We will notify you when new announcements, mentions, or schedule updates occur.'}
             </AppText>
           </View>
         ) : (
           filteredNotifications.map((notif) => {
             const badge = badgeForType(notif.type);
+            const read = isRead(notif);
             return (
               <Pressable
                 key={notif.id}
@@ -365,21 +556,22 @@ export default function NotificationsScreen() {
                 style={({ pressed }) => [
                   styles.notifCard,
                   cardTheme,
-                  !notif.read && {
+                  !read && {
                     borderColor: colors.primary,
                     backgroundColor: isDark ? '#0F233A' : '#F0F9FF',
                   },
+                  read && { opacity: 0.75 },
                   pressed && { opacity: 0.8 },
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel={`${notif.title}, ${notif.read ? 'read' : 'unread'}`}
+                accessibilityLabel={`${notif.title}, ${read ? 'read' : 'unread'}`}
               >
                 <View style={styles.notifRow}>
                   <View
                     style={[
                       styles.iconCircle,
                       {
-                        backgroundColor: notif.read
+                        backgroundColor: read
                           ? colors.primaryLight
                           : colors.primary,
                       },
@@ -388,7 +580,7 @@ export default function NotificationsScreen() {
                     <Ionicons
                       name={iconForType(notif.type)}
                       size={20}
-                      color={notif.read ? colors.primary : '#FFFFFF'}
+                      color={read ? colors.primary : '#FFFFFF'}
                     />
                   </View>
 
@@ -399,7 +591,7 @@ export default function NotificationsScreen() {
                           {badge.label}
                         </AppText>
                       </View>
-                      {!notif.read ? <View style={styles.unreadDot} /> : null}
+                      {!read ? <View style={styles.unreadDot} /> : null}
                     </View>
 
                     <View style={styles.notifHeader}>
@@ -416,12 +608,30 @@ export default function NotificationsScreen() {
                       <AppText style={[styles.notifTime, { color: colors.textMuted }]}>
                         {formatTimestamp(notif.createdAt)}
                       </AppText>
-                      {notif.link ? (
-                        <AppText style={[styles.notifLink, { color: colors.primary }]}>
-                          {notif.type.startsWith('forum') || notif.type === 'staff_inquiry'
-                            ? 'Open Discussion ›'
-                            : 'View details ›'}
-                        </AppText>
+                      {notif.link || !read ? (
+                        <View style={styles.notifFooterActions}>
+                          {notif.link ? (
+                            <AppText style={[styles.notifLink, { color: colors.primary }]}>
+                              {notif.type.startsWith('forum') || notif.type === 'staff_inquiry'
+                                ? 'Open Discussion ›'
+                                : 'View details ›'}
+                            </AppText>
+                          ) : null}
+                          {!read ? (
+                            <Pressable
+                              onPress={() => handleMarkNotificationRead(notif)}
+                              hitSlop={8}
+                              style={[styles.readBtn, { borderColor: colors.border, marginTop: 0 }]}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Mark ${notif.title} as read`}
+                            >
+                              <Ionicons name="checkmark" size={14} color={colors.primary} />
+                              <AppText style={[styles.annActionText, { color: colors.primary }]}>
+                                Mark read
+                              </AppText>
+                            </Pressable>
+                          ) : null}
+                        </View>
                       ) : null}
                     </View>
                   </View>
@@ -431,6 +641,23 @@ export default function NotificationsScreen() {
           })
         )}
       </ScrollView>
+
+      {toast ? (
+        <View
+          style={[styles.toast, { backgroundColor: isDark ? '#1E293B' : '#0F172A' }]}
+          accessibilityLiveRegion="polite"
+        >
+          <AppText style={styles.toastText}>{toast.message}</AppText>
+          <Pressable
+            onPress={toast.undo}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Undo"
+          >
+            <AppText style={styles.toastUndo}>UNDO</AppText>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -542,6 +769,81 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  countPill: {
+    minWidth: 20,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  countPillText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  annActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    columnGap: 12,
+  },
+  readBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  segment: {
+    flexDirection: 'row',
+    padding: 3,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  segmentItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  segmentText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  toast: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+  },
+  toastUndo: {
+    color: '#7DD3FC',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginLeft: 16,
+  },
   tabRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -637,9 +939,15 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   notifFooter: {
+    gap: 8,
+  },
+  notifFooterActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     alignItems: 'center',
+    columnGap: 12,
+    rowGap: 8,
   },
   notifTime: {
     fontSize: 11,
@@ -647,5 +955,6 @@ const styles = StyleSheet.create({
   notifLink: {
     fontSize: 12,
     fontWeight: '700',
+    flexShrink: 1,
   },
 });

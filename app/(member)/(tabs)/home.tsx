@@ -8,9 +8,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { AppText as Text } from '@/components/AppText';
 
 import { AttendanceStreakCard } from '@/components/AttendanceStreakCard';
 import { BillingHero } from '@/components/BillingHero';

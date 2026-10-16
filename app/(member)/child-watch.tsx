@@ -7,10 +7,10 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from 'react-native';
+import { AppText as Text } from '@/components/AppText';
 
 import { YHeader } from '@/components/YHeader';
 import { dialog } from '@/context/DialogContext';

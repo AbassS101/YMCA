@@ -15,6 +15,8 @@ type Props = {
   me: ChatIdentity;
   enabled: boolean;
   header?: React.ReactElement | null;
+  /** 'thread' opens at the top with the header (original post) first. Default 'chat'. */
+  layout?: 'chat' | 'thread';
   placeholder: string;
   maxLength?: number;
   emptyTitle?: string;
@@ -33,6 +35,7 @@ export function ChatView({
   me,
   enabled,
   header,
+  layout = 'chat',
   placeholder,
   maxLength,
   emptyTitle,
@@ -102,6 +105,7 @@ export function ChatView({
           theme={theme}
           meId={me.userId}
           header={header}
+          layout={layout}
           emptyTitle={emptyTitle}
           emptySubtitle={emptySubtitle}
           onLongPress={setActionMsg}
@@ -127,7 +131,9 @@ export function ChatView({
               thread.send(text, opts);
               setTimeout(() => listRef.current?.scrollToEnd(), 50);
             }}
-            onFocus={() => setTimeout(() => listRef.current?.scrollToEnd(), 120)}
+            onFocus={() => {
+              if (layout === 'chat') setTimeout(() => listRef.current?.scrollToEnd(), 120);
+            }}
           />
         </View>
       </View>

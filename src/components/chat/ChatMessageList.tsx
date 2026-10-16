@@ -5,11 +5,11 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Text,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
+import { AppText as Text } from '@/components/AppText';
 import { Ionicons } from '@expo/vector-icons';
 import { filterProfanity } from '@/domain/types';
 import { ChatMessageRow } from './ChatMessageRow';
@@ -42,7 +42,7 @@ function dayLabel(iso: string) {
   });
 }
 
-export function buildEntries(messages: ChatMessage[]): Entry[] {
+export function buildEntries(messages: ChatMessage[], newestFirst = true): Entry[] {
   const sorted = [...messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const out: Entry[] = [];
   let prev: ChatMessage | null = null;
@@ -58,7 +58,7 @@ export function buildEntries(messages: ChatMessage[]): Entry[] {
     out.push({ kind: 'message', key: m.id, message: m, showHeader: !grouped });
     prev = m;
   }
-  return out.reverse(); // inverted list: newest first
+  return newestFirst ? out.reverse() : out; // inverted chat: newest first; thread: oldest first
 }
 
 type Props = {
@@ -67,6 +67,8 @@ type Props = {
   theme: ChatTheme;
   meId: string;
   header?: React.ReactElement | null;
+  /** 'chat' opens at the newest message; 'thread' opens at the top (header/OP first), replies oldest to newest. */
+  layout?: 'chat' | 'thread';
   emptyTitle?: string;
   emptySubtitle?: string;
   onLongPress: (m: ChatMessage) => void;
@@ -85,6 +87,7 @@ export const ChatMessageList = React.forwardRef<{ scrollToEnd: () => void }, Pro
       theme,
       meId,
       header,
+      layout = 'chat',
       emptyTitle = 'No messages yet',
       emptySubtitle = 'Be the first to say something.',
       onLongPress,
@@ -98,11 +101,15 @@ export const ChatMessageList = React.forwardRef<{ scrollToEnd: () => void }, Pro
     const [showJump, setShowJump] = useState(false);
     const [pinsOpen, setPinsOpen] = useState(false);
 
-    const entries = useMemo(() => buildEntries(messages), [messages]);
+    const isThread = layout === 'thread';
+    const entries = useMemo(() => buildEntries(messages, !isThread), [messages, isThread]);
     const pinned = useMemo(() => messages.filter((m) => m.pinned), [messages]);
 
     React.useImperativeHandle(ref, () => ({
-      scrollToEnd: () => listRef.current?.scrollToOffset({ offset: 0, animated: true }),
+      scrollToEnd: () =>
+        isThread
+          ? listRef.current?.scrollToEnd({ animated: true })
+          : listRef.current?.scrollToOffset({ offset: 0, animated: true }),
     }));
 
     const jumpTo = useCallback(
@@ -162,7 +169,7 @@ export const ChatMessageList = React.forwardRef<{ scrollToEnd: () => void }, Pro
         <FlatList
           ref={listRef}
           data={entries}
-          inverted
+          inverted={!isThread}
           keyExtractor={(e) => e.key}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
@@ -180,9 +187,10 @@ export const ChatMessageList = React.forwardRef<{ scrollToEnd: () => void }, Pro
             });
           }}
           contentContainerStyle={styles.content}
-          ListFooterComponent={header ?? null}
+          ListHeaderComponent={isThread ? (header ?? null) : null}
+          ListFooterComponent={isThread ? null : (header ?? null)}
           ListEmptyComponent={
-            <View style={[styles.empty, { transform: [{ scaleY: -1 }] }]}>
+            <View style={[styles.empty, !isThread && { transform: [{ scaleY: -1 }] }]}>
               {loading ? (
                 <ActivityIndicator size="small" color={theme.accent} />
               ) : (
@@ -223,10 +231,10 @@ export const ChatMessageList = React.forwardRef<{ scrollToEnd: () => void }, Pro
             onPress={() => listRef.current?.scrollToOffset({ offset: 0, animated: true })}
             style={[styles.jump, { backgroundColor: theme.accent }]}
             accessibilityRole="button"
-            accessibilityLabel="Jump to latest messages"
+            accessibilityLabel={isThread ? 'Back to top' : 'Jump to latest messages'}
           >
-            <Ionicons name="arrow-down" size={14} color="#FFFFFF" />
-            <Text style={styles.jumpText}>Latest</Text>
+            <Ionicons name={isThread ? 'arrow-up' : 'arrow-down'} size={14} color="#FFFFFF" />
+            <Text style={styles.jumpText}>{isThread ? 'Top' : 'Latest'}</Text>
           </Pressable>
         ) : null}
       </View>
