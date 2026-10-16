@@ -204,8 +204,8 @@ function Table({ rows }: { rows: [string, string][] }) {
   if (rows.length === 0) return <EmptyState icon="stats-chart-outline" text="No data for this range." />;
   return (
     <>
-      {rows.map(([k, v]) => (
-        <ListRow key={k} title={k} right={<Text style={{ fontWeight: '800' }}>{v}</Text>} />
+      {rows.map(([k, v], i) => (
+        <ListRow key={`${i}-${k}`}title={k} right={<Text style={{ fontWeight: '800' }}>{v}</Text>} />
       ))}
     </>
   );
