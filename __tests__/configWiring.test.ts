@@ -25,7 +25,7 @@ import {
 } from '@/domain/wellnessPrograms';
 import { MockProtivityAdapter } from '@/protivity/MockProtivityAdapter';
 import { childWatchRepo } from '@/repositories/childWatchRepo';
-import { loadStore, resetStore } from '@/storage/demoStore';
+import { loadStore, resetStore, saveStore } from '@/storage/demoStore';
 
 const api = new MockProtivityAdapter();
 const IT = 'staff-itadmin';
@@ -178,8 +178,12 @@ describe('Child Watch reads its rules from config', () => {
     await api.updateAppConfig('childWatch', { signInCutoffMin: 0, minAgeWeeks: 5000 }, ADMIN);
     await expect(childWatchRepo.signIn('child-jordan-1', 'member-jordan', at3am())).rejects.toThrow(/5000 weeks/);
 
-    await api.updateAppConfig('childWatch', { minAgeWeeks: 6, roomCapacity: 1 }, ADMIN);
+    // The demo store tops up live Child Watch visits for the current time of day; start with an empty room.
+    const state = await loadStore();
+    await saveStore({ ...state, childWatchVisits: [] });
+    await api.updateAppConfig('childWatch', { minAgeWeeks: 6 }, ADMIN);
     await childWatchRepo.signIn('child-jordan-1', 'member-jordan', at3am());
+    await api.updateAppConfig('childWatch', { roomCapacity: 1 }, ADMIN);
     await expect(childWatchRepo.signIn('child-jordan-2', 'member-jordan', at3am())).rejects.toThrow(/capacity/);
   });
 

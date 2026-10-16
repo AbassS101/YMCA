@@ -542,7 +542,7 @@ export default function MemberComplaintsSuggestionsScreen() {
                             ) : null}
                           </View>
                           <AppText style={{ fontSize: 13, color: isDark ? '#D1FAE5' : '#064E3B', lineHeight: 18 }}>
-                            "{item.staffResponse}"
+                            &quot;{item.staffResponse}&quot;
                           </AppText>
                         </View>
                       ) : (

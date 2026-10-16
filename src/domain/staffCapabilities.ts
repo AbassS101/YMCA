@@ -45,7 +45,10 @@ export type StaffCapability =
   | 'viewConfigAudit'
   | 'runChildWatchRoom'
   | 'manageChildWatchProgram'
-  | 'manageMaintenance';
+  | 'manageMaintenance'
+  | 'viewBranchStats'
+  | 'viewDepartmentStats'
+  | 'exportData';
 
 const ALL_CAPABILITIES: readonly StaffCapability[] = [
   'viewAllMembers',
@@ -80,6 +83,9 @@ const ALL_CAPABILITIES: readonly StaffCapability[] = [
   'runChildWatchRoom',
   'manageChildWatchProgram',
   'manageMaintenance',
+  'viewBranchStats',
+  'viewDepartmentStats',
+  'exportData',
 ];
 
 // Staff Admin runs the business settings but not the system-level ones (toggles, branding, thresholds).
@@ -104,7 +110,8 @@ const WELLNESS_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = ALL_CAPABILIT
     c !== 'viewConfigAudit' &&
     c !== 'runChildWatchRoom' &&
     c !== 'manageChildWatchProgram' &&
-    c !== 'manageMaintenance'
+    c !== 'manageMaintenance' &&
+    c !== 'viewBranchStats'
 );
 
 const AQUATICS_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = [
@@ -114,6 +121,8 @@ const AQUATICS_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = [
   'assignClients',
   'broadcast',
   'viewSessionRequests',
+  'viewDepartmentStats',
+  'exportData',
 ];
 
 const MEMBERSHIP_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = [
@@ -134,6 +143,8 @@ const MEMBERSHIP_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = [
   'manageCampaigns',
   'viewRepKpis',
   'runChildWatchRoom',
+  'viewDepartmentStats',
+  'exportData',
 ];
 
 const MAINTENANCE_CAPABILITIES: readonly StaffCapability[] = ['manageMaintenance', 'broadcast'];
@@ -161,6 +172,8 @@ const CHILD_WATCH_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = [
   ...CHILD_WATCH_SUPERVISOR_CAPABILITIES,
   'manageChildWatchProgram',
   'takeAttendance',
+  'viewDepartmentStats',
+  'exportData',
 ];
 
 export function personaForRole(role?: UserRole | StaffRole | string | null): StaffPersona | null {

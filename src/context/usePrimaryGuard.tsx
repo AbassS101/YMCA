@@ -53,7 +53,7 @@ export function PrimaryOnlyNotice({ primaryName, action }: { primaryName: string
       <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
         <AppText style={[styles.title, { color: colors.text }]}>Only {primaryName} can {action}</AppText>
         <AppText style={{ color: colors.textMuted, lineHeight: 20 }}>
-          You are on {primaryName}'s family plan. They pay for the membership and manage billing, plan changes and
+          You are on {primaryName}&apos;s family plan. They pay for the membership and manage billing, plan changes and
           cancellation. You can still use your own barcode and see everyone on the plan.
         </AppText>
         <Pressable

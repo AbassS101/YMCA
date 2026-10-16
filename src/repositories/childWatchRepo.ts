@@ -225,6 +225,31 @@ export const childWatchRepo = {
     return api.deleteChildWatchShift(id, requesterId);
   },
 
+  // --- Range queries (stats and export) -----------------------------------------------------------
+  visitsInRange(from: string, to: string, requesterId: string) {
+    return api.listChildWatchVisits({ from, to }, requesterId);
+  },
+
+  incidentsInRange(from: string, to: string, requesterId: string) {
+    return api.listChildWatchIncidents({ from, to }, requesterId);
+  },
+
+  headcountsInRange(from: string, to: string, requesterId: string) {
+    return api.listChildWatchHeadcountsRange(from, to, requesterId);
+  },
+
+  shiftsInRange(from: string, to: string, requesterId: string) {
+    return api.listChildWatchShiftsRange(from, to, requesterId);
+  },
+
+  pendingPickups(requesterId: string) {
+    return api.listPendingAuthorizedPickups(requesterId);
+  },
+
+  recordExport(detail: string, requesterId: string) {
+    return api.recordChildWatchExport(detail, requesterId);
+  },
+
   audit(filter: Parameters<ProtivityPort['listChildWatchAudit']>[0], requesterId: string) {
     return api.listChildWatchAudit(filter, requesterId);
   },

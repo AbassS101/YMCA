@@ -1,4 +1,4 @@
-﻿import { useMemo } from 'react';
+import { useMemo } from 'react';
 
 import { useSession } from '@/context/SessionContext';
 import {
@@ -11,6 +11,7 @@ import {
   type StaffCapability,
   type StaffPersona,
 } from '@/domain/staffCapabilities';
+import { statsScopesForRole, type StatsScope } from '@/domain/stats/statsScopes';
 
 export type StaffCapabilities = {
   persona: StaffPersona | null;
@@ -32,6 +33,7 @@ export type StaffCapabilities = {
   isChildWatchDirector: boolean;
   isMaintenance: boolean;
   coachesClients: boolean;
+  statsScopes: StatsScope[];
 };
 
 export function useStaffCapabilities(): StaffCapabilities {
@@ -64,6 +66,7 @@ export function useStaffCapabilities(): StaffCapabilities {
         persona === 'swimInstructor' ||
         persona === 'wellnessDirector' ||
         persona === 'aquaticsDirector',
+      statsScopes: statsScopesForRole(role),
     };
   }, [role]);
 }

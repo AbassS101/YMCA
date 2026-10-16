@@ -143,6 +143,8 @@ export interface ProtivityPort {
   rescindCancelNotice(memberId: string, requesterUserId?: string): Promise<Member>;
   approveCancelRequest(memberId: string, requesterUserId: string): Promise<CancelRequest>;
   listPendingCancels(branchId: string): Promise<CancelRequest[]>;
+  /** All statuses, filtered by local day of `requestedAt` (YYYY-MM-DD, inclusive) when given. */
+  listCancelRequests(branchId: string, from?: string, to?: string): Promise<CancelRequest[]>;
   listMessages(threadId: string): Promise<Message[]>;
   listThreads(userId: string): Promise<Thread[]>;
   getOrCreateThread(memberId: string, staffId: string): Promise<Thread>;
@@ -469,6 +471,9 @@ export interface ProtivityPort {
     options?: { source?: ArrivalSource; staffId?: string; date?: string }
   ): Promise<ArrivalResult>;
   listArrivals(branchId: string, date: string): Promise<ArrivalRecord[]>;
+  /** Inclusive YYYY-MM-DD range. */
+  listArrivalsRange(branchId: string, from: string, to: string): Promise<ArrivalRecord[]>;
+  listMemberships(branchId: string): Promise<Membership[]>;
   listBillingIssues(branchId: string, requesterUserId?: string): Promise<BillingIssueRow[]>;
   resolveBillingIssue(
     memberId: string,
@@ -513,7 +518,7 @@ export interface ProtivityPort {
   // staff are checked against runChildWatchRoom (room) or manageChildWatchProgram (program).
   /** Pickup codes are stripped from the result unless the requester is a guardian of that child. */
   listChildWatchVisits(
-    filter: { date?: string; activeOnly?: boolean; householdId?: string },
+    filter: { date?: string; from?: string; to?: string; activeOnly?: boolean; householdId?: string },
     requesterUserId: string
   ): Promise<ChildWatchVisit[]>;
   childWatchDropOff(input: {
@@ -557,7 +562,14 @@ export interface ProtivityPort {
     requesterUserId: string
   ): Promise<ChildWatchIncident>;
   listChildWatchIncidents(
-    filter: { childId?: string; householdId?: string; status?: ChildWatchIncident['status'] },
+    filter: {
+      childId?: string;
+      householdId?: string;
+      status?: ChildWatchIncident['status'];
+      /** YYYY-MM-DD, inclusive, local day of `at`. */
+      from?: string;
+      to?: string;
+    },
     requesterUserId: string
   ): Promise<ChildWatchIncident[]>;
   acknowledgeChildWatchIncident(id: string, memberId: string): Promise<ChildWatchIncident>;
@@ -568,10 +580,17 @@ export interface ProtivityPort {
   ): Promise<ChildWatchHeadcount>;
   listChildWatchHeadcounts(date: string, requesterUserId: string): Promise<ChildWatchHeadcount[]>;
   listChildWatchShifts(date: string, requesterUserId: string): Promise<ChildWatchShift[]>;
+  /** Inclusive YYYY-MM-DD range. */
+  listChildWatchHeadcountsRange(from: string, to: string, requesterUserId: string): Promise<ChildWatchHeadcount[]>;
+  listChildWatchShiftsRange(from: string, to: string, requesterUserId: string): Promise<ChildWatchShift[]>;
+  /** Pending pickup people across all households. Requires manageChildWatchProgram. */
+  listPendingAuthorizedPickups(requesterUserId: string): Promise<ChildWatchAuthorizedPickup[]>;
   saveChildWatchShift(
     input: Omit<ChildWatchShift, 'id'> & { id?: string },
     requesterUserId: string
   ): Promise<ChildWatchShift>;
   deleteChildWatchShift(id: string, requesterUserId: string): Promise<void>;
   listChildWatchAudit(filter: ChildWatchAuditFilter, requesterUserId: string): Promise<ChildWatchAuditEntry[]>;
+  /** Writes a `data_exported` audit entry. Requires `manageChildWatchProgram`. */
+  recordChildWatchExport(detail: string, requesterUserId: string): Promise<void>;
 }

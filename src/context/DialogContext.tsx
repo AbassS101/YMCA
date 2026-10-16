@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -81,8 +82,10 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     setVisible(true);
   }, []);
 
-  globalShowDialog = showDialog;
-  globalHideDialog = hideDialog;
+  useEffect(() => {
+    globalShowDialog = showDialog;
+    globalHideDialog = hideDialog;
+  }, [showDialog, hideDialog]);
 
   const value = useMemo(
     () => ({ showDialog, hideDialog }),

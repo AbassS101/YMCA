@@ -1120,7 +1120,7 @@ export function CommunityForumView({ isTabScreen = false, onBack }: CommunityFor
             </View>
 
             <Text style={[styles.interestsModalSub, { color: tc.textMuted }]}>
-              Follow topics and categories to customize your feed. You'll receive alerts when members or YMCA staff post updates.
+              Follow topics and categories to customize your feed. You&apos;ll receive alerts when members or YMCA staff post updates.
             </Text>
 
             <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ gap: 10, paddingVertical: 8 }}>

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { PersonaHero } from '@/components/staff/PersonaHero';
 import { KpiRow } from '@/components/staff/KpiTile';
+import { QuickActionBar } from '@/components/staff/QuickActionBar';
 import { SessionRequestsOversight } from '@/components/staff/SessionRequestsOversight';
 import { ActionButton, ListRow, SectionCard } from '@/components/staff/SectionCard';
 import { useSession } from '@/context/SessionContext';
@@ -19,7 +20,7 @@ import { useTrainerDay } from './useTrainerDay';
 export function AquaticsDirectorDashboard({ staffId }: { staffId: string }) {
   const router = useRouter();
   const { api, session } = useSession();
-  const { theme } = useStaffCapabilities();
+  const { theme, can } = useStaffCapabilities();
   const day = useTrainerDay(staffId);
   const [team, setTeam] = useState<Staff[]>([]);
 
@@ -49,6 +50,13 @@ export function AquaticsDirectorDashboard({ staffId }: { staffId: string }) {
           ]}
         />
       </PersonaHero>
+      {can('viewDepartmentStats') ? (
+        <QuickActionBar
+          actions={[
+            { key: 'stats', label: 'Stats', icon: 'analytics-outline', onPress: () => router.push('/(staff)/stats?scope=aquatics' as never), color: theme.color },
+          ]}
+        />
+      ) : null}
       {team.length > 0 ? (
         <SectionCard title="Swim Team Hours" icon="calendar-outline" accent={theme.color} subtitle="Weekly availability for each instructor">
           {team.map((s) => (

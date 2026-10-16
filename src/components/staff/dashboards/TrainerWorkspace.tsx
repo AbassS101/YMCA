@@ -27,13 +27,13 @@ import { colors } from '@/theme/colors';
 import { radii } from '@/theme/typography';
 
 import { BRANCH_ID, formatClockTime } from './format';
+import type { TrainerDay } from './useTrainerDay';
 
 function addMinutes(time: string, mins: number): string {
   const [h, m] = (time || '09:00').split(':').map(Number);
   const total = (h * 60 + m + mins) % (24 * 60);
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
-import type { TrainerDay } from './useTrainerDay';
 
 type TrainerWorkspaceProps = {
   day: TrainerDay;

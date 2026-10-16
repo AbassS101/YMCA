@@ -50,6 +50,7 @@ import type {
 } from '@/domain/types';
 
 import { currentWeekMonday, easternNowMinutes, getDemoToday, weeksSinceAnchor } from '@/domain/demoClock';
+import type { SalesforcePushResult } from '@/salesforce/SalesforcePort';
 import { generateActivity } from '@/protivity/liveActivity';
 import { shiftSeedDates } from '@/domain/seedDateShift';
 
@@ -108,6 +109,7 @@ export type DemoState = {
   enrollmentCampaigns: EnrollmentCampaign[];
   appConfig: AppConfig;
   configAudit: ConfigAuditEntry[];
+  salesforcePushes: SalesforcePushResult[];
   schemaVersion?: number;
   /** Monday of the week the stored dates are aligned to (see seedDateShift.ts). */
   seedWeekAnchor?: string;
@@ -558,6 +560,7 @@ function migrateState(raw: DemoState): DemoState {
     enrollmentCampaigns: raw.enrollmentCampaigns ?? seed.enrollmentCampaigns,
     appConfig: normalizeAppConfig(raw.appConfig),
     configAudit: raw.configAudit ?? [],
+    salesforcePushes: raw.salesforcePushes ?? [],
   };
   delete migrated.childProfiles;
   return migrated;

@@ -393,7 +393,7 @@ export function AttendanceStreakModal({
                       Reason: {profile.activeHold.reasonLabel}
                     </Text>
                     {profile.activeHold.note ? (
-                      <Text style={styles.holdActiveNote}>"{profile.activeHold.note}"</Text>
+                      <Text style={styles.holdActiveNote}>&quot;{profile.activeHold.note}&quot;</Text>
                     ) : null}
                     <Text style={styles.holdActiveSub}>
                       Your streak will not lapse while traveling or healing.
@@ -815,7 +815,7 @@ export function AttendanceStreakModal({
                           </Text>
                           {h.note ? (
                             <Text style={[styles.historyRowNote, { color: colors.textMuted }]}>
-                              "{h.note}"
+                              &quot;{h.note}&quot;
                             </Text>
                           ) : null}
                         </View>

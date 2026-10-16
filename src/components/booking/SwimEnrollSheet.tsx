@@ -111,7 +111,7 @@ export function SwimEnrollSheet({
                 Refund and cancellation policy
               </Text>
               <Text style={{ color: colors.text, fontSize: 12 }} allowFontScaling>
-                Credits or refunds are given only for family emergencies or medical reasons with a doctor's
+                Credits or refunds are given only for family emergencies or medical reasons with a doctor&apos;s
                 note, and are prorated after the session starts. No make-ups for individual absences.
                 Classes need at least 3 participants or may be combined or canceled, with a full refund or
                 switch offered.

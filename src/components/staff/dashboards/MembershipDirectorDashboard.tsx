@@ -209,6 +209,9 @@ export function MembershipDirectorDashboard({ staffId }: { staffId: string }) {
           ...(can('viewRepKpis')
             ? [{ key: 'reps', label: 'Rep Performance', icon: 'stats-chart-outline' as const, onPress: () => router.push('/(staff)/rep-performance'), color: '#0F766E' }]
             : []),
+          ...(can('viewDepartmentStats')
+            ? [{ key: 'stats', label: 'Stats', icon: 'analytics-outline' as const, onPress: () => router.push('/(staff)/stats?scope=membership' as never), color: '#0F766E' }]
+            : []),
           ...(config.featureToggles.childWatch
             ? [{ key: 'childwatch', label: 'Child Watch', icon: 'happy-outline' as const, onPress: () => router.push('/(staff)/child-watch'), color: '#D97706' }]
             : []),

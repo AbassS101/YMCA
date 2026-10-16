@@ -1178,7 +1178,7 @@ export function TrainerClientWorkoutModal({
                   >
                     {notes.trim().length > 0 ? (
                       <Text style={[styles.coachReadOnlyText, { color: tc.text }]} allowFontScaling>
-                        "{notes}"
+                        &quot;{notes}&quot;
                       </Text>
                     ) : (
                       <Text

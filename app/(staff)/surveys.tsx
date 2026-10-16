@@ -1055,7 +1055,7 @@ export default function StaffSurveysScreen() {
                             ]}
                           >
                             <Text style={[styles.feedbackText, { color: tc.text }]}>
-                              "{f.text}"
+                              &quot;{f.text}&quot;
                             </Text>
                             <Text style={[styles.feedbackAuthor, { color: tc.textMuted }]}>
                               — {f.memberName} · {formatShortDate(f.submittedAt)}

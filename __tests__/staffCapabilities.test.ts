@@ -41,6 +41,9 @@ const ALL: StaffCapability[] = [
   'runChildWatchRoom',
   'manageChildWatchProgram',
   'manageMaintenance',
+  'viewBranchStats',
+  'viewDepartmentStats',
+  'exportData',
 ];
 
 // Staff Admin runs the business settings but not the system-level ones.
@@ -67,7 +70,8 @@ const EXPECTED: Record<string, StaffCapability[]> = {
   trainer: ['logWorkouts', 'manageOwnLessonSlots', 'takeAttendance'],
   // Everything a Staff Admin can do, except reading complaints and the generic config powers.
   wellness_director: ALL.filter(
-    (c) => c !== 'manageComplaints' && !CONFIG_CAPS.includes(c) && !CHILD_WATCH_CAPS.includes(c)
+    (c) => c !== 'manageComplaints' && !CONFIG_CAPS.includes(c) && !CHILD_WATCH_CAPS.includes(c) &&
+      c !== 'viewBranchStats'
   ),
   aquatics_director: [
     'logWorkouts',
@@ -78,6 +82,8 @@ const EXPECTED: Record<string, StaffCapability[]> = {
     'assignClients',
     'broadcast',
     'viewSessionRequests',
+    'viewDepartmentStats',
+    'exportData',
   ],
   membership_director: [
     'viewAllMembers',
@@ -97,6 +103,8 @@ const EXPECTED: Record<string, StaffCapability[]> = {
     'manageCampaigns',
     'viewRepKpis',
     'runChildWatchRoom',
+    'viewDepartmentStats',
+    'exportData',
   ],
   child_watch_supervisor: ['viewAllMembers', 'checkIn', 'runChildWatchRoom', 'broadcast'],
   child_watch_director: [
@@ -106,6 +114,8 @@ const EXPECTED: Record<string, StaffCapability[]> = {
     'broadcast',
     'manageChildWatchProgram',
     'takeAttendance',
+    'viewDepartmentStats',
+    'exportData',
   ],
   maintenance: ['manageMaintenance', 'broadcast'],
   staff: REP,
@@ -148,6 +158,22 @@ describe('staff capability matrix', () => {
 
   it('keeps Child Watch powers away from the Wellness Director', () => {
     for (const cap of CHILD_WATCH_CAPS) expect(hasCapability('wellness_director', cap)).toBe(false);
+  });
+
+  it('limits branch-wide stats to admins and IT', () => {
+    for (const role of ['admin', 'staff_admin', 'it_admin']) expect(hasCapability(role, 'viewBranchStats')).toBe(true);
+    for (const role of ['wellness_director', 'aquatics_director', 'membership_director', 'child_watch_director', 'child_watch_supervisor', 'trainer', 'desk']) {
+      expect(hasCapability(role, 'viewBranchStats')).toBe(false);
+    }
+  });
+
+  it('gives every director department stats and exports, but not supervisors', () => {
+    for (const role of ['wellness_director', 'aquatics_director', 'membership_director', 'child_watch_director']) {
+      expect(hasCapability(role, 'viewDepartmentStats')).toBe(true);
+      expect(hasCapability(role, 'exportData')).toBe(true);
+    }
+    expect(hasCapability('child_watch_supervisor', 'exportData')).toBe(false);
+    expect(hasCapability('maintenance', 'viewDepartmentStats')).toBe(false);
   });
 
   it('keeps system config (toggles, branding, thresholds) with IT only', () => {

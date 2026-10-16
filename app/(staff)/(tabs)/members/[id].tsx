@@ -33,10 +33,8 @@ import { addDaysToDate, getDemoToday } from '@/domain/demoClock';
 import { deskAlertsFor } from '@/domain/deskAlerts';
 import { cancelRequestedCopy, formatShortDate } from '@/domain/displayDates';
 import { accessSummary, ageBand, ageOn, bandLabel, facilityAccess, findPlan } from '@/domain/householdAccess';
-import type { HouseholdView } from '@/domain/types';
-import { deskRepo } from '@/repositories/deskRepo';
-import { householdRepo } from '@/repositories/householdRepo';
 import {
+  type HouseholdView,
   type ClassRegistration,
   type ClientFitnessGoal,
   type ClientWorkoutLog,
@@ -49,6 +47,9 @@ import {
   type Staff,
   type Thread,
 } from '@/domain/types';
+import { deskRepo } from '@/repositories/deskRepo';
+import { householdRepo } from '@/repositories/householdRepo';
+
 import { membershipRepo } from '@/repositories/membershipRepo';
 import { messageRepo } from '@/repositories/messageRepo';
 import { trainerRepo } from '@/repositories/trainerRepo';
@@ -847,7 +848,7 @@ export default function StaffMemberDetailScreen() {
                 <View style={{ backgroundColor: colors.background, padding: 10, borderRadius: radii.sm, borderWidth: 1, borderColor: '#E2E8F0' }}>
                   <Text style={{ fontSize: 11, fontWeight: '700', color: colors.muted }}>MEMBER MOTIVATION & PREFERENCES:</Text>
                   <Text style={{ fontSize: 13, color: colors.nearBlack, marginTop: 2, fontStyle: 'italic' }}>
-                    "{fitnessGoal.memberNotes}"
+                    &quot;{fitnessGoal.memberNotes}&quot;
                   </Text>
                 </View>
               ) : null}

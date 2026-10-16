@@ -28,6 +28,7 @@ export const ADMIN_TILES: readonly AdminTile[] = [
   { key: 'guest', group: 'Pricing & Deals', title: 'Guest & Day Passes + Donations', subtitle: 'Pass allowances and prices, donation tiers and funds', icon: 'ticket', route: '/(staff)/admin-guest-donations', section: 'guestPasses' },
   { key: 'childWatch', group: 'Operations', title: 'Child Watch Rules', subtitle: 'Hours, sign-in cutoff, daily limit, age, and capacity', icon: 'happy', route: '/(staff)/admin-child-watch', section: 'childWatch' },
   { key: 'swimClasses', group: 'Operations', title: 'Swim Class Capacity', subtitle: 'How many swimmers each class takes, and which classes are hidden', icon: 'water', route: '/(staff)/admin-swim-classes', section: 'swimClasses' },
+  { key: 'stats', group: 'Operations', title: 'Stats & Exports', subtitle: 'Retention, daily visitors, department stats, Salesforce export', icon: 'analytics', route: '/(staff)/stats', capability: 'viewDepartmentStats' },
   { key: 'templates', group: 'Operations', title: 'Message Templates', subtitle: 'Guest pass share message and welcome call script', icon: 'chatbox-ellipses', route: '/(staff)/admin-templates', section: 'templates' },
   { key: 'toggles', group: 'System', title: 'Feature Toggles', subtitle: 'Turn app features on or off', icon: 'toggle', route: '/(staff)/admin-toggles', section: 'featureToggles' },
   { key: 'branding', group: 'System', title: 'Branding & Contact', subtitle: 'Branch name, address, phone, and hours', icon: 'business', route: '/(staff)/admin-branding', section: 'branding' },

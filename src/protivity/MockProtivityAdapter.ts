@@ -1074,6 +1074,22 @@ export class MockProtivityAdapter implements ProtivityPort {
     return approved;
   }
 
+  async listCancelRequests(branchId: string, from?: string, to?: string): Promise<CancelRequest[]> {
+    const state = await loadStore();
+    const branchMemberIds = new Set(
+      state.members.filter((m) => m.homeBranchId === branchId).map((m) => m.id)
+    );
+    return state.cancelRequests
+      .filter((r) => {
+        if (!branchMemberIds.has(r.memberId)) return false;
+        const day = r.requestedAt.slice(0, 10);
+        if (from && day < from) return false;
+        if (to && day > to) return false;
+        return true;
+      })
+      .map((r) => ({ ...r }));
+  }
+
   async listPendingCancels(branchId: string): Promise<CancelRequest[]> {
     const state = await loadStore();
     const branchMemberIds = new Set(
@@ -4463,6 +4479,20 @@ export class MockProtivityAdapter implements ProtivityPort {
       .sort((a, b) => b.at.localeCompare(a.at));
   }
 
+  async listArrivalsRange(branchId: string, from: string, to: string): Promise<ArrivalRecord[]> {
+    const state = await loadStore();
+    const inBranch = new Set(state.members.filter((m) => m.homeBranchId === branchId).map((m) => m.id));
+    return (state.arrivals ?? [])
+      .filter((a) => a.date >= from && a.date <= to && inBranch.has(a.memberId))
+      .sort((a, b) => a.at.localeCompare(b.at));
+  }
+
+  async listMemberships(branchId: string): Promise<Membership[]> {
+    const state = await loadStore();
+    const inBranch = new Set(state.members.filter((m) => m.homeBranchId === branchId).map((m) => m.id));
+    return state.memberships.filter((m) => inBranch.has(m.memberId)).map((m) => ({ ...m }));
+  }
+
   // ==========================================
   // Billing issues
   // ==========================================
@@ -4778,7 +4808,7 @@ export class MockProtivityAdapter implements ProtivityPort {
   // --- Child Watch ---------------------------------------------------------------------------------
 
   async listChildWatchVisits(
-    filter: { date?: string; activeOnly?: boolean; householdId?: string },
+    filter: { date?: string; from?: string; to?: string; activeOnly?: boolean; householdId?: string },
     requesterUserId: string
   ): Promise<ChildWatchVisit[]> {
     const state = await loadStore();
@@ -4789,6 +4819,11 @@ export class MockProtivityAdapter implements ProtivityPort {
       .filter((v) => {
         if (filter.activeOnly && v.signedOutAt) return false;
         if (filter.date && childWatchLocalDay(v.signedInAt) !== filter.date) return false;
+        if (filter.from || filter.to) {
+          const day = childWatchLocalDay(v.signedInAt);
+          if (filter.from && day < filter.from) return false;
+          if (filter.to && day > filter.to) return false;
+        }
         const child = childById.get(v.childId);
         if (filter.householdId && (child ? householdKeyOf(child) : v.memberId) !== filter.householdId) return false;
         return true;
@@ -5075,13 +5110,24 @@ export class MockProtivityAdapter implements ProtivityPort {
   }
 
   async listChildWatchIncidents(
-    filter: { childId?: string; householdId?: string; status?: ChildWatchIncident['status'] },
+    filter: {
+      childId?: string;
+      householdId?: string;
+      status?: ChildWatchIncident['status'];
+      from?: string;
+      to?: string;
+    },
     requesterUserId: string
   ): Promise<ChildWatchIncident[]> {
     const state = await loadStore();
     const actor = childWatchActor(state, requesterUserId);
     if (actor.kind === 'staff') requireChildWatchRoom(actor, 'view Child Watch incidents');
     return (state.childWatchIncidents ?? []).filter((i) => {
+      if (filter.from || filter.to) {
+        const day = childWatchLocalDay(i.at);
+        if (filter.from && day < filter.from) return false;
+        if (filter.to && day > filter.to) return false;
+      }
       if (actor.kind === 'member' && !isHouseholdAdult(actor, i.householdId)) return false;
       if (filter.childId && i.childId !== filter.childId) return false;
       if (filter.householdId && i.householdId !== filter.householdId) return false;
@@ -5159,6 +5205,36 @@ export class MockProtivityAdapter implements ProtivityPort {
     return (state.childWatchShifts ?? []).filter((s) => s.date === date).sort((a, b) => a.start.localeCompare(b.start));
   }
 
+  async listChildWatchHeadcountsRange(from: string, to: string, requesterUserId: string): Promise<ChildWatchHeadcount[]> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    requireChildWatchRoom(actor, 'view Child Watch headcounts');
+    return (state.childWatchHeadcounts ?? [])
+      .filter((h) => {
+        const day = childWatchLocalDay(h.at);
+        return day >= from && day <= to;
+      })
+      .sort((a, b) => a.at.localeCompare(b.at));
+  }
+
+  async listChildWatchShiftsRange(from: string, to: string, requesterUserId: string): Promise<ChildWatchShift[]> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    if (actor.kind !== 'staff' || (!actor.canRunRoom && !actor.canManage)) {
+      throw new Error('Your staff role is not permitted to view Child Watch shifts.');
+    }
+    return (state.childWatchShifts ?? [])
+      .filter((s) => s.date >= from && s.date <= to)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
+  }
+
+  async listPendingAuthorizedPickups(requesterUserId: string): Promise<ChildWatchAuthorizedPickup[]> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    requireChildWatchProgram(actor, 'review pending authorized pickups');
+    return (state.childWatchAuthorizedPickups ?? []).filter((p) => p.status === 'pending');
+  }
+
   async saveChildWatchShift(
     input: Omit<ChildWatchShift, 'id'> & { id?: string },
     requesterUserId: string
@@ -5196,6 +5272,14 @@ export class MockProtivityAdapter implements ProtivityPort {
     if (!shift) throw new Error('Shift not found.');
     state.childWatchShifts = state.childWatchShifts.filter((s) => s.id !== id);
     recordChildWatchAudit(state, actor, 'shift_changed', `Shift removed: ${shift.staffId} ${shift.date} ${shift.start}-${shift.end}`);
+    await saveStore(state);
+  }
+
+  async recordChildWatchExport(detail: string, requesterUserId: string): Promise<void> {
+    const state = await loadStore();
+    const actor = childWatchActor(state, requesterUserId);
+    requireChildWatchProgram(actor, 'export Child Watch data');
+    recordChildWatchAudit(state, actor, 'data_exported', detail);
     await saveStore(state);
   }
 

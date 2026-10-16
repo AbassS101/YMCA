@@ -71,8 +71,8 @@ test('seniors filter returns senior category and seniorFriendly classes', async 
   expect(titles).toContain('Aqua Arthritis Warm Water Therapy');
   expect(titles).toContain("Movement for Parkinson's & Balance");
 
-  // Aqua Fit is seniorFriendly: true, so it should also appear
-  expect(titles).toContain('Aqua Fit (Water Aerobics)');
+  // Deep Water Aerobics is seniorFriendly: true, so it should also appear
+  expect(titles).toContain('Deep Water Aerobics');
 
   // All returned items should be senior-friendly or in seniors category
   for (const item of seniorClasses) {

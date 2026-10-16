@@ -144,6 +144,10 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
+  async listCancelRequests(_branchId: string, _from?: string, _to?: string): Promise<CancelRequest[]> {
+    throw new ProtivityNotConnected();
+  }
+
   async listPendingCancels(_branchId: string): Promise<CancelRequest[]> {
     throw new ProtivityNotConnected();
   }
@@ -870,6 +874,14 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
+  async listArrivalsRange(_branchId: string, _from: string, _to: string): Promise<ArrivalRecord[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listMemberships(_branchId: string): Promise<Membership[]> {
+    throw new ProtivityNotConnected();
+  }
+
   async listArrivals(_branchId: string, _date: string): Promise<ArrivalRecord[]> {
     throw new ProtivityNotConnected();
   }
@@ -961,7 +973,7 @@ export class LiveProtivityAdapter implements ProtivityPort {
 
   // --- Child Watch (not connected yet) ---
   async listChildWatchVisits(
-    _filter: { date?: string; activeOnly?: boolean; householdId?: string },
+    _filter: { date?: string; from?: string; to?: string; activeOnly?: boolean; householdId?: string },
     _requesterUserId: string
   ): Promise<ChildWatchVisit[]> {
     throw new ProtivityNotConnected();
@@ -1026,7 +1038,13 @@ export class LiveProtivityAdapter implements ProtivityPort {
   }
 
   async listChildWatchIncidents(
-    _filter: { childId?: string; householdId?: string; status?: ChildWatchIncident['status'] },
+    _filter: {
+      childId?: string;
+      householdId?: string;
+      status?: ChildWatchIncident['status'];
+      from?: string;
+      to?: string;
+    },
     _requesterUserId: string
   ): Promise<ChildWatchIncident[]> {
     throw new ProtivityNotConnected();
@@ -1055,6 +1073,22 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
+  async listChildWatchHeadcountsRange(
+    _from: string,
+    _to: string,
+    _requesterUserId: string
+  ): Promise<ChildWatchHeadcount[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listChildWatchShiftsRange(_from: string, _to: string, _requesterUserId: string): Promise<ChildWatchShift[]> {
+    throw new ProtivityNotConnected();
+  }
+
+  async listPendingAuthorizedPickups(_requesterUserId: string): Promise<ChildWatchAuthorizedPickup[]> {
+    throw new ProtivityNotConnected();
+  }
+
   async saveChildWatchShift(
     _input: Omit<ChildWatchShift, 'id'> & { id?: string },
     _requesterUserId: string
@@ -1063,6 +1097,10 @@ export class LiveProtivityAdapter implements ProtivityPort {
   }
 
   async deleteChildWatchShift(_id: string, _requesterUserId: string): Promise<void> {
+    throw new ProtivityNotConnected();
+  }
+
+  async recordChildWatchExport(_detail: string, _requesterUserId: string): Promise<void> {
     throw new ProtivityNotConnected();
   }
 

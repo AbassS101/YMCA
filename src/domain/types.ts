@@ -132,7 +132,8 @@ export type ChildWatchAuditAction =
   | 'incident_logged'
   | 'incident_reviewed'
   | 'headcount'
-  | 'shift_changed';
+  | 'shift_changed'
+  | 'data_exported';
 
 export type ChildWatchAuditEntry = {
   id: string;

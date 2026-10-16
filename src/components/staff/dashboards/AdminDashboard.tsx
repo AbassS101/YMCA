@@ -16,6 +16,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import { canOpenAdminCenter } from '@/domain/adminCenter';
 import { getDemoToday } from '@/domain/demoClock';
+import { canOpenStats } from '@/domain/stats/statsScopes';
 import { formatShortDate } from '@/domain/displayDates';
 import { personaForRole, personaTheme } from '@/domain/staffCapabilities';
 import type { CancelRequest, ComplaintSuggestion, Member, ScheduleItem, Staff } from '@/domain/types';
@@ -214,6 +215,9 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
           { key: 'schedules', label: 'Schedules', icon: 'calendar-outline', onPress: () => router.push('/(staff)/schedules'), color: '#D97706' },
           ...(config.featureToggles.childWatch
             ? [{ key: 'childwatch', label: 'Child Watch', icon: 'happy-outline' as const, onPress: () => router.push('/(staff)/child-watch'), color: '#0D9488' }]
+            : []),
+          ...(canOpenStats(session?.role)
+            ? [{ key: 'stats', label: 'Stats', icon: 'analytics-outline' as const, onPress: () => router.push('/(staff)/stats'), color: '#0F766E' }]
             : []),
           ...(canOpenAdminCenter(session?.role)
             ? [{ key: 'admin-center', label: 'Admin Center', icon: 'settings-outline' as const, onPress: () => router.push('/(staff)/admin-center'), color: '#B45309' }]

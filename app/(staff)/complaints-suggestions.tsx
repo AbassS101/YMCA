@@ -449,7 +449,7 @@ export default function StaffComplaintsSuggestionsScreen() {
                       ) : null}
                     </View>
                     <Text style={{ fontSize: 13, color: isDark ? '#D1FAE5' : '#064E3B', lineHeight: 18 }}>
-                      "{item.staffResponse}"
+                      &quot;{item.staffResponse}&quot;
                     </Text>
                   </View>
                 ) : null}
@@ -520,7 +520,7 @@ export default function StaffComplaintsSuggestionsScreen() {
                   Respond to {respondingItem?.type === 'complaint' ? 'Complaint' : 'Suggestion'}
                 </Text>
                 <Text style={[styles.modalSub, { color: tc.textMuted }]} numberOfLines={1}>
-                  "{respondingItem?.title}"
+                  &quot;{respondingItem?.title}&quot;
                 </Text>
               </View>
               <Pressable onPress={() => setRespondingItem(null)} hitSlop={10}>
@@ -542,7 +542,7 @@ export default function StaffComplaintsSuggestionsScreen() {
                   </Text>
                 </Text>
                 <Text style={[styles.contextDetails, { color: tc.text }]}>
-                  "{respondingItem?.details}"
+                  &quot;{respondingItem?.details}&quot;
                 </Text>
               </View>
 

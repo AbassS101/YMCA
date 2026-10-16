@@ -29,6 +29,7 @@ export default function StaffLayout() {
       <Stack.Screen name="admin-branding" />
       <Stack.Screen name="admin-thresholds" />
       <Stack.Screen name="admin-audit" />
+      <Stack.Screen name="stats" />
     </Stack>
   );
 }

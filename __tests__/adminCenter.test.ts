@@ -28,8 +28,8 @@ describe('Admin Control Center gating', () => {
   });
 
   it('limits directors to their own sections', () => {
-    expect(keys('wellness_director')).toEqual(['lessons', 'wellness']);
-    expect(keys('membership_director')).toEqual(['campaigns']);
+    expect(keys('wellness_director')).toEqual(['lessons', 'wellness', 'stats']);
+    expect(keys('membership_director')).toEqual(['campaigns', 'stats']);
   });
 
   it('shows the swim class and template tiles to the right roles', () => {
