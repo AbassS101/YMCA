@@ -464,6 +464,8 @@ export default function StaffManagementScreen() {
                   { key: 'trainer', label: 'Trainer / Coach', desc: 'Teaches classes & private lessons' },
                   { key: 'swim_instructor', label: 'Swim Instructor', desc: 'Teaches swim classes & private swim lessons' },
                   { key: 'desk', label: 'Front Desk Membership Rep', desc: 'Sign-in, member calls, billing follow-up & sales' },
+                  { key: 'child_watch_director', label: 'Child Watch Director', desc: 'Runs the childcare program, staffing & reports' },
+                  { key: 'child_watch_supervisor', label: 'Child Watch Supervisor', desc: 'Supervises the room and cares for toddlers to school-age kids while parents work out' },
                   { key: 'maintenance', label: 'Maintenance', desc: 'Handles facility repair reports & suggestions' },
                 ]
                   .filter((r) => !limitedToLowerRoles || !isTopLevelStaffRole(r.key))
