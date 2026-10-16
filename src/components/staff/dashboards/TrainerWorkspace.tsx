@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ClassAttendanceModal } from '@/components/ClassAttendanceModal';
 import { DateTimeWheelPicker } from '@/components/DateTimeWheelPicker';
@@ -187,6 +187,13 @@ export function TrainerWorkspace({ day, staffId, accent, showQuickActions = true
       ) : null}
 
       <SessionRequestsInbox staffId={staffId} accent={accent} onChanged={() => void reload()} />
+
+      {day.loaded === false ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 }} accessibilityRole="progressbar" accessibilityLabel="Loading today's schedule">
+          <ActivityIndicator size="small" color={accent} />
+          <Text style={{ color: tc.textMuted, fontSize: 13, fontWeight: '600' }}>Loading today's schedule…</Text>
+        </View>
+      ) : null}
 
       {!isSwim && orientationQueue.length > 0 ? (
         <SectionCard

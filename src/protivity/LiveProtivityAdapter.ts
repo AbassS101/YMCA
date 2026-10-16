@@ -209,6 +209,10 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
+  async getClassRosterCounts(_scheduleItemIds: string[]): Promise<Record<string, number>> {
+    throw new ProtivityNotConnected();
+  }
+
   async listClassRoster(_scheduleItemId: string): Promise<Member[]> {
     throw new ProtivityNotConnected();
   }

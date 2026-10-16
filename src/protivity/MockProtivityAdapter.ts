@@ -1287,6 +1287,19 @@ export class MockProtivityAdapter implements ProtivityPort {
     );
   }
 
+  async getClassRosterCounts(scheduleItemIds: string[]): Promise<Record<string, number>> {
+    const state = await loadStore();
+    const wanted = new Set(scheduleItemIds);
+    const counts: Record<string, number> = {};
+    for (const id of scheduleItemIds) counts[id] = 0;
+    for (const r of state.classRegistrations) {
+      if (r.status === 'registered' && wanted.has(r.scheduleItemId)) {
+        counts[r.scheduleItemId] += 1;
+      }
+    }
+    return counts;
+  }
+
   async listClassRoster(scheduleItemId: string): Promise<Member[]> {
     const state = await loadStore();
     const memberIds = state.classRegistrations

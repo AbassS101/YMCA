@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { InteractionManager, StyleSheet, Text, View } from 'react-native';
 
 import { ClassAttendanceModal } from '@/components/ClassAttendanceModal';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -74,7 +74,9 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
         .sort((a, b) => a.start.localeCompare(b.start));
 
       const [fills, streaks, teamLoads, trainerLinks] = await Promise.all([
-        Promise.all(todays.map(async (item) => ({ item, registered: (await registrationRepo.roster(api, item.id)).length }))),
+        registrationRepo
+          .rosterCounts(api, todays.map((i) => i.id))
+          .then((counts) => todays.map((item) => ({ item, registered: counts[item.id] ?? 0 }))),
         Promise.all(allMembers.map((m) => streakRepo.getStreakProfile(m.id).catch(() => null))),
         Promise.all(
           staff
@@ -106,7 +108,10 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
 
   useFocusEffect(
     useCallback(() => {
-      void load();
+      const handle = InteractionManager.runAfterInteractions(() => {
+        void load();
+      });
+      return () => handle.cancel();
     }, [load])
   );
 

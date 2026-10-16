@@ -2,6 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  InteractionManager,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -107,6 +109,13 @@ export default function StaffSchedulesScreen() {
   const [selectedCategory, setSelectedCategory] = useState<ScheduleCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [dayIndex, setDayIndex] = useState(0);
+  const weekDays = useMemo(() => {
+    const today = getDemoToday();
+    return Array.from({ length: 14 }, (_, i) => addDaysToDate(today, i));
+  }, []);
+  const activeDay = weekDays[dayIndex];
 
   // Class / Event Form Modal (Create or Edit)
   const [itemModalVisible, setItemModalVisible] = useState(false);
@@ -184,57 +193,73 @@ export default function StaffSchedulesScreen() {
     try {
       setError(false);
 
-      const [profile, staffList] = await Promise.all([
+      // Phase 1: only what the Classes list needs, so the screen is usable fast.
+      const [profile, classList] = await Promise.all([
         api.getStaff(staffId).catch(() => null),
-        api.listStaff().catch(() => []),
+        seesBranchSchedule
+          ? scheduleRepo.listAll(api, BRANCH_ID)
+          : scheduleRepo.listTrainerSchedule(api, staffId),
       ]);
+      classList.sort((a, b) => a.start.localeCompare(b.start));
       setStaffProfile(profile);
-      setAllStaff(staffList);
-
-      let classList: ScheduleItem[] = [];
-      if (seesBranchSchedule) {
-        classList = await scheduleRepo.listAll(api, BRANCH_ID);
-      } else {
-        classList = await scheduleRepo.listTrainerSchedule(api, staffId);
-      }
       setSchedules(classList);
+      setLoaded(true);
 
-      // Load roster counts
-      const counts: Record<string, number> = {};
-      await Promise.all(
-        classList.map(async (item) => {
-          const r = await registrationRepo.roster(api, item.id);
-          counts[item.id] = r.length;
+      // Phase 2: everything else loads in the background without blocking the UI.
+      void registrationRepo
+        .rosterCounts(api, classList.map((i) => i.id))
+        .then(setRosterCounts)
+        .catch(() => {});
+      void api.listStaff().then(setAllStaff).catch(() => {});
+      void availabilityRepo
+        .listWindows(api, lessonStaffId, addDaysToDate(mondayOf(getDemoToday()), -7), addDaysToDate(mondayOf(getDemoToday()), 28))
+        .then(setLessonSlots)
+        .catch(() => {});
+      void api
+        .listAllMembers(BRANCH_ID)
+        .then((allMembers) => {
+          const mMap: Record<string, Member> = {};
+          for (const m of allMembers) mMap[m.id] = m;
+          setMemberMap(mMap);
         })
-      );
-      setRosterCounts(counts);
-
-      // Load private lessons & slots if trainer or admin
-      const slots = await availabilityRepo.listWindows(api, lessonStaffId, addDaysToDate(mondayOf(getDemoToday()), -7), addDaysToDate(mondayOf(getDemoToday()), 28)).catch(() => []);
-      setLessonSlots(slots);
-
-      const dayLessons = await api.listStaffLessons(lessonStaffId, addDaysToDate(getDemoToday(), 1)).catch(() => []);
-      setPrivateLessons(dayLessons);
-
-      const allMembers = await api.listAllMembers(BRANCH_ID).catch(() => []);
-      const mMap: Record<string, Member> = {};
-      for (const m of allMembers) {
-        mMap[m.id] = m;
-      }
-      setMemberMap(mMap);
+        .catch(() => {});
     } catch {
       setError(true);
+      setLoaded(true);
     }
   }, [api, staffId, seesBranchSchedule, lessonStaffId]);
 
+  // Private lessons follow the selected day.
+  const loadLessons = useCallback(async () => {
+    if (!staffId) return;
+    try {
+      setPrivateLessons(await api.listStaffLessons(lessonStaffId, activeDay));
+    } catch {
+      setPrivateLessons([]);
+    }
+  }, [api, staffId, lessonStaffId, activeDay]);
+
   useFocusEffect(
     useCallback(() => {
-      void loadData();
+      const handle = InteractionManager.runAfterInteractions(() => {
+        void loadLessons();
+      });
+      return () => handle.cancel();
+    }, [loadLessons])
+  );
+
+  // Defer the load until the tab transition finishes so switching tabs never freezes.
+  useFocusEffect(
+    useCallback(() => {
+      const handle = InteractionManager.runAfterInteractions(() => {
+        void loadData();
+      });
+      return () => handle.cancel();
     }, [loadData])
   );
 
   const filteredClasses = useMemo(() => {
-    let result = schedules;
+    let result = schedules.filter((item) => item.start.slice(0, 10) === activeDay);
     if (selectedCategory !== 'all') {
       result = result.filter((item) => item.category === selectedCategory);
     }
@@ -248,7 +273,16 @@ export default function StaffSchedulesScreen() {
       );
     }
     return result;
-  }, [schedules, selectedCategory, searchQuery]);
+  }, [schedules, activeDay, selectedCategory, searchQuery]);
+
+  const dayCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of schedules) {
+      const d = item.start.slice(0, 10);
+      counts[d] = (counts[d] ?? 0) + 1;
+    }
+    return counts;
+  }, [schedules]);
 
   function openCreateModal() {
     setEditingItemId(null);
@@ -438,7 +472,7 @@ export default function StaffSchedulesScreen() {
         );
       }
       setItemModalVisible(false);
-      await loadData();
+      await Promise.all([loadData(), loadLessons()]);
     } catch (err: any) {
       setFormError(err?.message || 'Could not save schedule item.');
     } finally {
@@ -493,7 +527,7 @@ export default function StaffSchedulesScreen() {
       }
       setCancelModalVisible(false);
       setItemToCancel(null);
-      await loadData();
+      await Promise.all([loadData(), loadLessons()]);
     } catch (err: any) {
       dialog.alert('Error', err?.message || 'Failed to cancel session.', [{ text: 'OK' }]);
     } finally {
@@ -546,7 +580,7 @@ export default function StaffSchedulesScreen() {
         [{ text: 'OK' }],
         'checkmark',
       );
-      await loadData();
+      await Promise.all([loadData(), loadLessons()]);
     } catch (err: any) {
       dialog.alert('Error', err?.message || 'Could not add slot.', [{ text: 'OK' }]);
     } finally {
@@ -557,11 +591,58 @@ export default function StaffSchedulesScreen() {
   async function handleDeleteSlot(slotId: string) {
     try {
       await api.deleteLessonSlot(slotId, staffId);
-      await loadData();
+      await Promise.all([loadData(), loadLessons()]);
     } catch {
       dialog.alert('Error', 'Could not remove slot.', [{ text: 'OK' }]);
     }
   }
+
+  const dayStripEl = (
+    <>
+            {/* Day strip: one day at a time */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayStrip}>
+              {weekDays.map((d, idx) => {
+                const active = idx === dayIndex;
+                const dt = new Date(`${d}T12:00:00`);
+                return (
+                  <Pressable
+                    key={d}
+                    onPress={() => setDayIndex(idx)}
+                    style={[styles.dayPill, active && styles.dayPillActive]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={`${formatDate(`${d}T12:00:00`)}, ${dayCounts[d] ?? 0} classes`}
+                  >
+                    <Text style={[styles.dayPillDow, active && styles.dayPillTextActive]}>
+                      {idx === 0 ? 'TODAY' : dt.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase()}
+                    </Text>
+                    <Text style={[styles.dayPillNum, active && styles.dayPillTextActive]}>{dt.getDate()}</Text>
+                    <Text style={[styles.dayPillCount, active && styles.dayPillTextActive]}>
+                      {loaded ? dayCounts[d] ?? 0 : '·'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.dayHeadingRow}>
+              <Text style={styles.dayHeadingText}>
+                {new Date(`${activeDay}T12:00:00`).toLocaleDateString(undefined, {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </Text>
+              {loaded ? (
+                <Text style={styles.dayHeadingCount}>
+                  {filteredClasses.length} {filteredClasses.length === 1 ? 'class' : 'classes'}
+                </Text>
+              ) : (
+                <ActivityIndicator size="small" color={colors.primary} />
+              )}
+            </View>
+    </>
+  );
 
   return (
     <View style={styles.screen}>
@@ -642,11 +723,22 @@ export default function StaffSchedulesScreen() {
               })}
             </ScrollView>
 
+            {dayStripEl}
+
             {/* Items List */}
-            {filteredClasses.length === 0 ? (
+            {!loaded && !error ? (
+              <View style={styles.emptyCard} accessibilityRole="progressbar" accessibilityLabel="Loading classes">
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.emptyText}>Loading classes…</Text>
+              </View>
+            ) : filteredClasses.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Ionicons name="calendar-outline" size={40} color={colors.muted} />
-                <Text style={styles.emptyText}>No classes or events found matching criteria.</Text>
+                <Text style={styles.emptyText}>
+                  {searchQuery.trim() || selectedCategory !== 'all'
+                    ? 'No classes match your filters on this day.'
+                    : 'Nothing scheduled for this day.'}
+                </Text>
               </View>
             ) : (
               filteredClasses.map((item) => {
@@ -827,11 +919,13 @@ export default function StaffSchedulesScreen() {
               </View>
             ) : null}
 
+            {dayStripEl}
+
             <Text style={styles.sectionHeader}>Booked Private Lessons</Text>
             {privateLessons.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Ionicons name="person-circle-outline" size={36} color={colors.muted} />
-                <Text style={styles.emptyText}>No private lessons scheduled for today.</Text>
+                <Text style={styles.emptyText}>No private lessons scheduled for this day.</Text>
               </View>
             ) : (
               privateLessons.map((l) => {
@@ -872,7 +966,7 @@ export default function StaffSchedulesScreen() {
                           onPress={async () => {
                             try {
                               await trainerRepo.markLessonStatus(api, l.id, 'completed', 'Completed 1-on-1 private lesson.');
-                              await loadData();
+                              await Promise.all([loadData(), loadLessons()]);
                               const m = memberMap[l.memberId];
                               if (m) {
                                 setSelectedWorkoutMember(m);
@@ -900,7 +994,7 @@ export default function StaffSchedulesScreen() {
                           onPress={async () => {
                             try {
                               await trainerRepo.markLessonStatus(api, l.id, 'no_show', 'Client did not attend.');
-                              await loadData();
+                              await Promise.all([loadData(), loadLessons()]);
                             } catch {
                               dialog.alert('Error', 'Could not mark no-show.');
                             }
@@ -1504,6 +1598,59 @@ function makeStyles(colors: ThemeColors) {
   categoryScroll: {
     gap: 8,
     paddingVertical: 2,
+  },
+  dayStrip: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  dayPill: {
+    minWidth: 58,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 1,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dayPillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  dayPillDow: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    color: colors.muted,
+  },
+  dayPillNum: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  dayPillCount: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.muted,
+  },
+  dayPillTextActive: {
+    color: '#FFFFFF',
+  },
+  dayHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dayHeadingText: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  dayHeadingCount: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.muted,
   },
   categoryChip: {
     paddingHorizontal: 14,

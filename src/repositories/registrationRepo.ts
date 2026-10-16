@@ -26,6 +26,16 @@ export const registrationRepo = {
     return api.listClassRoster(scheduleItemId);
   },
 
+  rosterCounts(api: ProtivityPort, scheduleItemIds: string[]): Promise<Record<string, number>> {
+    // Fall back to per-class rosters if the backend has no batch endpoint.
+    return api.getClassRosterCounts(scheduleItemIds).catch(async () => {
+      const entries = await Promise.all(
+        scheduleItemIds.map(async (id) => [id, (await api.listClassRoster(id)).length] as const),
+      );
+      return Object.fromEntries(entries);
+    });
+  },
+
   /** Cancel current registration and register for another occurrence of the same title. */
   async change(
     api: ProtivityPort,

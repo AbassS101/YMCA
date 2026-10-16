@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  InteractionManager,
   Platform,
   Pressable,
   ScrollView,
@@ -131,6 +132,7 @@ export default function MemberSchedulesScreen() {
   const [dayIndex, setDayIndex] = useState(0);
   const [error, setError] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [loadTick, setLoadTick] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   // Filters & Search
@@ -174,15 +176,7 @@ export default function MemberSchedulesScreen() {
       setSavedIds(new Set(saved.map((s) => s.scheduleItemId)));
       setMembership(mem);
       setLoaded(true);
-
-      const counts: Record<string, number> = {};
-      await Promise.all(
-        weekSchedules.map(async (item) => {
-          const roster = await registrationRepo.roster(api, item.id);
-          counts[item.id] = roster.length;
-        })
-      );
-      setRosterCounts(counts);
+      setLoadTick((t) => t + 1);
     } catch {
       setError(true);
     } finally {
@@ -190,11 +184,38 @@ export default function MemberSchedulesScreen() {
     }
   }, [api, memberId]);
 
+  // Defer the heavy load until the tab transition has finished so the tab bar never freezes.
   useFocusEffect(
     useCallback(() => {
-      void load();
+      const handle = InteractionManager.runAfterInteractions(() => {
+        void load();
+      });
+      return () => handle.cancel();
     }, [load])
   );
+
+  // Roster counts only for the selected day (was: every class in the week at once).
+  useEffect(() => {
+    if (allWeekItems.length === 0) {
+      return;
+    }
+    let cancelled = false;
+    const dayItems = allWeekItems.filter((i) => dayKey(i.start) === weekDays[dayIndex]);
+    void registrationRepo
+      .rosterCounts(
+        api,
+        dayItems.map((i) => i.id)
+      )
+      .then((counts) => {
+        if (!cancelled) {
+          setRosterCounts((prev) => ({ ...prev, ...counts }));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [api, allWeekItems, dayIndex, weekDays, loadTick]);
 
   const registeredMap = useMemo(() => {
     const map = new Map<string, ClassRegistration>();
@@ -307,8 +328,19 @@ export default function MemberSchedulesScreen() {
     if (memberId === '') {
       return;
     }
-    await savedClassesRepo.toggle(memberId, scheduleItemId);
-    await load();
+    // Optimistic: flip the star immediately instead of reloading the whole week.
+    setSavedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(scheduleItemId)) next.delete(scheduleItemId);
+      else next.add(scheduleItemId);
+      return next;
+    });
+    try {
+      await savedClassesRepo.toggle(memberId, scheduleItemId);
+    } catch {
+      const saved = await savedClassesRepo.list(memberId);
+      setSavedIds(new Set(saved.map((s) => s.scheduleItemId)));
+    }
   };
 
   const handleBookingPress = (item: ScheduleItem) => {
@@ -719,6 +751,10 @@ export default function MemberSchedulesScreen() {
         style={styles.classList}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
+        windowSize={7}
+        removeClippedSubviews
         ListHeaderComponent={
           <View style={styles.listHeaderWrapper}>
             <MySessionRequests />
@@ -792,6 +828,21 @@ export default function MemberSchedulesScreen() {
               </Text>
             </Pressable>
             ) : null}
+
+            {/* Day heading: makes it clear which single day the list below shows */}
+            <View style={styles.dayHeadingRow}>
+              <Text style={[styles.dayHeadingText, { color: tc.text }]}>
+                {dayIndex === 0 ? 'Today · ' : dayIndex === 1 ? 'Tomorrow · ' : ''}
+                {formatDayLabel(activeDay)}
+              </Text>
+              {loaded ? (
+                <Text style={[styles.dayHeadingCount, { color: tc.textMuted }]}>
+                  {filteredItems.length} {filteredItems.length === 1 ? 'class' : 'classes'}
+                </Text>
+              ) : (
+                <ActivityIndicator size="small" color={tc.primary} />
+              )}
+            </View>
 
             {/* Filter Status Reset Pill if filters are active */}
             {hasActiveFilters ? (
@@ -1138,6 +1189,21 @@ const styles = StyleSheet.create({
   },
   cardItem: {
     marginBottom: 4,
+  },
+  dayHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    paddingTop: 2,
+  },
+  dayHeadingText: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  dayHeadingCount: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   emptyContainer: {
     borderRadius: radii.card,

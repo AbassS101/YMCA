@@ -164,6 +164,8 @@ export interface ProtivityPort {
   cancelClassRegistration(memberId: string, scheduleItemId: string): Promise<ClassRegistration>;
   listMyRegistrations(memberId: string): Promise<ClassRegistration[]>;
   listClassRoster(scheduleItemId: string): Promise<Member[]>;
+  /** Registered-attendee counts for many classes in one call. */
+  getClassRosterCounts(scheduleItemIds: string[]): Promise<Record<string, number>>;
 
   listLessonSlots(staffId: string, from: string, to: string): Promise<LessonSlot[]>;
   bookPrivateLesson(
