@@ -35,7 +35,9 @@
     },
     "plugins": [
       "expo-router",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-asset",
+      "expo-status-bar"
     ],
     "extra": {
       "router": {},
