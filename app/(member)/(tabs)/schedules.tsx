@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  InteractionManager,
   Platform,
   Pressable,
   ScrollView,
@@ -187,10 +186,10 @@ export default function MemberSchedulesScreen() {
   // Defer the heavy load until the tab transition has finished so the tab bar never freezes.
   useFocusEffect(
     useCallback(() => {
-      const handle = InteractionManager.runAfterInteractions(() => {
+      const handle = setTimeout(() => {
         void load();
-      });
-      return () => handle.cancel();
+      }, 0);
+      return () => clearTimeout(handle);
     }, [load])
   );
 

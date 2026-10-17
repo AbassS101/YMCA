@@ -3,7 +3,6 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  InteractionManager,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -241,20 +240,20 @@ export default function StaffSchedulesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      const handle = InteractionManager.runAfterInteractions(() => {
+      const handle = setTimeout(() => {
         void loadLessons();
-      });
-      return () => handle.cancel();
+      }, 0);
+      return () => clearTimeout(handle);
     }, [loadLessons])
   );
 
   // Defer the load until the tab transition finishes so switching tabs never freezes.
   useFocusEffect(
     useCallback(() => {
-      const handle = InteractionManager.runAfterInteractions(() => {
+      const handle = setTimeout(() => {
         void loadData();
-      });
-      return () => handle.cancel();
+      }, 0);
+      return () => clearTimeout(handle);
     }, [loadData])
   );
 

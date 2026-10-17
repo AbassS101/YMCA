@@ -1,6 +1,5 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { InteractionManager } from 'react-native';
 
 import { useSession } from '@/context/SessionContext';
 import { getDemoToday } from '@/domain/demoClock';
@@ -91,10 +90,10 @@ export function useTrainerDay(staffId: string): TrainerDay {
 
   useFocusEffect(
     useCallback(() => {
-      const handle = InteractionManager.runAfterInteractions(() => {
+      const handle = setTimeout(() => {
         void reload();
-      });
-      return () => handle.cancel();
+      }, 0);
+      return () => clearTimeout(handle);
     }, [reload])
   );
 

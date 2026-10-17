@@ -37,6 +37,14 @@
       "expo-router",
       "expo-sharing",
       "expo-asset",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow YMCA Silver Spring to use the camera to scan the barcode on your membership card.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
       "expo-status-bar"
     ],
     "extra": {

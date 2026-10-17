@@ -25,6 +25,9 @@ import {
   generateBarcodeBars,
   formatBarcodeLabel,
 } from '@/utils/barcode';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ScannedBarcode } from '@/components/ScannedBarcode';
+import { loadWalletCard, type WalletCard } from '@/utils/walletCard';
 
 export type MemberCheckInCardProps = {
   member: Member;
@@ -45,8 +48,19 @@ export function MemberCheckInCard({
   onClose,
   showInlineCard = true,
 }: MemberCheckInCardProps) {
-  const { api } = useSession();
+  const { api, session } = useSession();
+  const router = useRouter();
+  const [walletCard, setWalletCard] = useState<WalletCard | null>(null);
   const [isScanModalOpen, setIsScanModalOpen] = useState(initialExpanded);
+
+  // A scanned physical card replaces the generated barcode; reload when returning from the scan screen.
+  useFocusEffect(
+    React.useCallback(() => {
+      const userId = session?.userId;
+      if (!userId) return;
+      void loadWalletCard(userId).then(setWalletCard);
+    }, [session?.userId]),
+  );
   const [isBrightnessBoosted, setIsBrightnessBoosted] = useState(false);
   const [streakProfile, setStreakProfile] = useState<MemberStreakProfile | null>(null);
   const previousBrightnessRef = useRef<number | null>(null);
@@ -244,23 +258,37 @@ export function MemberCheckInCard({
 
             {/* Barcode Lines Area */}
             <View style={styles.barcodeLinesWrapper}>
-              <View style={styles.barcodeLines}>
-                {barcodeBars.map((seg, idx) => (
-                  <View
-                    key={idx}
-                    style={[
-                      styles.bar,
-                      {
-                        width: Math.max(2, seg.width * 1.8),
-                        marginRight: seg.marginRight,
-                      },
-                    ]}
-                  />
-                ))}
-              </View>
+              {walletCard ? (
+                <ScannedBarcode value={walletCard.value} type={walletCard.type} height={52} />
+              ) : (
+                <View style={styles.barcodeLines}>
+                  {barcodeBars.map((seg, idx) => (
+                    <View
+                      key={idx}
+                      style={[
+                        styles.bar,
+                        {
+                          width: Math.max(2, seg.width * 1.8),
+                          marginRight: seg.marginRight,
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+              )}
             </View>
 
-            <AppText style={styles.barcodeNumbers}>{barcodeLabel}</AppText>
+            <AppText style={styles.barcodeNumbers}>{walletCard ? walletCard.value : barcodeLabel}</AppText>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push('/(member)/wallet-card')}
+            accessibilityRole="button"
+            accessibilityLabel={walletCard ? 'Update saved card by scanning another card' : 'Scan your physical membership card to save it in the app'}
+          >
+            <AppText style={{ color: colors.primary, fontWeight: '800', fontSize: 13, textAlign: 'center' }}>
+              {walletCard ? 'Update saved card ›' : 'Scan your physical card to save it here ›'}
+            </AppText>
           </Pressable>
 
           <Pressable
@@ -438,23 +466,27 @@ export function MemberCheckInCard({
             {/* Giant Barcode Display Area (Primary Focus of Screen) */}
             <View style={styles.giantBarcodeContainer}>
               {/* Giant Barcode Bars */}
-              <View style={styles.giantBarcodeLines}>
-                {barcodeBars.map((seg, idx) => (
-                  <View
-                    key={idx}
-                    style={[
-                      styles.giantBar,
-                      {
-                        width: Math.max(3, seg.width * 2.2),
-                        marginRight: seg.marginRight * 1.05,
-                      },
-                    ]}
-                  />
-                ))}
-              </View>
+              {walletCard ? (
+                <ScannedBarcode value={walletCard.value} type={walletCard.type} height={110} />
+              ) : (
+                <View style={styles.giantBarcodeLines}>
+                  {barcodeBars.map((seg, idx) => (
+                    <View
+                      key={idx}
+                      style={[
+                        styles.giantBar,
+                        {
+                          width: Math.max(3, seg.width * 2.2),
+                          marginRight: seg.marginRight * 1.05,
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+              )}
 
               {/* Barcode Number & Branch Code */}
-              <AppText style={styles.giantBarcodeNumbers}>{barcodeLabel}</AppText>
+              <AppText style={styles.giantBarcodeNumbers}>{walletCard ? walletCard.value : barcodeLabel}</AppText>
             </View>
 
             {/* Instruction Tip */}

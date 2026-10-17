@@ -768,6 +768,12 @@ export default function MemberAccountScreen() {
             onPress={() => router.push('/(member)/programs')}
             colors={colors}
           />
+          <MenuRow
+            label="Add physical membership card"
+            icon="scan"
+            onPress={() => router.push('/(member)/wallet-card')}
+            colors={colors}
+          />
           {featureToggles.guestPasses ? (
             <MenuRow
               label="Guest passes & reciprocity"

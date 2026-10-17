@@ -441,6 +441,25 @@ export default function MemberHomeScreen() {
         </Pressable>
         ) : null}
 
+        {/* Busy Times Callout */}
+        <Pressable
+          onPress={() => router.push('/(member)/busy-times' as never)}
+          style={[styles.forumBanner, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
+          accessibilityRole="button"
+          accessibilityLabel="See how busy the YMCA is today"
+        >
+          <View style={[styles.forumBannerIcon, { backgroundColor: isDark ? '#14532D' : '#DCFCE7' }]}>
+            <Ionicons name="stats-chart" size={24} color="#16A34A" />
+          </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[styles.forumBannerTitle, { color: colors.text }]}>How Busy Is the Y?</Text>
+            <Text style={[styles.forumBannerSub, { color: colors.textMuted }]}>
+              See busy times by hour and find the quietest time to visit
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+        </Pressable>
+
         {/* Dedicated Aquatics & Pool Schedule Callout */}
         <Pressable
           onPress={() => router.push('/(member)/pool-schedule')}

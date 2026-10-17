@@ -1,15 +1,14 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { InteractionManager, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { ClassAttendanceModal } from '@/components/ClassAttendanceModal';
 import { UserAvatar } from '@/components/UserAvatar';
 import { BroadcastNoticeModal } from '@/components/staff/BroadcastNoticeModal';
 import { KpiRow } from '@/components/staff/KpiTile';
 import { PersonaHero } from '@/components/staff/PersonaHero';
 import { QuickActionBar } from '@/components/staff/QuickActionBar';
 import { SessionRequestsOversight } from '@/components/staff/SessionRequestsOversight';
-import { ActionButton, EmptyState, ListRow, SectionCard, StatusPill } from '@/components/staff/SectionCard';
+import { EmptyState, ListRow, SectionCard, StatusPill } from '@/components/staff/SectionCard';
 import { useAppConfig } from '@/context/AppConfigContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -47,7 +46,6 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [checkIns, setCheckIns] = useState(0);
   const [unassignedCount, setUnassignedCount] = useState(0);
-  const [attendanceClass, setAttendanceClass] = useState<ScheduleItem | null>(null);
   const [broadcastVisible, setBroadcastVisible] = useState(false);
   const [error, setError] = useState(false);
 
@@ -108,10 +106,10 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
 
   useFocusEffect(
     useCallback(() => {
-      const handle = InteractionManager.runAfterInteractions(() => {
+      const handle = setTimeout(() => {
         void load();
-      });
-      return () => handle.cancel();
+      }, 0);
+      return () => clearTimeout(handle);
     }, [load])
   );
 
@@ -179,12 +177,6 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
       overlay={
         <>
           <BroadcastNoticeModal visible={broadcastVisible} onClose={() => setBroadcastVisible(false)} />
-          <ClassAttendanceModal
-            visible={attendanceClass != null}
-            onClose={() => setAttendanceClass(null)}
-            scheduleItem={attendanceClass}
-            onAttendanceChanged={() => void load()}
-          />
         </>
       }
     >
@@ -290,23 +282,30 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
         )}
       </SectionCard>
 
-      <SectionCard title="Branch Classes Today" icon="barbell" accent="#0284C7" count={classes.length}>
-        {classes.length === 0 ? (
-          <EmptyState icon="calendar-outline" text="No classes scheduled today." />
-        ) : (
-          classes.map(({ item, registered: count }) => (
-            <ListRow
-              key={item.id}
-              title={item.title}
-              subtitle={`${formatClockTime(item.start)} · ${item.instructorName} · ${item.location}`}
-              meta={`${count}/${item.capacity} registered`}
-              right={
-                <ActionButton label="Attendance" icon="clipboard-outline" color={tc.primary} variant="outline" onPress={() => setAttendanceClass(item)} />
-              }
-            />
-          ))
-        )}
-      </SectionCard>
+      {seesComplaints ? (
+        <SectionCard
+          title="Open Feedback"
+          icon="chatbubbles"
+          accent="#B45309"
+          count={feedback.length}
+          actionLabel="View all"
+          onAction={() => router.push('/(staff)/complaints-suggestions')}
+        >
+          {feedback.length === 0 ? (
+            <EmptyState icon="checkmark-done-outline" text="No open complaints or suggestions." />
+          ) : (
+            feedback.slice(0, 5).map((f) => (
+              <ListRow
+                key={f.id}
+                title={f.title}
+                subtitle={`${f.type === 'complaint' ? 'Complaint' : 'Suggestion'} · ${f.isAnonymous ? 'Anonymous' : (f.memberName ?? 'Member')}`}
+                meta={f.status === 'submitted' ? 'No staff response yet' : 'Under review'}
+                onPress={() => router.push('/(staff)/complaints-suggestions')}
+              />
+            ))
+          )}
+        </SectionCard>
+      ) : null}
 
       {cancels.length > 0 ? (
         <SectionCard
