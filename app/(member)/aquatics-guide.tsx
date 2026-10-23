@@ -19,7 +19,6 @@ import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
 import {
   AQUATICS_CLASSES,
-  AQUATICS_SESSION_INFO,
   CERTIFICATION_PROGRAMS,
   type AquaticsClassOffering,
 } from '@/domain/aquaticsGuideData';
@@ -28,6 +27,7 @@ import { radii, spacing, tapTarget } from '@/theme/typography';
 type ActiveTab = 'classes' | 'curriculum' | 'certifications' | 'info';
 
 export default function AquaticsGuideScreen() {
+  const sessionInfo = useAppConfig().config.aquaticsSession;
   const router = useRouter();
   const { colors: tc, isDark } = useTheme();
   const { branchName } = useAppConfig().config.branding;
@@ -120,7 +120,7 @@ export default function AquaticsGuideScreen() {
           <View style={styles.heroTopTagRow}>
             <View style={styles.heroSeasonTag}>
               <Text style={styles.heroSeasonText}>
-                {AQUATICS_SESSION_INFO.sessionName}
+                {sessionInfo.sessionName}
               </Text>
             </View>
             <Text style={styles.heroDatesText}>
@@ -161,7 +161,7 @@ export default function AquaticsGuideScreen() {
           <View style={styles.laborDayNoticeRow}>
             <Ionicons name="information-circle" size={14} color="#FDE68A" />
             <Text style={styles.laborDayNoticeText}>
-              {AQUATICS_SESSION_INFO.laborDayNotice}
+              {sessionInfo.laborDayNotice}
             </Text>
           </View>
         </View>
@@ -510,7 +510,7 @@ export default function AquaticsGuideScreen() {
               </View>
 
               <View style={styles.hoursGrid}>
-                {AQUATICS_SESSION_INFO.hours.map((h, i) => (
+                {sessionInfo.hours.map((h, i) => (
                   <View
                     key={i}
                     style={[
@@ -555,7 +555,7 @@ export default function AquaticsGuideScreen() {
               </View>
 
               <View style={styles.teamGrid}>
-                {AQUATICS_SESSION_INFO.contacts.map((contact) => (
+                {sessionInfo.contacts.map((contact) => (
                   <View
                     key={contact.email}
                     style={[
@@ -606,7 +606,7 @@ export default function AquaticsGuideScreen() {
               </View>
 
               <View style={styles.rulesList}>
-                {AQUATICS_SESSION_INFO.refundPolicy.rules.map((rule, idx) => (
+                {sessionInfo.refundPolicy.rules.map((rule, idx) => (
                   <View key={idx} style={styles.ruleRow}>
                     <Text style={[styles.ruleBulletText, { color: '#D97706' }]}>•</Text>
                     <Text style={[styles.ruleBodyText, { color: isDark ? '#FDE68A' : '#78350F' }]}>

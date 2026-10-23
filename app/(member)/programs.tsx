@@ -13,135 +13,17 @@ import { SecondaryButton } from '@/components/SecondaryButton';
 import { YHeader } from '@/components/YHeader';
 import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
+import { visibleItems } from '@/domain/branchContent';
 import { wellnessRateHighlights } from '@/domain/wellnessPrograms';
 import { cardStyle } from '@/theme/card';
 import { radii, spacing, typography } from '@/theme/typography';
 
-type ProgramSection = {
-  id: string;
-  title: string;
-  category: string;
-  badge?: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  description: string;
-  highlights: string[];
-  ctaText?: string;
-  ctaRoute?: string;
-};
-
-const PROGRAMS: ProgramSection[] = [
-  {
-    id: 'wellness-training-programs',
-    title: 'Wellness Training Programs (Personal & Partner)',
-    category: 'Personal Fitness & Coaching',
-    badge: 'Nationally Certified Trainers',
-    icon: 'fitness-outline',
-    description: 'Evidence-based 60-minute, 30-minute express, and partner wellness training packages supported by nationally certified YMCA trainers. Every package includes a full functional assessment, goal planning, and custom program plan.',
-    highlights: [
-      'Full functional movement screening & post-assessment progress verification',
-      'Goal planning, behavioral habit modification & custom periodized protocol',
-      'Specialized expertise: chronic disease, corrective rehab, weight loss, athletics',
-    ],
-    ctaText: 'View Packages & Rates',
-    ctaRoute: '/(member)/(tabs)/staff?tab=packages',
-  },
-  {
-    id: 'camps',
-    title: 'YMCA Summer & Day Camps',
-    category: 'Youth Development',
-    badge: 'Member Priority & Discount',
-    icon: 'sunny-outline',
-    description: 'Award-winning full-day summer camps that inspire confidence, build friendships, and create lifelong memories in a safe, nurturing environment.',
-    highlights: [
-      'Camp Silver Spring: Traditional outdoor adventures, games, and weekly field trips',
-      'Sports & Aquatics specialty camps with daily swimming instruction',
-      'STEM & Arts discovery sessions for curious young minds',
-      'Financial assistance and sibling discounts available',
-    ],
-    ctaText: 'Register or Inquire at Wellness Desk',
-    ctaRoute: '/(member)/(tabs)/staff',
-  },
-  {
-    id: 'swim-academy',
-    title: 'YMCA Swim Academy (All Ages)',
-    category: 'Aquatics',
-    badge: 'Stages 1–6',
-    icon: 'water-outline',
-    description: 'Nationally recognized swim curriculum emphasizing water safety, stroke mechanics, stamina, and building lifelong aquatic confidence.',
-    highlights: [
-      'Parent & Child (6 months – 3 years): Water acclimation and bonding',
-      'Preschool & School Age (Stages 1–6): Water movement to stroke mechanics',
-      'Masters Swim & Adult stroke refinement for fitness swimmers',
-      'Small instructor-to-swimmer ratios with certified safety lifeguards',
-    ],
-    ctaText: 'View Fall 1 Aquatics Guide',
-    ctaRoute: '/(member)/aquatics-guide',
-  },
-  {
-    id: 'child-care',
-    title: 'Early Learning & School-Age Care',
-    category: 'Youth Development',
-    badge: 'Licensed Programs',
-    icon: 'school-outline',
-    description: 'High-quality before-and-after school enrichment and licensed early childhood education serving Montgomery County families.',
-    highlights: [
-      'Curriculum aligned with Maryland State Department of Education standards',
-      'Homework assistance, STEM activities, and healthy snacks',
-      'Transportation to and from select local Silver Spring elementary schools',
-      'Full-day care options during school holidays and professional days',
-    ],
-  },
-  {
-    id: 'diabetes-prevention',
-    title: "YMCA's Diabetes Prevention Program",
-    category: 'Community Health',
-    badge: 'CDC Recognized',
-    icon: 'heart-outline',
-    description: 'A proven, lifestyle-change program helping adults at risk of type 2 diabetes reduce their risk through healthy eating, physical activity, and peer support.',
-    highlights: [
-      'Led by a trained YMCA Lifestyle Coach over 12 monthly sessions',
-      'Goals: 7% weight loss and 150 minutes of weekly moderate activity',
-      'Often covered by Medicare, Medicaid, and private health insurers',
-      'Confidential risk assessments available anytime at Silver Spring branch',
-    ],
-  },
-  {
-    id: 'blood-pressure',
-    title: 'Blood Pressure Self-Monitoring',
-    category: 'Community Health',
-    icon: 'pulse-outline',
-    description: 'Evidence-based program helping adults with hypertension manage their blood pressure through personal tracking and healthy habit consultations.',
-    highlights: [
-      'Free blood pressure cuff and log book provided upon enrollment',
-      'Personal consultations with YMCA Healthy Heart Ambassadors twice monthly',
-      'Monthly nutrition education seminars on reducing sodium and DASH diet',
-      'Track improvements and share reports with your primary care provider',
-    ],
-  },
-  {
-    id: 'wellness-orientation',
-    title: 'Complimentary Member Wellness Consultation',
-    category: 'Personal Fitness',
-    badge: 'Free with Membership',
-    icon: 'fitness-outline',
-    description: 'Every YMCA Silver Spring member receives a complimentary 45-minute 1-on-1 orientation with a certified trainer to evaluate goals and establish an actionable workout routine.',
-    highlights: [
-      'Equipment walkthrough tailored to your comfort level and fitness goals',
-      'Personalized recommendation of group classes and lane swim times',
-      'Goal setting: strength building, mobility, weight management, or race prep',
-      'Book anytime directly with our personal trainers in the app',
-    ],
-    ctaText: 'Book with Doc or Jane Doe',
-    ctaRoute: '/(member)/(tabs)/staff',
-  },
-];
-
 export default function ProgramsScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { wellnessPackages } = useAppConfig().config;
+  const { wellnessPackages, programs: programContent } = useAppConfig().config;
   // The rate lines come from the wellness rate card, so they follow price changes.
-  const programs = PROGRAMS.map((p) =>
+  const programs = visibleItems(programContent).map((p) =>
     p.id === 'wellness-training-programs'
       ? { ...p, highlights: [...p.highlights.slice(0, 2), ...wellnessRateHighlights(wellnessPackages), ...p.highlights.slice(2)] }
       : p

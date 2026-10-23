@@ -9,9 +9,11 @@ import {
   View,
 } from 'react-native';
 
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
 import {
   DAYS_OF_WEEK,
+  applyPoolOverrides,
   INDOOR_POOL_SLOTS,
   OUTDOOR_POOL_SLOTS,
   type PoolDayKey,
@@ -33,6 +35,7 @@ export function FindLapLaneModal({
   onClose,
   onSelectSlot,
 }: FindLapLaneModalProps) {
+  const { poolSchedule } = useAppConfig().config;
   const { colors: tc, isDark } = useTheme();
 
   const [selectedDay, setSelectedDay] = useState<PoolDayKey>('monday');
@@ -40,10 +43,10 @@ export function FindLapLaneModal({
   const [timeFilter, setTimeFilter] = useState<TimeOfDayFilter>('all');
 
   const matchingSlots = useMemo(() => {
-    const indoorDaySlots = INDOOR_POOL_SLOTS.filter(
+    const indoorDaySlots = applyPoolOverrides(INDOOR_POOL_SLOTS, poolSchedule).filter(
       (s) => s.day === selectedDay && !s.isClosed && s.lapLanes >= minLanes
     );
-    const outdoorDaySlots = OUTDOOR_POOL_SLOTS.filter(
+    const outdoorDaySlots = applyPoolOverrides(OUTDOOR_POOL_SLOTS, poolSchedule).filter(
       (s) => s.day === selectedDay && !s.isClosed && s.lapLanes >= minLanes
     );
 
@@ -64,7 +67,7 @@ export function FindLapLaneModal({
       indoor: filterByTimeOfDay(indoorDaySlots),
       outdoor: filterByTimeOfDay(outdoorDaySlots),
     };
-  }, [selectedDay, minLanes, timeFilter]);
+  }, [selectedDay, minLanes, timeFilter, poolSchedule]);
 
   const totalFound = matchingSlots.indoor.length + matchingSlots.outdoor.length;
 

@@ -18,60 +18,10 @@ import { useAppConfig } from '@/context/AppConfigContext';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
+import { visibleItems } from '@/domain/branchContent';
 import { resetStore } from '@/storage/demoStore';
 import { colors } from '@/theme/colors';
 import { radii, spacing, typography } from '@/theme/typography';
-
-const ASSOCIATION = 'YMCA of Metropolitan Washington';
-const EMAIL = 'silverspring@ymcadc.org';
-
-const PILLARS = [
-  {
-    title: 'Youth Development',
-    subtitle: 'Nurturing the potential of every child & teen',
-    description:
-      'Empowering children through safe, high-quality afterschool programs, summer day camps, youth swim academy, and complimentary Child Watch while parents exercise.',
-    icon: 'school' as const,
-    color: '#2563EB',
-    bg: '#EFF6FF',
-  },
-  {
-    title: 'Healthy Living',
-    subtitle: 'Improving the nation’s health and well-being',
-    description:
-      'Over 85 weekly group fitness classes, warm water joint mobility therapy, state-of-the-art cardio and strength equipment, certified personal coaching, and active older adult vitality.',
-    icon: 'heart' as const,
-    color: '#DC2626',
-    bg: '#FEF2F2',
-  },
-  {
-    title: 'Social Responsibility',
-    subtitle: 'Giving back and providing support to neighbors',
-    description:
-      'Ensuring nobody is turned away due to inability to pay through our Open Doors sliding-scale financial assistance, community outreach, and philanthropic donor partnerships.',
-    icon: 'people' as const,
-    color: '#15803D',
-    bg: '#F0FDF4',
-  },
-];
-
-const METRICS = [
-  { label: 'Active Members', value: '4,200+' },
-  { label: 'Weekly Classes', value: '85+' },
-  { label: 'Heated Pools', value: '2' },
-  { label: 'Certified Staff', value: '50+' },
-];
-
-const AMENITIES = [
-  { name: '25m Heated Lap Pool', icon: 'water-outline' as const },
-  { name: 'Warm Water Therapy Pool', icon: 'sunny-outline' as const },
-  { name: 'Cardio & Free Weight Floor', icon: 'barbell-outline' as const },
-  { name: 'Dry Saunas & Steam Rooms', icon: 'flame-outline' as const },
-  { name: 'Free Child Watch (w/ Membership)', icon: 'happy-outline' as const },
-  { name: 'Pickleball & Basketball Gym', icon: 'tennisball-outline' as const },
-  { name: 'Mind & Body Yoga Studio', icon: 'flower-outline' as const },
-  { name: 'Cycling & Spin Theater', icon: 'bicycle-outline' as const },
-];
 
 const DEMO_ROLES = [
   {
@@ -150,7 +100,8 @@ export default function AboutScreen() {
   const router = useRouter();
   const { session, login, logout } = useSession();
   const { colors: tc, isDark } = useTheme();
-  const { branding } = useAppConfig().config;
+  const { branding, about } = useAppConfig().config;
+  const pillars = visibleItems(about.pillars);
 
   const [resetting, setResetting] = useState(false);
   const [switchingRole, setSwitchingRole] = useState<string | null>(null);
@@ -252,14 +203,14 @@ export default function AboutScreen() {
           </View>
 
           <AppText style={[styles.branchTitle, { color: tc.text }]}>{branding.branchName}</AppText>
-          <AppText style={[styles.branchSub, { color: tc.textMuted }]}>{ASSOCIATION}</AppText>
+          <AppText style={[styles.branchSub, { color: tc.textMuted }]}>{about.association}</AppText>
           <AppText style={[styles.missionQuote, { color: tc.text }]}>
             “The Y is a cause-driven nonprofit strengthening community through youth development, healthy living, and social responsibility.”
           </AppText>
 
           {/* Quick Metrics */}
           <View style={styles.metricsRow}>
-            {METRICS.map((m, idx) => (
+            {about.metrics.map((m, idx) => (
               <View key={idx} style={[styles.metricBox, { borderColor: tc.border }]}>
                 <AppText style={[styles.metricVal, { color: colors.primary }]}>
                   {m.value}
@@ -282,7 +233,7 @@ export default function AboutScreen() {
           </AppText>
 
           <View style={{ gap: spacing.sm }}>
-            {PILLARS.map((p, idx) => (
+            {pillars.map((p, idx) => (
               <View
                 key={idx}
                 style={[
@@ -326,7 +277,7 @@ export default function AboutScreen() {
           </AppText>
 
           <View style={styles.amenitiesGrid}>
-            {AMENITIES.map((a, idx) => (
+            {about.amenities.map((a, idx) => (
               <View
                 key={idx}
                 style={[
@@ -362,7 +313,7 @@ export default function AboutScreen() {
           <View style={styles.contactBlock}>
             <AppText style={[styles.contactAddress, { color: tc.text }]}>{branding.address}</AppText>
             <AppText style={[styles.contactDetail, { color: tc.textMuted }]}>
-              Phone: {branding.phone} · {EMAIL}
+              Phone: {branding.phone} · {about.email}
             </AppText>
           </View>
 

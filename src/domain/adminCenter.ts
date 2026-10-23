@@ -5,7 +5,7 @@ import type { HoursWindow } from '@/domain/childWatch';
 import { formatCents } from '@/domain/lessonPricing';
 import { canEditConfigSection, hasCapability, type ConfigSection, type StaffCapability } from '@/domain/staffCapabilities';
 
-export type AdminTileGroup = 'Pricing & Deals' | 'Operations' | 'System' | 'Records';
+export type AdminTileGroup = 'Pricing & Deals' | 'Member Content' | 'Operations' | 'System' | 'Records';
 
 export type AdminTile = {
   key: string;
@@ -26,6 +26,12 @@ export const ADMIN_TILES: readonly AdminTile[] = [
   { key: 'campaigns', group: 'Pricing & Deals', title: 'Deals & Promotions', subtitle: 'Enrollment campaigns and fee waivers', icon: 'gift', route: '/(staff)/campaigns', section: 'campaigns' },
   { key: 'wellness', group: 'Pricing & Deals', title: 'Wellness Packages', subtitle: 'Personal and partner training rates', icon: 'fitness', route: '/(staff)/admin-wellness-packages', section: 'wellnessPackages' },
   { key: 'guest', group: 'Pricing & Deals', title: 'Guest & Day Passes + Donations', subtitle: 'Pass allowances and prices, donation tiers and funds', icon: 'ticket', route: '/(staff)/admin-guest-donations', section: 'guestPasses' },
+  { key: 'about', group: 'Member Content', title: 'About Page', subtitle: 'Association, contact email, pillars, highlight numbers', icon: 'information-circle', route: '/(staff)/admin-about', section: 'about' },
+  { key: 'amenities', group: 'Member Content', title: 'Branch Amenities', subtitle: 'Facility descriptions, details, and which ones show', icon: 'business', route: '/(staff)/admin-amenities', section: 'amenities' },
+  { key: 'programs', group: 'Member Content', title: 'Programs', subtitle: 'Program descriptions, highlights, and which ones show', icon: 'star', route: '/(staff)/admin-programs', section: 'programs' },
+  { key: 'busyTimes', group: 'Member Content', title: 'Busy Times', subtitle: 'How busy the branch usually is, hour by hour', icon: 'pulse', route: '/(staff)/admin-busy-times', section: 'busyTimes' },
+  { key: 'poolSchedule', group: 'Member Content', title: 'Pool Schedule', subtitle: 'Rename or close pool times, and post pool notices', icon: 'water', route: '/(staff)/admin-pool-schedule', section: 'poolSchedule' },
+  { key: 'aquaticsSession', group: 'Member Content', title: 'Aquatics Session', subtitle: 'Session name, dates, and registration dates', icon: 'calendar', route: '/(staff)/admin-aquatics-session', section: 'aquaticsSession' },
   { key: 'childWatch', group: 'Operations', title: 'Child Watch Rules', subtitle: 'Hours, sign-in cutoff, daily limit, age, and capacity', icon: 'happy', route: '/(staff)/admin-child-watch', section: 'childWatch' },
   { key: 'swimClasses', group: 'Operations', title: 'Swim Class Capacity', subtitle: 'How many swimmers each class takes, and which classes are hidden', icon: 'water', route: '/(staff)/admin-swim-classes', section: 'swimClasses' },
   { key: 'stats', group: 'Operations', title: 'Stats & Exports', subtitle: 'Retention, daily visitors, department stats, Salesforce export', icon: 'analytics', route: '/(staff)/stats', capability: 'viewDepartmentStats' },
@@ -33,6 +39,7 @@ export const ADMIN_TILES: readonly AdminTile[] = [
   { key: 'toggles', group: 'System', title: 'Feature Toggles', subtitle: 'Turn app features on or off', icon: 'toggle', route: '/(staff)/admin-toggles', section: 'featureToggles' },
   { key: 'branding', group: 'System', title: 'Branding & Contact', subtitle: 'Branch name, address, phone, and hours', icon: 'business', route: '/(staff)/admin-branding', section: 'branding' },
   { key: 'thresholds', group: 'System', title: 'Alert Thresholds', subtitle: 'When cancellations, full classes, and new members are flagged', icon: 'speedometer', route: '/(staff)/admin-thresholds', section: 'thresholds' },
+  { key: 'supportTickets', group: 'Records', title: 'Support Tickets', subtitle: 'Problem reports and feature requests from the app', icon: 'bug', route: '/(staff)/support-tickets', capability: 'manageSupportTickets' },
   { key: 'audit', group: 'Records', title: 'Change Log', subtitle: 'Who changed which setting, and when', icon: 'list', route: '/(staff)/admin-audit', capability: 'viewConfigAudit' },
 ];
 

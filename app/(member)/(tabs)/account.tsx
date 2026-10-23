@@ -128,14 +128,14 @@ const DEMO_ACCOUNTS = [
     color: '#0891B2',
   },
   {
-    name: 'Marcus',
+    name: 'Zino',
     email: 'maintenance@silverspring.ymca',
     role: 'Facilities & Maintenance Lead',
     icon: 'construct' as const,
     color: '#B45309',
   },
   {
-    name: 'Dana',
+    name: 'Meena',
     email: 'childwatch@silverspring.ymca',
     role: 'Child Watch Director',
     icon: 'happy' as const,

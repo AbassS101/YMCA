@@ -16,6 +16,7 @@ import { PoolMatrixGrid } from '@/components/PoolMatrixGrid';
 import { PoolScheduleCard } from '@/components/PoolScheduleCard';
 import { PoolSlotDetailModal } from '@/components/PoolSlotDetailModal';
 import { YHeader } from '@/components/YHeader';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
 import {
   DAYS_OF_WEEK,
@@ -32,6 +33,7 @@ import { radii, spacing, tapTarget } from '@/theme/typography';
 type ViewMode = 'timeline' | 'matrix';
 
 export default function PoolScheduleScreen() {
+  const { poolSchedule } = useAppConfig().config;
   const router = useRouter();
   const params = useLocalSearchParams<{ pool?: string }>();
   const { colors: tc, isDark } = useTheme();
@@ -61,13 +63,13 @@ export default function PoolScheduleScreen() {
 
   // All slots for active pool and selected day
   const daySlots = useMemo(() => {
-    return getPoolSlots(activePool, selectedDay);
-  }, [activePool, selectedDay]);
+    return getPoolSlots(activePool, selectedDay, poolSchedule);
+  }, [activePool, selectedDay, poolSchedule]);
 
   // Current slot active right now (or top of morning)
   const currentSlotNow = useMemo(() => {
-    return getCurrentSlotForPool(activePool, selectedDay);
-  }, [activePool, selectedDay]);
+    return getCurrentSlotForPool(activePool, selectedDay, undefined, poolSchedule);
+  }, [activePool, selectedDay, poolSchedule]);
 
   // Currently displayed slot on the lane diagram (fallback to first open or first slot)
   const activeDiagramSlot = useMemo(() => {
@@ -91,8 +93,8 @@ export default function PoolScheduleScreen() {
   }, [daySlots, activeCategory]);
 
   // Live status for hero banner
-  const indoorNow = useMemo(() => getCurrentSlotForPool('indoor', selectedDay), [selectedDay]);
-  const outdoorNow = useMemo(() => getCurrentSlotForPool('outdoor', selectedDay), [selectedDay]);
+  const indoorNow = useMemo(() => getCurrentSlotForPool('indoor', selectedDay, undefined, poolSchedule), [selectedDay, poolSchedule]);
+  const outdoorNow = useMemo(() => getCurrentSlotForPool('outdoor', selectedDay, undefined, poolSchedule), [selectedDay, poolSchedule]);
 
   return (
     <View style={[styles.screen, { backgroundColor: tc.background }]}>
@@ -138,6 +140,16 @@ export default function PoolScheduleScreen() {
             </Pressable>
           </View>
         </View>
+
+        {poolSchedule.facilityNotices[activePool]?.trim() ? (
+          <View
+            style={{ flexDirection: 'row', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#F59E0B', backgroundColor: isDark ? '#451A03' : '#FEF3C7', marginBottom: 12 }}
+            accessibilityRole="alert"
+          >
+            <Ionicons name="megaphone-outline" size={18} color={isDark ? '#FDE68A' : '#92400E'} />
+            <Text style={{ flex: 1, color: isDark ? '#FDE68A' : '#92400E', fontSize: 14 }}>{poolSchedule.facilityNotices[activePool].trim()}</Text>
+          </View>
+        ) : null}
 
         {/* Live Pool Status Banner */}
         <View

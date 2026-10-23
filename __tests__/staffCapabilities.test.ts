@@ -44,6 +44,8 @@ const ALL: StaffCapability[] = [
   'viewBranchStats',
   'viewDepartmentStats',
   'exportData',
+  'manageSupportTickets',
+  'manageWellnessComplaints',
 ];
 
 // Staff Admin runs the business settings but not the system-level ones.
@@ -68,9 +70,9 @@ const EXPECTED: Record<string, StaffCapability[]> = {
   staff_admin: STAFF_ADMIN,
   it_admin: ALL,
   trainer: ['logWorkouts', 'manageOwnLessonSlots', 'takeAttendance'],
-  // Everything a Staff Admin can do, except reading complaints and the generic config powers.
+  // Everything a Staff Admin can do, except non-wellness complaints, support tickets, and the generic config powers.
   wellness_director: ALL.filter(
-    (c) => c !== 'manageComplaints' && !CONFIG_CAPS.includes(c) && !CHILD_WATCH_CAPS.includes(c) &&
+    (c) => c !== 'manageComplaints' && c !== 'manageSupportTickets' && !CONFIG_CAPS.includes(c) && !CHILD_WATCH_CAPS.includes(c) &&
       c !== 'viewBranchStats'
   ),
   aquatics_director: [

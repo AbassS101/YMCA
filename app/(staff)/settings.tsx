@@ -589,6 +589,20 @@ export default function StaffSettingsScreen() {
               <Ionicons name="chevron-forward" size={16} color={tc.textMuted} />
             </Pressable>
             ) : null}
+
+            {can('manageSupportTickets') ? (
+            <Pressable
+              onPress={() => router.push('/(staff)/support-tickets')}
+              style={[styles.securityActionBtn, { borderColor: tc.border, marginTop: 6 }]}
+              accessibilityRole="button"
+            >
+              <Ionicons name="bug-outline" size={18} color={colors.primary} />
+              <Text style={[styles.securityActionText, { color: tc.text }]}>
+                App Support Tickets
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color={tc.textMuted} />
+            </Pressable>
+            ) : null}
           </View>
         ) : null}
 

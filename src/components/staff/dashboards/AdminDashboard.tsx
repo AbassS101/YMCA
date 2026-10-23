@@ -18,10 +18,19 @@ import { getDemoToday } from '@/domain/demoClock';
 import { canOpenStats } from '@/domain/stats/statsScopes';
 import { formatShortDate } from '@/domain/displayDates';
 import { personaForRole, personaTheme } from '@/domain/staffCapabilities';
-import type { CancelRequest, ComplaintSuggestion, Member, ScheduleItem, Staff } from '@/domain/types';
+import {
+  WELLNESS_FEEDBACK_CATEGORIES,
+  type CancelRequest,
+  type ComplaintSuggestion,
+  type Member,
+  type ScheduleItem,
+  type Staff,
+  type SupportTicket,
+} from '@/domain/types';
 import { registrationRepo } from '@/repositories/registrationRepo';
 import { scheduleRepo } from '@/repositories/scheduleRepo';
 import { streakRepo } from '@/repositories/streakRepo';
+import { supportTicketRepo } from '@/repositories/supportTicketRepo';
 import { colors } from '@/theme/colors';
 
 import { DashboardScaffold } from './DashboardScaffold';
@@ -36,13 +45,17 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
   const { api, session } = useSession();
   const { colors: tc } = useTheme();
   const { theme, isITAdmin, isWellnessDirector, can } = useStaffCapabilities();
-  const seesComplaints = can('manageComplaints');
+  // The Wellness Director sees only wellness feedback; Staff Admin and IT see it all.
+  const wellnessComplaintsOnly = !can('manageComplaints') && can('manageWellnessComplaints');
+  const seesComplaints = can('manageComplaints') || wellnessComplaintsOnly;
+  const seesTickets = can('manageSupportTickets');
 
   const [profile, setProfile] = useState<Staff | null>(null);
   const [classes, setClasses] = useState<ClassFill[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [cancels, setCancels] = useState<CancelRequest[]>([]);
   const [feedback, setFeedback] = useState<ComplaintSuggestion[]>([]);
+  const [openTickets, setOpenTickets] = useState<SupportTicket[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [checkIns, setCheckIns] = useState(0);
   const [unassignedCount, setUnassignedCount] = useState(0);
@@ -57,7 +70,7 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
     if (staffId === '') return;
     try {
       setError(false);
-      const [me, allClasses, allMembers, pending, complaints, staff] = await Promise.all([
+      const [me, allClasses, allMembers, pending, complaints, staff, tickets] = await Promise.all([
         api.getStaff(staffId).catch(() => null),
         scheduleRepo.listAll(api, BRANCH_ID),
         api.listAllMembers(BRANCH_ID),
@@ -66,6 +79,9 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
           ? api.listComplaintsSuggestions(BRANCH_ID).catch(() => [] as ComplaintSuggestion[])
           : Promise.resolve([] as ComplaintSuggestion[]),
         api.listStaff(BRANCH_ID).catch(() => []),
+        seesTickets
+          ? supportTicketRepo.listAllTickets(api, staffId).catch(() => [] as SupportTicket[])
+          : Promise.resolve([] as SupportTicket[]),
       ]);
       const todays = allClasses
         .filter((c) => c.start.slice(0, 10) === today)
@@ -95,14 +111,19 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
       setClasses(fills);
       setMembers(allMembers);
       setCancels(pending);
-      setFeedback(complaints.filter((c) => c.status !== 'resolved'));
+      setFeedback(
+        complaints.filter(
+          (c) => c.status !== 'resolved' && (!wellnessComplaintsOnly || WELLNESS_FEEDBACK_CATEGORIES.includes(c.category))
+        )
+      );
+      setOpenTickets(tickets.filter((t) => t.status !== 'resolved'));
       setTeam(teamLoads);
       setCheckIns(streaks.filter((p) => p?.checkInDates.includes(today)).length);
       setUnassignedCount(trainerLinks.filter((t) => t == null).length);
     } catch {
       setError(true);
     }
-  }, [api, staffId, today, seesComplaints]);
+  }, [api, staffId, today, seesComplaints, wellnessComplaintsOnly, seesTickets]);
 
   useFocusEffect(
     useCallback(() => {
@@ -140,6 +161,15 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
           detail: 'No staff response yet.',
           tone: '#B45309',
           route: '/(staff)/complaints-suggestions',
+        }]
+      : []),
+    ...(seesTickets && openTickets.some((t) => t.status === 'open')
+      ? [{
+          key: 'tickets',
+          title: `${openTickets.filter((t) => t.status === 'open').length} new support ticket${openTickets.filter((t) => t.status === 'open').length === 1 ? '' : 's'}`,
+          detail: 'Problem reports and feature requests sent from the app.',
+          tone: '#7C3AED',
+          route: '/(staff)/support-tickets',
         }]
       : []),
     ...(unassignedCount > 0
@@ -207,6 +237,9 @@ export function AdminDashboard({ staffId }: { staffId: string }) {
           { key: 'staff', label: 'Staff', icon: 'people-outline', onPress: () => router.push('/(staff)/staff-management'), color: '#7C3AED' },
           ...(seesComplaints
             ? [{ key: 'feedback', label: 'Feedback', icon: 'chatbubbles-outline' as const, onPress: () => router.push('/(staff)/complaints-suggestions'), color: '#0284C7' }]
+            : []),
+          ...(seesTickets
+            ? [{ key: 'tickets', label: 'Tickets', icon: 'bug-outline' as const, onPress: () => router.push('/(staff)/support-tickets'), color: '#7C3AED' }]
             : []),
           { key: 'hours', label: 'Trainer Hours', icon: 'time-outline', onPress: () => router.push('/(staff)/trainer-availability'), color: '#15803D' },
           { key: 'schedules', label: 'Schedules', icon: 'calendar-outline', onPress: () => router.push('/(staff)/schedules'), color: '#D97706' },

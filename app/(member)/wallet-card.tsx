@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { AppState, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/AppText';
@@ -31,15 +31,62 @@ export default function WalletCardScreen() {
   const { session } = useSession();
   const userId = session?.userId ?? '';
 
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermission, refreshPermission] = useCameraPermissions();
+  const [isFocused, setIsFocused] = useState(false);
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+  const [cameraKey, setCameraKey] = useState(0);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraMounted, setCameraMounted] = useState(false);
+  const [previewReady, setPreviewReady] = useState(false);
+  const askedPermissionRef = useRef(false);
   const [mode, setMode] = useState<Mode>('loading');
   const [card, setCard] = useState<WalletCard | null>(null);
   const [pending, setPending] = useState<{ value: string; type: ScannableSymbology } | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(0.2);
+  const [zoom, setZoom] = useState(0);
   const [torch, setTorch] = useState(false);
   const handledRef = useRef(false);
   const prevBrightnessRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setCameraMounted(false);
+    setPreviewReady(false);
+    if (mode !== 'scanning' || !isFocused || !appActive || !permission?.granted) return;
+    // Wait for navigation and the previous native camera session to finish.
+    const timer = setTimeout(() => setCameraMounted(true), 400);
+    return () => clearTimeout(timer);
+  }, [mode, isFocused, appActive, permission?.granted, cameraKey]);
+
+  useEffect(() => {
+    if (!cameraMounted || previewReady) return;
+    const timeout = setTimeout(() => {
+      setCameraError('The camera did not finish starting. Tap Restart camera.');
+    }, 8000);
+    return () => clearTimeout(timeout);
+  }, [cameraMounted, previewReady]);
+
+  useFocusEffect(useCallback(() => {
+    setIsFocused(true);
+    return () => setIsFocused(false);
+  }, []));
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      setAppActive(state === 'active');
+      if (state === 'active') {
+        void refreshPermission().catch(() => setCameraError('Could not check camera access. Try again.'));
+      }
+    });
+    return () => subscription.remove();
+  }, [refreshPermission]);
+
+  // Ask when scanning starts, and refresh access after returning from Expo Go settings.
+  useEffect(() => {
+    if (mode !== 'scanning' || !isFocused || !appActive || !permission ||
+        permission.granted || !permission.canAskAgain || askedPermissionRef.current) return;
+    askedPermissionRef.current = true;
+    void requestPermission().catch(() => setCameraError('Could not request camera access. Try again.'));
+  }, [mode, isFocused, appActive, permission, requestPermission]);
 
   useEffect(() => {
     if (!userId) return;
@@ -70,6 +117,10 @@ export default function WalletCardScreen() {
     handledRef.current = false;
     setScanError(null);
     setPending(null);
+    setZoom(0);
+    setTorch(false);
+    setCameraError(null);
+    setCameraKey((key) => key + 1);
     setMode('scanning');
   }, []);
 
@@ -140,22 +191,29 @@ export default function WalletCardScreen() {
               {card ? 'Scanning a new card replaces your saved one. ' : ''}Line up the barcode on the back of your YMCA card inside the frame. It saves to this app so you can
               leave the plastic card at home.
             </AppText>
-            {!permission ? null : cameraReady ? (
+            {!permission ? <AppText style={styles.hint}>Checking camera access…</AppText> : cameraReady && cameraMounted ? (
               <View style={styles.cameraWrap}>
                 <CameraView
-                  style={StyleSheet.absoluteFill}
+                  key={cameraKey}
+                  style={styles.cameraPreview}
+                  active
                   facing="back"
-                  autofocus="on"
                   zoom={zoom}
                   enableTorch={torch}
                   barcodeScannerSettings={{ barcodeTypes: SCANNABLE_SYMBOLOGIES }}
                   onBarcodeScanned={onScanned}
+                  onCameraReady={() => {
+                    setPreviewReady(true);
+                    setCameraError(null);
+                  }}
+                  onMountError={({ message }) => setCameraError(`Camera could not start: ${message}`)}
                 />
                 <View pointerEvents="none" style={styles.frame} />
               </View>
             ) : null}
             {cameraReady ? (
               <>
+                <SecondaryButton title="Restart camera" onPress={startScan} />
                 <AppText style={styles.hint}>
                   Hold your phone about 6–8 inches (15–20 cm) from the card, and move closer or farther until the bars
                   look sharp. Use zoom to stay back if it&apos;s blurry.
@@ -194,12 +252,23 @@ export default function WalletCardScreen() {
                 <Ionicons name="camera-outline" size={32} color={colors.primary} />
                 <AppText style={styles.permissionText}>
                   Camera access is needed to scan your card. The photo is never saved or uploaded.
+                  {' '}In Expo Go, enable camera access for Expo Go in your phone settings.
                 </AppText>
                 {permission.canAskAgain ? (
                   <PrimaryButton title="Allow camera" onPress={() => void requestPermission()} />
                 ) : (
                   <PrimaryButton title="Open settings" onPress={() => void Linking.openSettings()} />
                 )}
+              </View>
+            ) : null}
+            {cameraError ? (
+              <View style={styles.permissionBox}>
+                <AppText style={styles.error}>{cameraError}</AppText>
+                <SecondaryButton title="Try camera again" onPress={() => {
+                  setCameraError(null);
+                  setCameraKey((key) => key + 1);
+                  void refreshPermission().catch(() => setCameraError('Could not check camera access. Try again.'));
+                }} />
               </View>
             ) : null}
             {scanError ? <AppText style={styles.error}>{scanError}</AppText> : null}
@@ -301,14 +370,14 @@ const styles = StyleSheet.create({
   content: { padding: spacing.md, gap: spacing.md },
   lead: { fontSize: 14, lineHeight: 20, color: colors.muted },
   cameraWrap: {
+    width: '100%',
     height: 260,
-    borderRadius: radii.card,
-    overflow: 'hidden',
-    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  cameraPreview: { width: '100%', height: 260 },
   frame: {
+    position: 'absolute',
     width: '85%',
     height: 110,
     borderWidth: 3,

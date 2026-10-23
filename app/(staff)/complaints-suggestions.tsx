@@ -16,13 +16,18 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { TextField } from '@/components/TextField';
 import { YHeader } from '@/components/YHeader';
+import { ChipRow } from '@/components/desk/Sheet';
+import { StaffScreen } from '@/components/staff/StaffScreen';
 import { dialog } from '@/context/DialogContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
+import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import {
   FEEDBACK_CATEGORIES,
+  WELLNESS_FEEDBACK_CATEGORIES,
   type ComplaintSuggestion,
   type FeedbackCategory,
+  type FeedbackDepartment,
   type FeedbackStatus,
   type FeedbackType,
   type Staff,
@@ -33,6 +38,12 @@ import { colors } from '@/theme/colors';
 import { radii, typography } from '@/theme/typography';
 
 const BRANCH_ID = 'silver-spring';
+
+const DEPARTMENT_OPTIONS: { key: FeedbackDepartment | 'all'; label: string }[] = [
+  { key: 'member_services', label: 'Member Services' },
+  { key: 'maintenance', label: 'Maintenance' },
+  { key: 'all', label: 'All Departments' },
+];
 
 function statusBadge(status: FeedbackStatus) {
   switch (status) {
@@ -49,6 +60,13 @@ export default function StaffComplaintsSuggestionsScreen() {
   const router = useRouter();
   const { session, api } = useSession();
   const { colors: tc, isDark } = useTheme();
+  const { can } = useStaffCapabilities();
+  const fullAccess = can('manageComplaints');
+  // The Wellness Director only reviews wellness feedback (training, packages, equipment).
+  const wellnessOnly = !fullAccess && can('manageWellnessComplaints');
+  // Admins also oversee maintenance tickets, so they can switch departments.
+  const seesAllDepartments = fullAccess && can('manageMaintenance');
+  const [department, setDepartment] = useState<FeedbackDepartment | 'all'>('member_services');
 
   const staffId = session?.userId ?? '';
 
@@ -75,17 +93,17 @@ export default function StaffComplaintsSuggestionsScreen() {
       setError(false);
       setLoading(true);
       const [list, staffProfile] = await Promise.all([
-        complaintSuggestionRepo.list(api, BRANCH_ID),
+        complaintSuggestionRepo.list(api, BRANCH_ID, undefined, seesAllDepartments ? department : 'member_services'),
         staffId ? api.getStaff(staffId).catch(() => null) : null,
       ]);
-      setItems(list);
+      setItems(wellnessOnly ? list.filter((item) => WELLNESS_FEEDBACK_CATEGORIES.includes(item.category)) : list);
       if (staffProfile) setStaff(staffProfile);
     } catch {
       setError(true);
     } finally {
       setLoading(false);
     }
-  }, [api, staffId]);
+  }, [api, staffId, seesAllDepartments, department, wellnessOnly]);
 
   useEffect(() => {
     void loadData();
@@ -196,6 +214,14 @@ export default function StaffComplaintsSuggestionsScreen() {
     }
   };
 
+  if (!fullAccess && !wellnessOnly) {
+    return (
+      <StaffScreen subtitle="Complaints & Suggestions" allowed={false}>
+        <View />
+      </StaffScreen>
+    );
+  }
+
   return (
     <View style={[styles.screen, { backgroundColor: tc.background }]}>
       <YHeader subtitle="Staff Portal · Complaints & Suggestions" />
@@ -222,7 +248,9 @@ export default function StaffComplaintsSuggestionsScreen() {
                 Member Voice & Feedback Hub
               </Text>
               <Text style={[styles.overviewSub, { color: tc.textMuted }]}>
-                Review member suggestions, investigate facility complaints, and post official responses.
+                {wellnessOnly
+                  ? 'Wellness feedback only: personal training, wellness packages, and equipment.'
+                  : 'Review member suggestions, investigate facility complaints, and post official responses.'}
               </Text>
             </View>
           </View>
@@ -249,6 +277,7 @@ export default function StaffComplaintsSuggestionsScreen() {
 
         {/* Filters */}
         <View style={styles.filterSection}>
+          {seesAllDepartments ? <ChipRow options={DEPARTMENT_OPTIONS} value={department} onChange={setDepartment} /> : null}
           {/* Type Filter */}
           <View style={styles.filterRow}>
             {[

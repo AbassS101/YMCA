@@ -5,8 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SecondaryButton } from '@/components/SecondaryButton';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
-import { AQUATICS_SESSION_INFO, type AquaticsClassOffering } from '@/domain/aquaticsGuideData';
+import type { AquaticsClassOffering } from '@/domain/aquaticsGuideData';
 import { formatCents } from '@/domain/lessonPricing';
 import { radii, spacing } from '@/theme/typography';
 
@@ -26,6 +27,7 @@ export function SwimEnrollSheet({
   onContinue: (participantName: string) => void;
   onClose: () => void;
 }) {
+  const sessionInfo = useAppConfig().config.aquaticsSession;
   const { colors } = useTheme();
   const [name, setName] = useState(defaultName);
   const [ack, setAck] = useState(false);
@@ -39,7 +41,7 @@ export function SwimEnrollSheet({
     return null;
   }
 
-  const info = AQUATICS_SESSION_INFO;
+  const info = sessionInfo;
   const rows: [string, string][] = [
     ['Session', `${info.sessionName} (${info.startDate} - ${info.endDate})`],
     ['Schedule', `${offering.day}s, ${offering.startTime} - ${offering.endTime}`],

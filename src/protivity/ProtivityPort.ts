@@ -438,9 +438,10 @@ export interface ProtivityPort {
     priority: TicketPriority;
     deviceInfo?: string;
   }): Promise<{ ticket: SupportTicket; thread: Thread; initialMessage: Message }>;
-  listSupportTickets(userId?: string): Promise<SupportTicket[]>;
+  /** Without `userId` this lists every ticket; a staff requester then needs manageSupportTickets. */
+  listSupportTickets(userId?: string, requesterUserId?: string): Promise<SupportTicket[]>;
   getSupportTicket(ticketId: string): Promise<SupportTicket | null>;
-  updateSupportTicketStatus(ticketId: string, status: TicketStatus): Promise<SupportTicket>;
+  updateSupportTicketStatus(ticketId: string, status: TicketStatus, requesterUserId?: string): Promise<SupportTicket>;
 
   // Complaints & Suggestions
   /** Defaults to member-services tickets; pass 'maintenance' or 'all' for the facilities queue. */

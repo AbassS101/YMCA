@@ -336,7 +336,7 @@ function migrateState(raw: DemoState): DemoState {
   }
 
   // Replace legacy persisted names/labels with the current seed values.
-  const LEGACY_NAMES = new Set<string>();
+  const LEGACY_NAMES = new Set<string>(['Marcus', 'Dana']);
   mergedStaff = mergedStaff.map((s) => {
     const seeded = seed.staff.find((x) => x.id === s.id);
     if (!seeded) return s;

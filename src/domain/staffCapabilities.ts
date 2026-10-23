@@ -48,7 +48,10 @@ export type StaffCapability =
   | 'manageMaintenance'
   | 'viewBranchStats'
   | 'viewDepartmentStats'
-  | 'exportData';
+  | 'exportData'
+  | 'manageSupportTickets'
+  /** Only the wellness-related complaints (see WELLNESS_FEEDBACK_CATEGORIES). */
+  | 'manageWellnessComplaints';
 
 const ALL_CAPABILITIES: readonly StaffCapability[] = [
   'viewAllMembers',
@@ -86,6 +89,8 @@ const ALL_CAPABILITIES: readonly StaffCapability[] = [
   'viewBranchStats',
   'viewDepartmentStats',
   'exportData',
+  'manageSupportTickets',
+  'manageWellnessComplaints',
 ];
 
 // Staff Admin runs the business settings but not the system-level ones (toggles, branding, thresholds).
@@ -99,12 +104,13 @@ const TRAINER_CAPABILITIES: readonly StaffCapability[] = [
   'takeAttendance',
 ];
 
-// Wellness Director = everything a Staff Admin can do, except reading complaints and the generic
+// Wellness Director = everything a Staff Admin can do, except reading non-wellness complaints and the generic
 // business/system config powers (they edit only the wellness packages section; see canEditConfigSection).
 // (Creating/editing admin- or director-level staff is blocked in staff management.)
 const WELLNESS_DIRECTOR_CAPABILITIES: readonly StaffCapability[] = ALL_CAPABILITIES.filter(
   (c) =>
     c !== 'manageComplaints' &&
+    c !== 'manageSupportTickets' &&
     c !== 'manageBusinessConfig' &&
     c !== 'manageSystemConfig' &&
     c !== 'viewConfigAudit' &&
@@ -254,7 +260,13 @@ export type ConfigSection =
   | 'templates'
   | 'branding'
   | 'thresholds'
-  | 'featureToggles';
+  | 'featureToggles'
+  | 'about'
+  | 'amenities'
+  | 'programs'
+  | 'busyTimes'
+  | 'poolSchedule'
+  | 'aquaticsSession';
 
 /** Sections only IT may change. Everything else is a business section. */
 const SYSTEM_CONFIG_SECTIONS: ReadonlySet<ConfigSection> = new Set(['branding', 'thresholds', 'featureToggles']);
@@ -267,6 +279,10 @@ const CONFIG_SECTION_OWNERS: Partial<Record<ConfigSection, readonly StaffPersona
   lessonPricing: ['aquaticsDirector', 'wellnessDirector'],
   wellnessPackages: ['wellnessDirector'],
   childWatch: ['childWatchDirector'],
+  poolSchedule: ['aquaticsDirector'],
+  aquaticsSession: ['aquaticsDirector'],
+  busyTimes: ['membershipDirector'],
+  programs: ['wellnessDirector'],
 };
 
 export function canEditConfigSection(

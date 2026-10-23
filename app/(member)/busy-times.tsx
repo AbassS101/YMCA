@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { AppText as Text } from '@/components/AppText';
 
 import { YHeader } from '@/components/YHeader';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
 import {
   type BusyLevel,
@@ -30,6 +31,7 @@ const LEVEL_LABEL: Record<BusyLevel, string> = {
 const CHART_HEIGHT = 120;
 
 export default function BusyTimesScreen() {
+  const { busyTimes } = useAppConfig().config;
   const router = useRouter();
   const { colors: tc, isDark } = useTheme();
   const now = new Date();
@@ -37,7 +39,7 @@ export default function BusyTimesScreen() {
   const nowHour = now.getHours();
 
   const [selectedDay, setSelectedDay] = useState(today);
-  const hours = useMemo(() => getBusyHours(selectedDay), [selectedDay]);
+  const hours = useMemo(() => getBusyHours(selectedDay, busyTimes.byDay), [selectedDay, busyTimes.byDay]);
   const isToday = selectedDay === today;
 
   const current = isToday ? hours.find((h) => h.hour === nowHour) : undefined;
@@ -61,6 +63,16 @@ export default function BusyTimesScreen() {
           <Ionicons name="arrow-back" size={20} color={tc.primary} />
           <Text style={[styles.backText, { color: tc.primary }]}>Back</Text>
         </Pressable>
+
+        {busyTimes.note?.trim() ? (
+          <View
+            style={{ flexDirection: 'row', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#F59E0B', backgroundColor: isDark ? '#451A03' : '#FEF3C7', marginBottom: 12 }}
+            accessibilityRole="alert"
+          >
+            <Ionicons name="megaphone-outline" size={18} color={isDark ? '#FDE68A' : '#92400E'} />
+            <Text style={{ flex: 1, color: isDark ? '#FDE68A' : '#92400E', fontSize: 14 }}>{busyTimes.note.trim()}</Text>
+          </View>
+        ) : null}
 
         {/* Right-now card */}
         <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>

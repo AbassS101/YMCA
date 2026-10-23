@@ -25,7 +25,6 @@ import { householdRepo } from '@/repositories/householdRepo';
 import { useTheme } from '@/context/ThemeContext';
 import {
   AQUATICS_CLASSES,
-  AQUATICS_SESSION_INFO,
   type AquaticsClassOffering,
 } from '@/domain/aquaticsGuideData';
 import { getDemoToday } from '@/domain/demoClock';
@@ -81,6 +80,7 @@ function formatSlot(isoStart: string): string {
 }
 
 export default function BookLessonScreen() {
+  const sessionInfo = useAppConfig().config.aquaticsSession;
   const router = useRouter();
   const params = useLocalSearchParams<{
     changeLessonId?: string;
@@ -391,7 +391,7 @@ export default function BookLessonScreen() {
   };
 
   const requestRefund = (e: SwimClassEnrollment) => {
-    const contacts = AQUATICS_SESSION_INFO.contacts
+    const contacts = sessionInfo.contacts
       .map((c) => `${c.name} (${c.role}): ${c.email}`)
       .join('\n');
     dialog.show({
@@ -427,7 +427,7 @@ export default function BookLessonScreen() {
       (filters.age === 'All' || c.ageCategory === filters.age)
   );
   const enrolledIds = new Set(myEnrollments.map((e) => e.classId));
-  const info = AQUATICS_SESSION_INFO;
+  const info = sessionInfo;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>

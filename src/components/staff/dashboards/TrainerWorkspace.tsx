@@ -191,7 +191,7 @@ export function TrainerWorkspace({ day, staffId, accent, showQuickActions = true
       {day.loaded === false ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 }} accessibilityRole="progressbar" accessibilityLabel="Loading today's schedule">
           <ActivityIndicator size="small" color={accent} />
-          <Text style={{ color: tc.textMuted, fontSize: 13, fontWeight: '600' }}>Loading today's schedule…</Text>
+          <Text style={{ color: tc.textMuted, fontSize: 13, fontWeight: '600' }}>Loading today&apos;s schedule…</Text>
         </View>
       ) : null}
 

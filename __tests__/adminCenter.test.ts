@@ -28,8 +28,8 @@ describe('Admin Control Center gating', () => {
   });
 
   it('limits directors to their own sections', () => {
-    expect(keys('wellness_director')).toEqual(['lessons', 'wellness', 'stats']);
-    expect(keys('membership_director')).toEqual(['campaigns', 'stats']);
+    expect(keys('wellness_director')).toEqual(['lessons', 'wellness', 'programs', 'stats']);
+    expect(keys('membership_director')).toEqual(['campaigns', 'busyTimes', 'stats']);
   });
 
   it('shows the swim class and template tiles to the right roles', () => {
@@ -43,6 +43,22 @@ describe('Admin Control Center gating', () => {
       expect(canOpenAdminCenter(role)).toBe(false);
     }
     expect(canOpenAdminCenter('it_admin')).toBe(true);
+  });
+});
+
+describe('Member content tiles', () => {
+  const CONTENT = ['about', 'amenities', 'programs', 'busyTimes', 'poolSchedule', 'aquaticsSession'];
+
+  it('gives Staff Admin and IT every member content tile and the support ticket inbox', () => {
+    for (const role of ['it_admin', 'staff_admin']) {
+      expect(keys(role)).toEqual(expect.arrayContaining([...CONTENT, 'supportTickets']));
+    }
+  });
+
+  it('gives the Aquatics Director only the pool schedule and aquatics session', () => {
+    const k = keys('aquatics_director');
+    expect(k).toEqual(expect.arrayContaining(['poolSchedule', 'aquaticsSession']));
+    for (const key of ['about', 'amenities', 'programs', 'busyTimes', 'supportTickets']) expect(k).not.toContain(key);
   });
 });
 

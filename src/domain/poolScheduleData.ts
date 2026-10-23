@@ -1,3 +1,5 @@
+import type { PoolScheduleConfig } from '@/domain/branchContent';
+
 export type PoolId = 'indoor' | 'outdoor';
 
 export type PoolDayKey =
@@ -2007,12 +2009,42 @@ export const OUTDOOR_POOL_SLOTS: PoolTimeSlot[] = [
   },
 ];
 
+/** Applies staff changes (title, closed, note) from the pool schedule settings. Unknown slot ids are ignored. */
+export function applyPoolOverrides(slots: PoolTimeSlot[], cfg?: PoolScheduleConfig): PoolTimeSlot[] {
+  if (!cfg) return slots;
+  return slots.map((slot) => {
+    const o = cfg.slotOverrides[slot.id];
+    if (!o) return slot;
+    let next: PoolTimeSlot = { ...slot };
+    if (o.title?.trim()) next.title = o.title.trim();
+    if (o.note?.trim()) next.notes = o.note.trim();
+    if (o.isClosed) {
+      next = {
+        ...next,
+        isClosed: true,
+        category: 'closed',
+        lapLanes: 0,
+        recLanes: 0,
+        programLanes: 0,
+        laneBreakdownLabel: 'Closed',
+        colorTheme: THEMES.darkClosed,
+        laneAllocations: buildLaneAllocations('closed', 0, 0, 0, ''),
+      };
+    }
+    return next;
+  });
+}
+
+/** All slots for one pool, before any staff changes. */
+export function allPoolSlots(poolId: PoolId): PoolTimeSlot[] {
+  return poolId === 'indoor' ? INDOOR_POOL_SLOTS : OUTDOOR_POOL_SLOTS;
+}
+
 /**
  * Helper to get slots for a specific pool and day
  */
-export function getPoolSlots(poolId: PoolId, day: PoolDayKey): PoolTimeSlot[] {
-  const source = poolId === 'indoor' ? INDOOR_POOL_SLOTS : OUTDOOR_POOL_SLOTS;
-  return source.filter((s) => s.day === day);
+export function getPoolSlots(poolId: PoolId, day: PoolDayKey, cfg?: PoolScheduleConfig): PoolTimeSlot[] {
+  return applyPoolOverrides(allPoolSlots(poolId).filter((s) => s.day === day), cfg);
 }
 
 /**
@@ -2021,14 +2053,15 @@ export function getPoolSlots(poolId: PoolId, day: PoolDayKey): PoolTimeSlot[] {
 export function getCurrentSlotForPool(
   poolId: PoolId,
   day: PoolDayKey,
-  minutesSinceMidnight?: number
+  minutesSinceMidnight?: number,
+  cfg?: PoolScheduleConfig
 ): PoolTimeSlot | undefined {
   let minutes = minutesSinceMidnight;
   if (minutes === undefined) {
     const now = new Date();
     minutes = now.getHours() * 60 + now.getMinutes();
   }
-  const slots = getPoolSlots(poolId, day);
+  const slots = getPoolSlots(poolId, day, cfg);
   return slots.find((s) => minutes! >= s.startMinutes && minutes! < s.endMinutes);
 }
 
@@ -2037,8 +2070,8 @@ export function getCurrentSlotForPool(
  */
 export function findOpenLapSwimSlots(
   poolId: PoolId,
-  minLapLanes: number = 3
+  minLapLanes: number = 3,
+  cfg?: PoolScheduleConfig
 ): PoolTimeSlot[] {
-  const source = poolId === 'indoor' ? INDOOR_POOL_SLOTS : OUTDOOR_POOL_SLOTS;
-  return source.filter((s) => !s.isClosed && s.lapLanes >= minLapLanes);
+  return applyPoolOverrides(allPoolSlots(poolId), cfg).filter((s) => !s.isClosed && s.lapLanes >= minLapLanes);
 }

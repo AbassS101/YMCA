@@ -1306,6 +1306,7 @@ export type FeedbackCategory =
   | 'hours_schedules'
   | 'locker_rooms'
   | 'programs_events'
+  | 'wellness_training'
   | 'other'
   | MaintenanceCategory;
 
@@ -1364,9 +1365,13 @@ export const FEEDBACK_CATEGORIES: {
   { id: 'staff_service', label: 'Staff & Front Desk', icon: 'shield-outline', description: 'Customer service and member care' },
   { id: 'hours_schedules', label: 'Hours & Scheduling', icon: 'time-outline', description: 'Building open times and class time slots' },
   { id: 'locker_rooms', label: 'Locker Rooms & Showers', icon: 'business-outline', description: 'Lockers, showers, and saunas' },
+  { id: 'wellness_training', label: 'Personal Training & Wellness', icon: 'fitness-outline', description: 'Trainers, wellness packages, and assessments' },
   { id: 'programs_events', label: 'Programs & Youth Activities', icon: 'fitness-outline', description: 'Child Watch, summer camps, and sports leagues' },
   { id: 'other', label: 'General / Other', icon: 'chatbox-ellipses-outline', description: 'Other thoughts, ideas, or feedback' },
 ];
+
+/** Feedback the Wellness Director reviews (they see only these complaints). */
+export const WELLNESS_FEEDBACK_CATEGORIES: readonly FeedbackCategory[] = ['wellness_training', 'equipment'];
 
 export const MAINTENANCE_CATEGORIES: {
   id: MaintenanceCategory;

@@ -1,8 +1,9 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText as Text } from '@/components/AppText';
 
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
-import { AQUATICS_CLASSES, AQUATICS_SESSION_INFO } from '@/domain/aquaticsGuideData';
+import { AQUATICS_CLASSES } from '@/domain/aquaticsGuideData';
 import { formatCents } from '@/domain/lessonPricing';
 import type { SwimClassEnrollment } from '@/domain/types';
 import { radii, spacing } from '@/theme/typography';
@@ -14,6 +15,7 @@ export function MySwimEnrollments({
   enrollments: SwimClassEnrollment[];
   onRequestRefund: (e: SwimClassEnrollment) => void;
 }) {
+  const sessionInfo = useAppConfig().config.aquaticsSession;
   const { colors } = useTheme();
   if (enrollments.length === 0) {
     return null;
@@ -35,7 +37,7 @@ export function MySwimEnrollments({
             </Text>
             <Text style={{ color: colors.textMuted, fontSize: 12 }} allowFontScaling>
               {e.participantName} · {c ? `${c.day}s ${c.startTime}` : ''} ·{' '}
-              {AQUATICS_SESSION_INFO.sessionName}
+              {sessionInfo.sessionName}
             </Text>
             <Text style={{ color: colors.textMuted, fontSize: 12 }} allowFontScaling>
               {e.paidAmountCents > 0

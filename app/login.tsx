@@ -127,7 +127,7 @@ const DEMO_PERSONAS = [
     highlights: 'Member sign-in, billing follow-up, leads, campaigns & call scripts',
   },
   {
-    name: 'Marcus',
+    name: 'Zino',
     email: 'maintenance@silverspring.ymca',
     roleTitle: 'Facilities & Maintenance Lead',
     badge: 'MAINTENANCE',

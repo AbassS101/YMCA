@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
 import {
   DAYS_OF_WEEK,
@@ -49,6 +50,7 @@ const COLUMN_WIDTH = 110;
 
 export function PoolMatrixGrid({ poolId, onSelectSlot }: PoolMatrixGridProps) {
   const { colors: tc, isDark } = useTheme();
+  const { poolSchedule } = useAppConfig().config;
 
   const titleText =
     poolId === 'indoor'
@@ -134,7 +136,7 @@ export function PoolMatrixGrid({ poolId, onSelectSlot }: PoolMatrixGridProps) {
 
             {/* 7 Columns for Each Day */}
             {DAYS_OF_WEEK.map((d) => {
-              const slots = getPoolSlots(poolId, d.key);
+              const slots = getPoolSlots(poolId, d.key, poolSchedule);
 
               return (
                 <View

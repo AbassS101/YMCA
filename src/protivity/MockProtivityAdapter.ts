@@ -4199,12 +4199,13 @@ export class MockProtivityAdapter implements ProtivityPort {
     return { ticket, thread, initialMessage: userMessage };
   }
 
-  async listSupportTickets(userId?: string): Promise<SupportTicket[]> {
+  async listSupportTickets(userId?: string, requesterUserId?: string): Promise<SupportTicket[]> {
     const state = await loadStore();
     const list = state.supportTickets ?? [];
     if (userId) {
       return list.filter((t) => t.userId === userId);
     }
+    assertStaffCapability(state, requesterUserId, 'manageSupportTickets', 'view support tickets');
     return list;
   }
 
@@ -4213,8 +4214,9 @@ export class MockProtivityAdapter implements ProtivityPort {
     return (state.supportTickets ?? []).find((t) => t.id === ticketId) ?? null;
   }
 
-  async updateSupportTicketStatus(ticketId: string, status: TicketStatus): Promise<SupportTicket> {
+  async updateSupportTicketStatus(ticketId: string, status: TicketStatus, requesterUserId?: string): Promise<SupportTicket> {
     const state = await loadStore();
+    assertStaffCapability(state, requesterUserId, 'manageSupportTickets', 'update support tickets');
     const idx = (state.supportTickets ?? []).findIndex((t) => t.id === ticketId);
     if (idx === -1) {
       throw new Error(`Support ticket not found: ${ticketId}`);

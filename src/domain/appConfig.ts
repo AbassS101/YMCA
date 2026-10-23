@@ -1,5 +1,21 @@
+import { AQUATICS_SESSION_INFO, type AquaticsSessionInfo } from '@/domain/aquaticsGuideData';
+import {
+  AMENITY_CATEGORIES,
+  BUSY_HOURS_PER_DAY,
+  DEFAULT_ABOUT,
+  DEFAULT_AMENITIES,
+  DEFAULT_BUSY_TIMES,
+  DEFAULT_POOL_SCHEDULE,
+  DEFAULT_PROGRAMS,
+  type AboutConfig,
+  type AmenityItem,
+  type BusyTimesConfig,
+  type PoolScheduleConfig,
+  type ProgramSection,
+} from '@/domain/branchContent';
 import { DEFAULT_CHILD_WATCH_RULES, type ChildWatchRules } from '@/domain/childWatch';
 import { NEW_MEMBER_DAYS } from '@/domain/deskAlerts';
+import { INDOOR_POOL_SLOTS, OUTDOOR_POOL_SLOTS, POOL_FACILITIES } from '@/domain/poolScheduleData';
 import { SWIM_CLASS_CAPACITY } from '@/domain/lessonPricing';
 import type { ConfigSection } from '@/domain/staffCapabilities';
 import {
@@ -105,6 +121,12 @@ export type AppConfig = {
   thresholds: ThresholdsConfig;
   featureToggles: FeatureToggles;
   templates: TemplatesConfig;
+  about: AboutConfig;
+  amenities: AmenityItem[];
+  programs: ProgramSection[];
+  busyTimes: BusyTimesConfig;
+  poolSchedule: PoolScheduleConfig;
+  aquaticsSession: AquaticsSessionInfo;
 };
 
 export type AppConfigSection = keyof AppConfig;
@@ -127,6 +149,12 @@ export const APP_CONFIG_SECTIONS: readonly AppConfigSection[] = [
   'thresholds',
   'featureToggles',
   'templates',
+  'about',
+  'amenities',
+  'programs',
+  'busyTimes',
+  'poolSchedule',
+  'aquaticsSession',
 ];
 
 export const CONFIG_SECTION_LABELS: Record<ConfigSection, string> = {
@@ -142,6 +170,12 @@ export const CONFIG_SECTION_LABELS: Record<ConfigSection, string> = {
   branding: 'branding',
   thresholds: 'thresholds',
   featureToggles: 'feature toggles',
+  about: 'About page',
+  amenities: 'branch amenities',
+  programs: 'programs',
+  busyTimes: 'busy times',
+  poolSchedule: 'pool schedule',
+  aquaticsSession: 'aquatics session',
 };
 
 export type ConfigAuditEntry = {
@@ -201,6 +235,12 @@ export function defaultAppConfig(): AppConfig {
       guestPassShare:
         "Hi {guestName}! I've sent you a complimentary 1-Day Guest Pass to the YMCA Silver Spring. Your Pass Code is {passCode}. Present this pass code at the YMCA Silver Spring Member Services desk (9800 Hastings Drive, Silver Spring, MD)!",
     },
+    about: clone(DEFAULT_ABOUT),
+    amenities: clone(DEFAULT_AMENITIES),
+    programs: clone(DEFAULT_PROGRAMS),
+    busyTimes: clone(DEFAULT_BUSY_TIMES),
+    poolSchedule: clone(DEFAULT_POOL_SCHEDULE),
+    aquaticsSession: clone(AQUATICS_SESSION_INFO),
   };
 }
 
@@ -249,6 +289,12 @@ export function normalizeAppConfig(raw?: AppConfigInput | null): AppConfig {
     thresholds: deepMerge(d.thresholds, raw?.thresholds),
     featureToggles: deepMerge(d.featureToggles, raw?.featureToggles),
     templates: deepMerge(d.templates, raw?.templates),
+    about: deepMerge(d.about, raw?.about),
+    amenities: mergeById(d.amenities, raw?.amenities),
+    programs: mergeById(d.programs, raw?.programs),
+    busyTimes: deepMerge(d.busyTimes, raw?.busyTimes),
+    poolSchedule: deepMerge(d.poolSchedule, raw?.poolSchedule),
+    aquaticsSession: deepMerge(d.aquaticsSession, raw?.aquaticsSession),
   };
 }
 
@@ -281,6 +327,12 @@ export function defaultsForReset<S extends AppConfigSection>(current: AppConfig,
   }
   if (section === 'wellnessPackages') {
     return [...defaults.wellnessPackages, ...clone(extras(defaults.wellnessPackages, current.wellnessPackages))] as AppConfig[S];
+  }
+  if (section === 'amenities') {
+    return [...defaults.amenities, ...clone(extras(defaults.amenities, current.amenities))] as AppConfig[S];
+  }
+  if (section === 'programs') {
+    return [...defaults.programs, ...clone(extras(defaults.programs, current.programs))] as AppConfig[S];
   }
   return defaults[section];
 }
@@ -438,6 +490,66 @@ function validateThresholds(t: ThresholdsConfig): string | null {
   return typeof ratio === 'number' && ratio > 0 && ratio <= 1 ? null : 'Full-class ratio must be above 0 and at most 1.';
 }
 
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+function hasUniqueIds(items: { id: string }[]): boolean {
+  return new Set(items.map((i) => i.id)).size === items.length;
+}
+
+function validateAbout(a: AboutConfig): string | null {
+  if (!isText(a.association)) return 'The association name needs a value.';
+  if (typeof a.email !== 'string' || !EMAIL_RE.test(a.email.trim())) return 'Enter a valid contact email.';
+  if (!a.pillars.every((p) => isText(p.title) && isText(p.description))) return 'Every pillar needs a title and description.';
+  if (!a.metrics.every((m) => isText(m.label) && isText(m.value))) return 'Every highlight number needs a label and value.';
+  if (!a.amenities.every((m) => isText(m.name))) return 'Every amenity needs a name.';
+  if (!hasUniqueIds(a.pillars) || !hasUniqueIds(a.metrics) || !hasUniqueIds(a.amenities)) return 'Two items share the same id.';
+  return null;
+}
+
+function validateAmenities(list: AmenityItem[]): string | null {
+  if (!hasUniqueIds(list)) return 'Two amenities share the same id.';
+  if (!list.every((a) => isText(a.title) && isText(a.description))) return 'Every amenity needs a title and description.';
+  if (!list.every((a) => (AMENITY_CATEGORIES as readonly string[]).includes(a.category))) {
+    return 'Pick a category for every amenity.';
+  }
+  return null;
+}
+
+function validatePrograms(list: ProgramSection[]): string | null {
+  if (!hasUniqueIds(list)) return 'Two programs share the same id.';
+  if (!list.every((p) => isText(p.title) && isText(p.description) && isText(p.category))) {
+    return 'Every program needs a title, category, and description.';
+  }
+  return null;
+}
+
+function validateBusyTimes(b: BusyTimesConfig): string | null {
+  if (!Array.isArray(b.byDay) || b.byDay.length !== 7) return 'Busy times need all seven days.';
+  for (const row of b.byDay) {
+    if (!Array.isArray(row) || row.length !== BUSY_HOURS_PER_DAY) return `Each day needs ${BUSY_HOURS_PER_DAY} hourly values.`;
+    if (!row.every((v) => Number.isInteger(v) && v >= 0 && v <= 100)) return 'Busy values must be whole numbers from 0 to 100.';
+  }
+  return typeof b.note === 'string' ? null : 'The note must be text.';
+}
+
+const POOL_SLOT_IDS = new Set([...INDOOR_POOL_SLOTS, ...OUTDOOR_POOL_SLOTS].map((s) => s.id));
+
+function validatePoolSchedule(p: PoolScheduleConfig): string | null {
+  if (!Object.keys(p.facilityNotices).every((k) => k in POOL_FACILITIES)) return 'Unknown pool in the notices.';
+  if (!Object.values(p.facilityNotices).every((v) => typeof v === 'string')) return 'Pool notices must be text.';
+  for (const [id, o] of Object.entries(p.slotOverrides)) {
+    if (!POOL_SLOT_IDS.has(id)) return 'One of the changed pool times no longer exists. Reload and try again.';
+    if (o.title !== undefined && !isText(o.title)) return 'A renamed pool time needs a name.';
+  }
+  return null;
+}
+
+function validateAquaticsSession(a: AquaticsSessionInfo): string | null {
+  return isText(a.sessionName) && isText(a.startDate) && isText(a.endDate)
+    ? null
+    : 'The session needs a name, start date, and end date.';
+}
+
 /** Returns a user-facing problem with the candidate section, or null when it is valid. */
 export function validateAppConfigSection<S extends AppConfigSection>(
   section: S,
@@ -467,6 +579,18 @@ export function validateAppConfigSection<S extends AppConfigSection>(
         : 'Every feature toggle must be on or off.';
     case 'templates':
       return validateTextFields(next as TemplatesConfig, 'template');
+    case 'about':
+      return validateAbout(next as AboutConfig);
+    case 'amenities':
+      return validateAmenities(next as AmenityItem[]);
+    case 'programs':
+      return validatePrograms(next as ProgramSection[]);
+    case 'busyTimes':
+      return validateBusyTimes(next as BusyTimesConfig);
+    case 'poolSchedule':
+      return validatePoolSchedule(next as PoolScheduleConfig);
+    case 'aquaticsSession':
+      return validateAquaticsSession(next as AquaticsSessionInfo);
     default:
       return 'Unknown settings section.';
   }

@@ -33,8 +33,8 @@ export const supportTicketRepo = {
     return api.listSupportTickets(userId);
   },
 
-  listAllTickets(api: ProtivityPort): Promise<SupportTicket[]> {
-    return api.listSupportTickets();
+  listAllTickets(api: ProtivityPort, requesterUserId?: string): Promise<SupportTicket[]> {
+    return api.listSupportTickets(undefined, requesterUserId);
   },
 
   getTicket(api: ProtivityPort, ticketId: string): Promise<SupportTicket | null> {
@@ -44,8 +44,9 @@ export const supportTicketRepo = {
   updateStatus(
     api: ProtivityPort,
     ticketId: string,
-    status: TicketStatus
+    status: TicketStatus,
+    requesterUserId?: string
   ): Promise<SupportTicket> {
-    return api.updateSupportTicketStatus(ticketId, status);
+    return api.updateSupportTicketStatus(ticketId, status, requesterUserId);
   },
 };

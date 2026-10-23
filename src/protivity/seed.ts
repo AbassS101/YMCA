@@ -2071,7 +2071,7 @@ const BASE_SEED: SeedState = {
     },
     {
       id: 'staff-maint',
-      name: 'Marcus',
+      name: 'Zino',
       email: 'maintenance@silverspring.ymca',
       roleLabel: 'Facilities & Maintenance Lead',
       homeBranchId: BRANCH,
@@ -2079,7 +2079,7 @@ const BASE_SEED: SeedState = {
     },
     {
       id: 'staff-cw-director',
-      name: 'Dana',
+      name: 'Meena',
       email: 'childwatch@silverspring.ymca',
       roleLabel: 'Child Watch Director',
       homeBranchId: BRANCH,

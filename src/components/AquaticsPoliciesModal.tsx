@@ -10,8 +10,8 @@ import {
   View,
 } from 'react-native';
 
+import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
-import { AQUATICS_SESSION_INFO } from '@/domain/aquaticsGuideData';
 import { radii, spacing } from '@/theme/typography';
 
 interface AquaticsPoliciesModalProps {
@@ -23,6 +23,7 @@ export function AquaticsPoliciesModal({
   visible,
   onClose,
 }: AquaticsPoliciesModalProps) {
+  const sessionInfo = useAppConfig().config.aquaticsSession;
   const { colors: tc, isDark } = useTheme();
 
   const handleEmailPress = async (email: string) => {
@@ -91,7 +92,7 @@ export function AquaticsPoliciesModal({
                 Aquatics Department Contacts
               </Text>
               <View style={styles.contactsGrid}>
-                {AQUATICS_SESSION_INFO.contacts.map((contact) => (
+                {sessionInfo.contacts.map((contact) => (
                   <View
                     key={contact.email}
                     style={[
@@ -152,12 +153,12 @@ export function AquaticsPoliciesModal({
               <View style={styles.policyHeader}>
                 <Ionicons name="alert-circle" size={18} color="#D97706" />
                 <Text style={styles.policyTitle}>
-                  {AQUATICS_SESSION_INFO.refundPolicy.title}
+                  {sessionInfo.refundPolicy.title}
                 </Text>
               </View>
 
               <View style={styles.policyList}>
-                {AQUATICS_SESSION_INFO.refundPolicy.rules.map((rule, idx) => (
+                {sessionInfo.refundPolicy.rules.map((rule, idx) => (
                   <View key={idx} style={styles.ruleItem}>
                     <Text style={[styles.ruleBullet, { color: '#D97706' }]}>•</Text>
                     <Text style={[styles.ruleText, { color: isDark ? '#FDE68A' : '#78350F' }]}>
@@ -184,7 +185,7 @@ export function AquaticsPoliciesModal({
                   Water Safety & Drowning Prevention
                 </Text>
                 <Text style={[styles.cdcText, { color: tc.textMuted }]}>
-                  {AQUATICS_SESSION_INFO.healthBenefits.cdcDrowningStat}
+                  {sessionInfo.healthBenefits.cdcDrowningStat}
                 </Text>
               </View>
             </View>
@@ -195,7 +196,7 @@ export function AquaticsPoliciesModal({
                 Health Benefits of Swimming at YMCA
               </Text>
               <View style={styles.benefitsGrid}>
-                {AQUATICS_SESSION_INFO.healthBenefits.adultBenefits.map((benefit, i) => (
+                {sessionInfo.healthBenefits.adultBenefits.map((benefit, i) => (
                   <View key={i} style={styles.benefitRow}>
                     <Ionicons name="heart" size={13} color="#DC2626" />
                     <Text style={[styles.benefitText, { color: tc.text }]}>

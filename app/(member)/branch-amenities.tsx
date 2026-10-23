@@ -14,165 +14,10 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { YHeader } from '@/components/YHeader';
 import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
+import { visibleItems } from '@/domain/branchContent';
 import { childWatchCutoffLine, describeHoursLines, formatLimit } from '@/domain/childWatch';
 import { cardStyle } from '@/theme/card';
 import { radii, spacing, tapTarget, typography } from '@/theme/typography';
-
-type AmenityItem = {
-  id: string;
-  title: string;
-  category: 'Aquatics' | 'Fitness' | 'Courts' | 'Family' | 'Wellness';
-  icon: keyof typeof Ionicons.glyphMap;
-  badge?: string;
-  description: string;
-  details: string[];
-  scheduleAction?: {
-    label: string;
-    route: string;
-  };
-};
-
-const AMENITIES: AmenityItem[] = [
-  {
-    id: 'outdoor-pool',
-    title: 'Heated Outdoor Pool (Year-Round)',
-    category: 'Aquatics',
-    icon: 'water-outline',
-    badge: 'Open 365 Days',
-    description: 'One of the area’s few heated outdoor pools open year-round! Enjoy lap swim, family rec swim, and refreshing open-air workouts through every season.',
-    details: [
-      'Water temperature maintained between 82°F – 84°F',
-      'Dedicated lap lanes available morning, afternoon, and evening',
-      'Open rec swim hours for families on weekends',
-      'Heated pool deck access and deck chairs',
-    ],
-    scheduleAction: {
-      label: 'View Outdoor Pool Schedule',
-      route: '/(member)/pool-schedule?pool=outdoor',
-    },
-  },
-  {
-    id: 'indoor-pool',
-    title: 'Indoor 25-Meter Lap & Teaching Pool',
-    category: 'Aquatics',
-    icon: 'water',
-    description: 'A 6-lane 25-meter indoor pool host to youth and adult swim lessons, Aqua Fit water aerobics, and Masters swim training.',
-    details: [
-      'Warm-water section ideal for Aqua Arthritis therapy',
-      'Youth Swim Academy (Stages 1 through 6)',
-      'Kickboards, pull buoys, and aquatic exercise equipment provided',
-      'Certified YMCA lifeguards always on duty',
-    ],
-    scheduleAction: {
-      label: 'View Indoor Pool Schedule',
-      route: '/(member)/pool-schedule?pool=indoor',
-    },
-  },
-  {
-    id: 'pickleball',
-    title: 'Pickleball Powered by JOOLA',
-    category: 'Courts',
-    icon: 'tennisball-outline',
-    badge: 'JOOLA Official Partner',
-    description: 'High-energy pickleball on professional courts. Silver Spring hosts weekly beginner clinics, open recreational ladders, and pickup play.',
-    details: [
-      'Multiple indoor marked courts in the main gymnasium',
-      'Open drop-in play: Mon/Wed/Fri mornings and Tuesday evenings',
-      'JOOLA demo paddles and balls available at the equipment desk',
-      'All skill levels welcome from beginner to tournament players',
-    ],
-  },
-  {
-    id: 'child-watch',
-    title: 'Child Watch Babysitting',
-    category: 'Family',
-    icon: 'happy-outline',
-    badge: 'Free with Family Membership',
-    description: 'Positive and fun on-site childcare during your visit, for children 6 weeks and up. Maximum of 2 hours per day; parents must remain in the building.',
-    details: [
-      'Monday – Friday: 9 am-12 pm, 4 pm-8 pm',
-      'Saturday – 9 am-12 pm · Closed Sunday',
-      'Sign in cut off is 30 minutes prior to closing time',
-      'Check in at the Y Membership Desk before dropping children off',
-    ],
-    scheduleAction: {
-      label: 'View Child Watch Info',
-      route: '/(member)/child-watch',
-    },
-  },
-  {
-    id: 'fitness-center',
-    title: 'Fitness & Wellness Center',
-    category: 'Fitness',
-    icon: 'barbell-outline',
-    description: 'Spacious wellness floor equipped with the latest cardio machines, free weight dumbbells up to 100 lbs, Olympic squat racks, and Cybex selectorized machines.',
-    details: [
-      'Treadmills, ellipticals, stair climbers, and rowers with personal TVs',
-      'Dedicated stretching and functional turf movement zone',
-      'Fitlinxx computerized strength and cardio tracking',
-      'Complimentary 1-on-1 member wellness consultation included',
-    ],
-    scheduleAction: {
-      label: 'Meet Personal Trainers',
-      route: '/(member)/(tabs)/staff',
-    },
-  },
-  {
-    id: 'group-ex',
-    title: 'Group Exercise & Cycle Studios',
-    category: 'Fitness',
-    icon: 'people-outline',
-    badge: '40+ Classes Weekly',
-    description: 'Multi-purpose wood-floor studios with surround sound and dedicated spin bikes. Unlimited classes are included free with membership.',
-    details: [
-      'Signature classes: BodyPump, Yoga Flow, Zumba, Cycle & Spin, HIIT',
-      'Active Older Adult classes: Gentle Chair Yoga, Fit & Well Seniors',
-      'Top certified instructors passionate about motivating every fitness level',
-      'All mats, weights, bands, and steps provided in studio',
-    ],
-    scheduleAction: {
-      label: 'Browse Class Schedule',
-      route: '/(member)/(tabs)/schedules',
-    },
-  },
-  {
-    id: 'gymnasium',
-    title: 'Full Gymnasium & Basketball',
-    category: 'Courts',
-    icon: 'basketball-outline',
-    description: 'Regulation high-school sized basketball court host to adult open pickup runs, youth basketball leagues, and community family games.',
-    details: [
-      'Open shootaround and pickup basketball daily',
-      'Youth sports leagues, floor hockey, and seasonal camps',
-      'Volleyball setup available during weekend family hours',
-    ],
-  },
-  {
-    id: 'sauna-steam',
-    title: 'Saunas, Steam Rooms & Locker Rooms',
-    category: 'Wellness',
-    icon: 'flame-outline',
-    description: 'Recharge post-workout with cedarwood dry heat saunas, eucalyptus-infused steam rooms, private showers, and lockers.',
-    details: [
-      'Men’s and Women’s locker rooms with digital lockers',
-      'Separate dry cedar saunas and steam rooms in each facility',
-      'Day lockers available free (bring your own padlock or purchase at desk)',
-      'Accessible family / gender-neutral changing suites with direct pool access',
-    ],
-  },
-  {
-    id: 'tennis',
-    title: 'Outdoor Tennis Courts',
-    category: 'Courts',
-    icon: 'tennisball',
-    description: 'Outdoor hard courts tucked behind the YMCA Silver Spring facility for member recreation and seasonal instruction.',
-    details: [
-      'First-come, first-served open play for members',
-      'Spring and summer youth tennis clinics and private instruction',
-      'Court reservations available through Member Services',
-    ],
-  },
-];
 
 const CATEGORIES = ['All', 'Aquatics', 'Fitness', 'Courts', 'Family', 'Wellness'] as const;
 
@@ -183,7 +28,7 @@ export default function BranchAmenitiesScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
   const rules = config.childWatch;
-  const amenities = AMENITIES.filter((a) => a.id !== 'child-watch' || config.featureToggles.childWatch).map((a) =>
+  const amenities = visibleItems(config.amenities).filter((a) => a.id !== 'child-watch' || config.featureToggles.childWatch).map((a) =>
     a.id === 'child-watch'
       ? {
           ...a,

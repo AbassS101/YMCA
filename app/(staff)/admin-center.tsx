@@ -10,8 +10,9 @@ import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import { adminCenterTiles, type AdminTileGroup } from '@/domain/adminCenter';
 
-const GROUPS: { title: AdminTileGroup; icon: 'pricetags' | 'settings' | 'shield-checkmark' | 'document-text'; subtitle: string }[] = [
+const GROUPS: { title: AdminTileGroup; icon: 'pricetags' | 'newspaper' | 'settings' | 'shield-checkmark' | 'document-text'; subtitle: string }[] = [
   { title: 'Pricing & Deals', icon: 'pricetags', subtitle: 'What members pay, and the offers that reduce it' },
+  { title: 'Member Content', icon: 'newspaper', subtitle: 'Information members read around the app' },
   { title: 'Operations', icon: 'settings', subtitle: 'Rules the branch runs on' },
   { title: 'System', icon: 'shield-checkmark', subtitle: 'IT only' },
   { title: 'Records', icon: 'document-text', subtitle: 'An audit trail of every settings change' },

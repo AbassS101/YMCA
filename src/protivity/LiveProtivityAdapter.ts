@@ -733,7 +733,7 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
-  async listSupportTickets(_userId?: string): Promise<SupportTicket[]> {
+  async listSupportTickets(_userId?: string, _requesterUserId?: string): Promise<SupportTicket[]> {
     throw new ProtivityNotConnected();
   }
 

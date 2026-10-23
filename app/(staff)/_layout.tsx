@@ -29,6 +29,13 @@ export default function StaffLayout() {
       <Stack.Screen name="admin-branding" />
       <Stack.Screen name="admin-thresholds" />
       <Stack.Screen name="admin-audit" />
+      <Stack.Screen name="admin-about" />
+      <Stack.Screen name="admin-amenities" />
+      <Stack.Screen name="admin-programs" />
+      <Stack.Screen name="admin-busy-times" />
+      <Stack.Screen name="admin-pool-schedule" />
+      <Stack.Screen name="admin-aquatics-session" />
+      <Stack.Screen name="support-tickets" />
       <Stack.Screen name="stats" />
     </Stack>
   );

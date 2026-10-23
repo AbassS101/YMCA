@@ -95,14 +95,14 @@ const DEMO_ACCOUNTS = [
     color: '#2563EB',
   },
   {
-    name: 'Marcus',
+    name: 'Zino',
     email: 'maintenance@silverspring.ymca',
     role: 'Facilities & Maintenance Lead',
     icon: 'construct',
     color: '#B45309',
   },
   {
-    name: 'Dana',
+    name: 'Meena',
     email: 'childwatch@silverspring.ymca',
     role: 'Child Watch Director',
     icon: 'happy',
@@ -186,7 +186,11 @@ export default function StaffMeScreen() {
   const roleBadgeColor = isDark ? '#FFFFFF' : persona.color;
   const showAdminCenter = canOpenAdminCenter(session?.role);
   const hasStaffTools =
-    can('manageStaff') || can('manageTrainers') || can('manageSurveys') || can('broadcast') || can('manageComplaints') || showAdminCenter;
+    can('manageStaff') || can('manageTrainers') || can('manageSurveys') || can('broadcast') ||
+    can('manageComplaints') ||
+    can('manageWellnessComplaints') ||
+    can('manageSupportTickets') ||
+    showAdminCenter;
 
   return (
     <View style={[styles.screen, { backgroundColor: tc.background }]}>
@@ -418,7 +422,7 @@ export default function StaffMeScreen() {
           </Pressable>
           ) : null}
 
-          {can('manageComplaints') ? (
+          {can('manageComplaints') || can('manageWellnessComplaints') ? (
           <Pressable
             onPress={() => router.push('/(staff)/complaints-suggestions')}
             style={[styles.adminActionBtn, { borderColor: tc.border, marginTop: 8 }]}
@@ -427,9 +431,32 @@ export default function StaffMeScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
               <Ionicons name="chatbubbles" size={20} color="#0284C7" />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.adminActionTitle, { color: tc.text }]}>Complaints & Suggestions</Text>
+                <Text style={[styles.adminActionTitle, { color: tc.text }]}>
+                  {can('manageComplaints') ? 'Complaints & Suggestions' : 'Wellness Feedback'}
+                </Text>
                 <Text style={[styles.adminActionSub, { color: tc.textMuted }]}>
-                  Review, filter, and respond to member feedback & ideas
+                  {can('manageComplaints')
+                    ? 'Review, filter, and respond to member feedback & ideas'
+                    : 'Complaints and ideas about training, wellness packages, and equipment'}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={tc.textMuted} />
+          </Pressable>
+          ) : null}
+
+          {can('manageSupportTickets') ? (
+          <Pressable
+            onPress={() => router.push('/(staff)/support-tickets')}
+            style={[styles.adminActionBtn, { borderColor: tc.border, marginTop: 8 }]}
+            accessibilityRole="button"
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+              <Ionicons name="bug" size={20} color="#7C3AED" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.adminActionTitle, { color: tc.text }]}>Support Tickets</Text>
+                <Text style={[styles.adminActionSub, { color: tc.textMuted }]}>
+                  Problem reports and feature requests sent from the app
                 </Text>
               </View>
             </View>
