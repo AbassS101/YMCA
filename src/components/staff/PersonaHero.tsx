@@ -5,7 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { UserAvatar } from '@/components/UserAvatar';
 import { useTheme } from '@/context/ThemeContext';
 import type { PersonaTheme } from '@/domain/staffCapabilities';
-import { radii, spacing } from '@/theme/typography';
+import { radii } from '@/theme/typography';
 
 type PersonaHeroProps = {
   theme: PersonaTheme;
@@ -25,14 +25,13 @@ export function PersonaHero({ theme, name, avatarUrl, roleLabel, greeting, dateL
     <View
       style={[
         styles.card,
-        { backgroundColor: tc.cardBg, borderColor: tc.cardBorder, borderTopColor: theme.color },
+        { backgroundColor: tc.cardBg, borderColor: tc.cardBorder },
       ]}
-      accessibilityRole="header"
     >
       <View style={styles.topRow}>
         <UserAvatar uri={avatarUrl} name={name} size={52} />
         <View style={styles.identity}>
-          <Text style={[styles.greeting, { color: tc.text }]} allowFontScaling numberOfLines={1}>
+          <Text style={[styles.greeting, { color: tc.text }]} allowFontScaling accessibilityRole="header">
             {greeting ?? `Hi, ${firstName}`}
           </Text>
           <Text style={[styles.roleLabel, { color: tc.textMuted }]} allowFontScaling numberOfLines={2}>
@@ -57,23 +56,25 @@ export function PersonaHero({ theme, name, avatarUrl, roleLabel, greeting, dateL
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: radii.card,
+    borderRadius: 12,
     borderWidth: 1,
-    borderTopWidth: 4,
-    padding: spacing.md,
-    gap: 10,
+    padding: 20,
+    gap: 18,
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 12,
   },
   identity: {
     flex: 1,
+    minWidth: 150,
   },
   greeting: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
   roleLabel: {
     fontSize: 13,
@@ -90,7 +91,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: '600',
     letterSpacing: 0.4,
   },
   dateRow: {

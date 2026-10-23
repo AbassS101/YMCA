@@ -66,7 +66,7 @@ export function SessionRequestsInbox({ staffId, accent, onChanged }: { staffId: 
     } catch {
       setRequests([]);
     }
-  }, [api, staffId]);
+  }, [api, staffId, session?.userId]);
 
   useEffect(() => {
     void load();

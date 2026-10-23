@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/context/ThemeContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
@@ -7,13 +8,14 @@ import { tapTarget } from '@/theme/typography';
 
 export default function StaffTabsLayout() {
   const { colors: tc } = useTheme();
+  const insets = useSafeAreaInsets();
   const { persona, theme, coachesClients, isAdmin } = useStaffCapabilities();
 
   const isDeskPersona = persona === 'membershipDirector' || persona === 'frontDesk';
   const todayLabel = isAdmin ? 'Branch' : isDeskPersona ? 'Front Desk' : 'Today';
   const todayIcon = isAdmin ? 'business' : isDeskPersona ? 'storefront' : 'sunny';
   const membersLabel = coachesClients ? 'Clients' : 'Members';
-  const schedulesLabel = coachesClients ? 'Lessons' : 'Schedules';
+  const schedulesLabel = 'Schedules';
 
   return (
     <Tabs
@@ -22,9 +24,10 @@ export default function StaffTabsLayout() {
         tabBarActiveTintColor: theme.color,
         tabBarInactiveTintColor: tc.textMuted,
         tabBarStyle: {
+          height: 76 + insets.bottom,
           minHeight: tapTarget + 14,
           paddingTop: 8,
-          paddingBottom: 10,
+          paddingBottom: Math.max(insets.bottom, 10),
           backgroundColor: tc.cardBg,
           borderTopColor: tc.cardBorder,
           borderTopWidth: 1,
@@ -56,7 +59,7 @@ export default function StaffTabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar" size={Math.max(size, 26)} color={color} />
           ),
-          tabBarAccessibilityLabel: coachesClients ? 'Lessons and Classes' : 'Schedules and Events',
+          tabBarAccessibilityLabel: 'Schedules, classes, lessons and pools',
         }}
       />
       <Tabs.Screen

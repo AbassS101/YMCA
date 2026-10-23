@@ -14,7 +14,7 @@ export function TrainerDashboard({ staffId }: { staffId: string }) {
   const completed = day.lessons.filter((l) => l.status === 'completed').length;
 
   return (
-    <DashboardScaffold subtitle="Personal Trainer Command Center" error={day.error} onRetry={() => void day.reload()}>
+    <DashboardScaffold subtitle="Personal training" error={day.error} onRetry={() => void day.reload()}>
       <PersonaHero
         theme={theme}
         name={day.profile?.name ?? 'Coach'}

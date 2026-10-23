@@ -5,10 +5,12 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/AppText';
+import { StaffToolsMenu } from '@/components/staff/StaffToolsMenu';
 import { useAppConfig } from '@/context/AppConfigContext';
 import { useSession } from '@/context/SessionContext';
 import { useTheme } from '@/context/ThemeContext';
 import { notificationRepo } from '@/repositories/notificationRepo';
+import { isStaffRole } from '@/domain/staffCapabilities';
 import { typography } from '@/theme/typography';
 
 const ymcaLogo = require('../../assets/ymca-logo.png');
@@ -77,6 +79,7 @@ export function YHeader({ subtitle, showActions = true }: YHeaderProps) {
 
         {canShowActions ? (
           <View style={styles.actionsRow}>
+            {isStaffRole(session.role) ? <StaffToolsMenu /> : null}
             {session.role === 'member' && donationsOn ? (
               <Pressable
                 onPress={() => router.push('/(member)/donate')}

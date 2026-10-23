@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { useTheme } from '@/context/ThemeContext';
 import type { LaneAllocation, PoolFacilityInfo } from '@/domain/poolScheduleData';
-import { radii, spacing, typography } from '@/theme/typography';
+import { radii, spacing } from '@/theme/typography';
 
 interface PoolLaneDiagramProps {
   facility: PoolFacilityInfo;
@@ -22,6 +22,8 @@ export function PoolLaneDiagram({
   isClosed = false,
 }: PoolLaneDiagramProps) {
   const { colors: tc, isDark } = useTheme();
+  const { width } = useWindowDimensions();
+  const compact = width < 560;
 
   const lapCount = laneAllocations.filter((l) => l.type === 'lap').length;
   const recCount = laneAllocations.filter((l) => l.type === 'rec').length;
@@ -45,7 +47,7 @@ export function PoolLaneDiagram({
           <View style={[styles.poolIconCircle, { backgroundColor: tc.primary }]}>
             <Ionicons name="water" size={16} color="#FFFFFF" />
           </View>
-          <View>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.poolTitle, { color: tc.text }]}>
               {facility.shortName} · 6-Lane Layout
             </Text>
@@ -183,14 +185,13 @@ export function PoolLaneDiagram({
                   <Ionicons name={laneIcon} size={13} color={laneBadgeText} />
                   <Text
                     style={[styles.laneUsageText, { color: laneBadgeText }]}
-                    numberOfLines={1}
                   >
                     {lane.label}
                   </Text>
                 </View>
 
                 {/* Lane Circle Swim Convention */}
-                <View style={styles.laneRightInfo}>
+                <View style={[styles.laneRightInfo, compact && styles.laneRightInfoCompact]}>
                   {lane.type === 'lap' ? (
                     <Text style={[styles.laneSubRule, { color: tc.textMuted }]}>
                       Circle Swim (Counter-Clockwise)
@@ -240,7 +241,7 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: spacing.sm,
   },
   headerLeft: {
@@ -282,6 +283,7 @@ const styles = StyleSheet.create({
   },
   summaryBar: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     marginBottom: spacing.sm,
   },
@@ -320,6 +322,7 @@ const styles = StyleSheet.create({
   },
   laneRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     paddingVertical: 7,
     paddingHorizontal: spacing.sm,
@@ -347,19 +350,24 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: radii.full,
     flex: 1,
+    minWidth: 120,
   },
   laneUsageText: {
+    flexShrink: 1,
     fontSize: 12,
     fontWeight: '600',
   },
   laneRightInfo: {
     alignItems: 'flex-end',
   },
+  laneRightInfoCompact: { width: '100%', alignItems: 'flex-start', paddingLeft: 66 },
   laneSubRule: {
     fontSize: 11,
   },
   footerRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: spacing.sm,

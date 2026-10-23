@@ -1,6 +1,14 @@
-import { Stack } from 'expo-router';
+import { Redirect, Stack, useGlobalSearchParams, usePathname } from 'expo-router';
+import { useSession } from '@/context/SessionContext';
+import { staffRouteForSharedPage } from '@/domain/staffNavigation';
 
 export default function MemberLayout() {
+  const { session, ready } = useSession();
+  const pathname = usePathname();
+  const params = useGlobalSearchParams();
+  if (!ready) return null;
+  const staffRoute = staffRouteForSharedPage(pathname, session?.role);
+  if (staffRoute) return <Redirect href={{ pathname: staffRoute, params } as never} />;
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />

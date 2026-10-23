@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ErrorBanner } from '@/components/ErrorBanner';
@@ -142,9 +142,9 @@ export default function StaffMeScreen() {
     }
   }, [api, staffId]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     void load();
-  }, [load]);
+  }, [load]));
 
   const handleUpdateAvatar = async (nextUrl: string) => {
     if (!staffId || !api) return;
@@ -162,6 +162,8 @@ export default function StaffMeScreen() {
     try {
       await logout();
       router.replace('/login');
+    } catch {
+      dialog.alert('Could not log out', 'Please try again.');
     } finally {
       setLoggingOut(false);
     }
@@ -176,6 +178,8 @@ export default function StaffMeScreen() {
       } else {
         router.replace('/(staff)/today');
       }
+    } catch {
+      dialog.alert('Could not switch accounts', 'Please try again. Your current account is still active.');
     } finally {
       setSwitchingEmail(null);
     }
@@ -194,7 +198,7 @@ export default function StaffMeScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tc.background }]}>
-      <YHeader subtitle="Staff Account & Switcher" />
+      <YHeader subtitle="Staff account" />
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Profile Card */}
@@ -202,7 +206,7 @@ export default function StaffMeScreen() {
           <View
             style={[
               styles.card,
-              { backgroundColor: tc.cardBg, borderColor: tc.cardBorder, borderTopWidth: 4, borderTopColor: persona.color },
+              { backgroundColor: tc.cardBg, borderColor: tc.cardBorder },
             ]}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -228,7 +232,7 @@ export default function StaffMeScreen() {
               </View>
             </View>
             <Text style={[styles.avatarHint, { color: colors.primary }]}>
-              Tap photo icon to upload custom picture or select clean silhouette ›
+              Change your photo using the camera icon.
             </Text>
           </View>
         ) : null}
@@ -251,7 +255,7 @@ export default function StaffMeScreen() {
             </Pressable>
           </View>
           <Text style={[styles.meta, { color: tc.textMuted }]}>
-            Live theme mode across all staff views and administrative tools.
+            Choose the appearance you prefer on this device.
           </Text>
 
           <View style={styles.themeRow}>
@@ -271,6 +275,7 @@ export default function StaffMeScreen() {
                   ]}
                   accessibilityRole="button"
                   accessibilityLabel={`${opt.label} theme`}
+                  accessibilityState={{ selected: active }}
                 >
                   <Ionicons
                     name={opt.icon}
@@ -481,7 +486,8 @@ export default function StaffMeScreen() {
                 <Pressable
                   key={acc.email}
                   onPress={() => void handleSwitchAccount(acc.email)}
-                  disabled={isCurrent || isSwitching}
+                  disabled={isCurrent || switchingEmail !== null}
+                  accessibilityState={{ disabled: isCurrent || switchingEmail !== null, selected: isCurrent }}
                   style={[
                     styles.accRow,
                     {
@@ -531,6 +537,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scroll: {
+    width: '100%',
+    maxWidth: 820,
+    alignSelf: 'center',
     padding: 16,
     gap: 16,
     paddingBottom: 32,

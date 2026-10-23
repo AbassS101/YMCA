@@ -1,9 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { useTheme } from '@/context/ThemeContext';
-import { radii } from '@/theme/typography';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -16,7 +15,8 @@ export type QuickAction = {
 };
 
 export function QuickActionBar({ actions }: { actions: QuickAction[] }) {
-  const { colors: tc, isDark } = useTheme();
+  const { colors: tc } = useTheme();
+  const { width } = useWindowDimensions();
   return (
     <View style={styles.grid}>
       {actions.map((a) => {
@@ -27,18 +27,20 @@ export function QuickActionBar({ actions }: { actions: QuickAction[] }) {
             onPress={a.onPress}
             style={({ pressed }) => [
               styles.action,
-              { backgroundColor: isDark ? '#0F1B2E' : '#FFFFFF', borderColor: tc.cardBorder },
+              { flexBasis: width >= 900 ? '22%' : '45%' },
+              { backgroundColor: tc.cardBg, borderColor: tc.cardBorder },
               pressed && { opacity: 0.85 },
             ]}
             accessibilityRole="button"
             accessibilityLabel={a.label}
           >
-            <View style={[styles.iconWrap, { backgroundColor: `${color}1A` }]}>
+            <View style={styles.iconWrap}>
               <Ionicons name={a.icon} size={20} color={color} />
             </View>
             <Text style={[styles.label, { color: tc.text }]} allowFontScaling numberOfLines={2}>
               {a.label}
             </Text>
+            <Ionicons name="chevron-forward" size={14} color={tc.textMuted} />
           </Pressable>
         );
       })}
@@ -54,27 +56,26 @@ const styles = StyleSheet.create({
   },
   action: {
     flexGrow: 1,
-    flexBasis: '22%',
-    minWidth: 76,
-    minHeight: 84,
-    borderRadius: radii.md,
+    flexBasis: '45%',
+    minWidth: 140,
+    minHeight: 58,
+    borderRadius: 10,
     borderWidth: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    flexDirection: 'row',
+    gap: 10,
     paddingVertical: 10,
-    paddingHorizontal: 4,
+    paddingHorizontal: 14,
   },
   iconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 26,
+    height: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
   label: {
-    fontSize: 12,
-    fontWeight: '700',
-    textAlign: 'center',
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

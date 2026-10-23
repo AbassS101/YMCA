@@ -25,7 +25,7 @@ export function StaffScreen({
     <View style={[styles.screen, { backgroundColor: tc.background }]}>
       <YHeader subtitle={subtitle} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Pressable onPress={() => router.back()} style={styles.back} accessibilityRole="button" accessibilityLabel="Back">
+        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(staff)/today')} style={styles.back} accessibilityRole="button" accessibilityLabel="Back">
           <Ionicons name="arrow-back" size={20} color={tc.primary} />
           <Text style={{ color: tc.primary, fontWeight: '700' }}>Back</Text>
         </Pressable>
