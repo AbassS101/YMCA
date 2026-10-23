@@ -54,7 +54,7 @@ export default function StaffChildWatchScreen() {
     setVisits(v);
     setChildren(kids);
     setMembers(all);
-  }, [api]);
+  }, [api, staffId]);
 
   useFocusEffect(
     useCallback(() => {

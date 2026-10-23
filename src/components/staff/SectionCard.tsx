@@ -3,7 +3,7 @@ import type { ComponentProps, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@/context/ThemeContext';
-import { radii, spacing, tapTarget } from '@/theme/typography';
+import { radii, spacing } from '@/theme/typography';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -33,7 +33,7 @@ export function SectionCard({
   return (
     <View style={[styles.card, { backgroundColor: tc.cardBg, borderColor: tc.cardBorder }]}>
       <View style={styles.header}>
-        <View style={[styles.iconWrap, { backgroundColor: `${color}1A` }]}>
+        <View style={styles.iconWrap}>
           <Ionicons name={icon} size={17} color={color} />
         </View>
         <View style={{ flex: 1 }}>
@@ -48,7 +48,7 @@ export function SectionCard({
           ) : null}
         </View>
         {actionLabel && onAction ? (
-          <Pressable onPress={onAction} hitSlop={10} accessibilityRole="button" accessibilityLabel={actionLabel}>
+          <Pressable onPress={onAction} style={{ minHeight: 44, justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={`${actionLabel}: ${title}`}>
             <Text style={[styles.action, { color }]}>{actionLabel} ›</Text>
           </Pressable>
         ) : null}
@@ -117,7 +117,7 @@ export function ListRow({
     >
       {left}
       <View style={{ flex: 1 }}>
-        <Text style={[styles.rowTitle, { color: tc.text }]} allowFontScaling numberOfLines={1}>
+        <Text style={[styles.rowTitle, { color: tc.text }]} allowFontScaling>
           {title}
         </Text>
         {subtitle ? (
@@ -132,6 +132,7 @@ export function ListRow({
         ) : null}
       </View>
       {right}
+      {onPress && !right ? <Ionicons name="chevron-forward" size={16} color={tc.textMuted} /> : null}
     </Pressable>
   );
 }
@@ -182,7 +183,7 @@ export function ActionButton({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: radii.card,
+    borderRadius: 12,
     borderWidth: 1,
     padding: spacing.md,
     gap: 12,
@@ -191,21 +192,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flexWrap: 'wrap',
   },
   iconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 22,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: '600',
   },
   subtitle: {
-    fontSize: 12,
-    marginTop: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 4,
   },
   action: {
     fontSize: 13,
@@ -246,7 +248,6 @@ const styles = StyleSheet.create({
   rowMeta: {
     fontSize: 12,
     marginTop: 2,
-    fontStyle: 'italic',
   },
   pill: {
     paddingHorizontal: 8,
@@ -263,7 +264,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    minHeight: tapTarget - 12,
+    minHeight: 44,
     paddingHorizontal: 12,
     borderRadius: radii.button,
     flexGrow: 1,

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { useTheme } from '@/context/ThemeContext';
+import { poolSlotTimes } from '@/domain/poolScheduleDates';
 import {
   POOL_FACILITIES,
   type PoolTimeSlot,
@@ -22,12 +23,14 @@ interface PoolSlotDetailModalProps {
   visible: boolean;
   slot: PoolTimeSlot | null;
   onClose: () => void;
+  date?: string;
 }
 
 export function PoolSlotDetailModal({
   visible,
   slot,
   onClose,
+  date,
 }: PoolSlotDetailModalProps) {
   const { colors: tc, isDark } = useTheme();
   const [calendarAdded, setCalendarAdded] = useState(false);
@@ -42,15 +45,9 @@ export function PoolSlotDetailModal({
 
   const handleAddPoolToCalendar = () => {
     setCalendarAdded(true);
-    const startH = Math.floor(slot.startMinutes / 60);
-    const startM = slot.startMinutes % 60;
-    const endH = Math.floor(slot.endMinutes / 60);
-    const endM = slot.endMinutes % 60;
-    const pad = (n: number) => String(n).padStart(2, '0');
     void downloadOrOpenIcs({
       title: `${facility.shortName}: ${slot.title} (${slot.laneBreakdownLabel})`,
-      startIso: `2026-10-05T${pad(startH)}:${pad(startM)}:00-04:00`,
-      endIso: `2026-10-05T${pad(endH)}:${pad(endM)}:00-04:00`,
+      ...poolSlotTimes(slot, date),
       location: facility.name,
       description: slot.notes || `${slot.title} (${slot.laneBreakdownLabel}) at YMCA Silver Spring.`,
     });

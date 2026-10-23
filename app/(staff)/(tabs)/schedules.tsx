@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -10,11 +10,11 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
 import { AvailabilitySettings } from '@/components/staff/AvailabilitySettings';
+import { StaffPoolSchedule } from '@/components/staff/StaffPoolSchedule';
 import { ClassAttendanceModal } from '@/components/ClassAttendanceModal';
 import { ClassForumModal } from '@/components/ClassForumModal';
 import { DateTimeWheelPicker } from '@/components/DateTimeWheelPicker';
@@ -37,7 +37,6 @@ import { useSession } from '@/context/SessionContext';
 import { useStaffCapabilities } from '@/context/useStaffCapabilities';
 import { manageableTrainers } from '@/domain/availabilityAccess';
 import { addDaysToDate, easternOffset, getDemoToday, mondayOf } from '@/domain/demoClock';
-import { formatShortDate } from '@/domain/displayDates';
 import { type LessonSlot, type Member, type PrivateLesson, type ScheduleCategory, type ScheduleItem, type Staff } from '@/domain/types';
 import { availabilityRepo } from '@/repositories/lessonRepo';
 import { registrationRepo } from '@/repositories/registrationRepo';
@@ -83,6 +82,7 @@ function formatDate(iso: string): string {
 export default function StaffSchedulesScreen() {
   const { session, api } = useSession();
   const router = useRouter();
+  const { view } = useLocalSearchParams<{ view?: string }>();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const staffId = session?.userId ?? '';
@@ -96,15 +96,30 @@ export default function StaffSchedulesScreen() {
 
   const [staffProfile, setStaffProfile] = useState<Staff | null>(null);
   const [allStaff, setAllStaff] = useState<Staff[]>([]);
+  const managedCoaches = useMemo(() => manageableTrainers(session?.role, staffId, allStaff), [session?.role, staffId, allStaff]);
+  useEffect(() => {
+    if (canManageAllSlots && managedCoaches.length > 0 && !managedCoaches.some((coach) => coach.id === slotTrainerId)) {
+      setSlotTrainerId(managedCoaches[0].id);
+    }
+  }, [canManageAllSlots, managedCoaches, slotTrainerId]);
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [rosterCounts, setRosterCounts] = useState<Record<string, number>>({});
   const [privateLessons, setPrivateLessons] = useState<PrivateLesson[]>([]);
+  const [lessonsLoading, setLessonsLoading] = useState(true);
+  const [lessonsError, setLessonsError] = useState(false);
   const [selectedForumClass, setSelectedForumClass] = useState<ScheduleItem | null>(null);
   const [forumModalVisible, setForumModalVisible] = useState(false);
   const [lessonSlots, setLessonSlots] = useState<LessonSlot[]>([]);
   const [memberMap, setMemberMap] = useState<Record<string, Member>>({});
 
-  const [activeTab, setActiveTab] = useState<'classes' | 'lessons'>('classes');
+  const [activeTab, setActiveTab] = useState<'classes' | 'lessons' | 'pool'>(view === 'pool' ? 'pool' : 'classes');
+  useEffect(() => {
+    setActiveTab(view === 'pool' ? 'pool' : view === 'lessons' && (canManageOwnSlots || canManageAllSlots) ? 'lessons' : 'classes');
+  }, [view, canManageOwnSlots, canManageAllSlots]);
+  function selectScheduleTab(tab: 'classes' | 'lessons' | 'pool') {
+    setActiveTab(tab);
+    router.setParams({ view: tab });
+  }
   const [selectedCategory, setSelectedCategory] = useState<ScheduleCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState(false);
@@ -167,6 +182,7 @@ export default function StaffSchedulesScreen() {
   const [rosterItem, setRosterItem] = useState<ScheduleItem | null>(null);
   const [rosterList, setRosterList] = useState<Member[]>([]);
   const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterError, setRosterError] = useState(false);
 
   // Add Lesson Slot Modal (Trainer)
   const [slotModalVisible, setSlotModalVisible] = useState(false);
@@ -231,10 +247,14 @@ export default function StaffSchedulesScreen() {
   // Private lessons follow the selected day.
   const loadLessons = useCallback(async () => {
     if (!staffId) return;
+    setLessonsLoading(true);
+    setLessonsError(false);
     try {
       setPrivateLessons(await api.listStaffLessons(lessonStaffId, activeDay));
     } catch {
-      setPrivateLessons([]);
+      setLessonsError(true);
+    } finally {
+      setLessonsLoading(false);
     }
   }, [api, staffId, lessonStaffId, activeDay]);
 
@@ -534,9 +554,24 @@ export default function StaffSchedulesScreen() {
     }
   }
 
-  function openRoster(item: ScheduleItem) {
+  function openAttendance(item: ScheduleItem) {
     setAttendanceItem(item);
     setAttendanceModalVisible(true);
+  }
+
+  async function openRoster(item: ScheduleItem) {
+    setRosterItem(item);
+    setRosterModalVisible(true);
+    setRosterLoading(true);
+    setRosterError(false);
+    setRosterList([]);
+    try {
+      setRosterList(await registrationRepo.roster(api, item.id));
+    } catch {
+      setRosterError(true);
+    } finally {
+      setRosterLoading(false);
+    }
   }
 
   async function handleRemoveAttendee(memberId: string) {
@@ -610,14 +645,14 @@ export default function StaffSchedulesScreen() {
                     style={[styles.dayPill, active && styles.dayPillActive]}
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}
-                    accessibilityLabel={`${formatDate(`${d}T12:00:00`)}, ${dayCounts[d] ?? 0} classes`}
+                    accessibilityLabel={formatDate(`${d}T12:00:00`)}
                   >
                     <Text style={[styles.dayPillDow, active && styles.dayPillTextActive]}>
                       {idx === 0 ? 'TODAY' : dt.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase()}
                     </Text>
                     <Text style={[styles.dayPillNum, active && styles.dayPillTextActive]}>{dt.getDate()}</Text>
                     <Text style={[styles.dayPillCount, active && styles.dayPillTextActive]}>
-                      {loaded ? dayCounts[d] ?? 0 : '·'}
+                      {activeTab === 'classes' ? (loaded ? dayCounts[d] ?? 0 : '·') : activeTab === 'pool' ? 'Pool' : 'Lessons'}
                     </Text>
                   </Pressable>
                 );
@@ -632,7 +667,11 @@ export default function StaffSchedulesScreen() {
                   day: 'numeric',
                 })}
               </Text>
-              {loaded ? (
+              {activeTab !== 'classes' ? (
+                <Pressable onPress={() => setDayIndex(0)} accessibilityRole="button" accessibilityLabel="Go to today" style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 }}>
+                  <Text style={styles.dayHeadingCount}>Today</Text>
+                </Pressable>
+              ) : loaded ? (
                 <Text style={styles.dayHeadingCount}>
                   {filteredClasses.length} {filteredClasses.length === 1 ? 'class' : 'classes'}
                 </Text>
@@ -645,10 +684,14 @@ export default function StaffSchedulesScreen() {
 
   return (
     <View style={styles.screen}>
-      <YHeader />
+      <YHeader subtitle="Staff schedules" />
       {error ? <ErrorBanner onRetry={() => void loadData()} /> : null}
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <View style={{ gap: 5 }}>
+          <Text style={[styles.sectionHeader, { fontSize: 26 }]}>Schedules</Text>
+          <Text style={styles.classMeta}>Classes, private sessions and pool activity in one place.</Text>
+        </View>
         <View style={styles.actionRow}>
           {canManageSchedules ? (
             <Pressable
@@ -671,26 +714,33 @@ export default function StaffSchedulesScreen() {
           ) : null}
         </View>
 
-        {canManageOwnSlots && !isAdmin ? (
-          <View style={styles.segmentContainer}>
+          <View style={styles.segmentContainer} accessibilityRole="tablist">
             <Pressable
-              onPress={() => setActiveTab('classes')}
+              onPress={() => selectScheduleTab('classes')}
               style={[styles.segmentBtn, activeTab === 'classes' && styles.segmentBtnActive]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeTab === 'classes' }}
             >
               <Text style={[styles.segmentText, activeTab === 'classes' && styles.segmentTextActive]}>
-                My Classes ({schedules.length})
+                {seesBranchSchedule ? 'Classes & events' : 'My classes'}
               </Text>
             </Pressable>
-            <Pressable
-              onPress={() => setActiveTab('lessons')}
+            {canManageOwnSlots || canManageAllSlots ? <Pressable
+              onPress={() => selectScheduleTab('lessons')}
               style={[styles.segmentBtn, activeTab === 'lessons' && styles.segmentBtnActive]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeTab === 'lessons' }}
             >
               <Text style={[styles.segmentText, activeTab === 'lessons' && styles.segmentTextActive]}>
-                Private Lessons & Slots
+                Private sessions
               </Text>
+            </Pressable> : null}
+            <Pressable onPress={() => selectScheduleTab('pool')} style={[styles.segmentBtn, activeTab === 'pool' && styles.segmentBtnActive]} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'pool' }}>
+              <Text style={[styles.segmentText, activeTab === 'pool' && styles.segmentTextActive]}>Pool schedule</Text>
             </Pressable>
           </View>
-        ) : null}
+
+        {activeTab === 'pool' ? <View style={{ gap: 16 }}>{dayStripEl}<StaffPoolSchedule date={activeDay} /></View> : null}
 
         {/* ========================================== */}
         {/* TAB 1: GROUP CLASSES & EVENTS */}
@@ -738,6 +788,7 @@ export default function StaffSchedulesScreen() {
                     ? 'No classes match your filters on this day.'
                     : 'Nothing scheduled for this day.'}
                 </Text>
+                {searchQuery.trim() || selectedCategory !== 'all' ? <Pressable onPress={() => { setSearchQuery(''); setSelectedCategory('all'); }} style={{ minHeight: 44, justifyContent: 'center' }} accessibilityRole="button"><Text style={{ color: colors.primary, fontWeight: '600' }}>Clear filters</Text></Pressable> : null}
               </View>
             ) : (
               filteredClasses.map((item) => {
@@ -817,9 +868,9 @@ export default function StaffSchedulesScreen() {
 
                     {/* Action Buttons for Admins & Trainers */}
                     <View style={styles.cardActions}>
-                      {item.openAccess ? null : (
+                      {item.openAccess || !can('takeAttendance') ? null : (
                       <Pressable
-                        onPress={() => void openRoster(item)}
+                        onPress={() => openAttendance(item)}
                         style={({ pressed }) => [styles.actionBtnFilled, pressed && styles.pressed]}
                         accessibilityRole="button"
                         accessibilityLabel={`Take attendance for ${item.title}`}
@@ -896,9 +947,9 @@ export default function StaffSchedulesScreen() {
           <View style={{ gap: 16 }}>
             {canManageAllSlots ? (
               <View style={{ gap: 6 }}>
-                <Text style={styles.sectionHeader}>Trainer</Text>
+                <Text style={styles.sectionHeader}>Trainer or instructor</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
-                  {manageableTrainers(session?.role, staffId, allStaff).map((st) => {
+                  {managedCoaches.map((st) => {
                     const active = lessonStaffId === st.id;
                     return (
                       <Pressable
@@ -921,7 +972,7 @@ export default function StaffSchedulesScreen() {
             {dayStripEl}
 
             <Text style={styles.sectionHeader}>Booked Private Lessons</Text>
-            {privateLessons.length === 0 ? (
+            {lessonsError ? <ErrorBanner onRetry={() => void loadLessons()} /> : lessonsLoading ? <View style={styles.emptyCard} accessibilityRole="progressbar" accessibilityLabel="Loading private sessions"><ActivityIndicator color={colors.primary} /><Text style={styles.emptyText}>Loading private sessions…</Text></View> : privateLessons.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Ionicons name="person-circle-outline" size={36} color={colors.muted} />
                 <Text style={styles.emptyText}>No private lessons scheduled for this day.</Text>
@@ -1377,13 +1428,13 @@ export default function StaffSchedulesScreen() {
                 <Text style={styles.modalTitle}>Registered Roster</Text>
                 <Text style={{ fontSize: 13, color: colors.muted }}>{rosterItem?.title}</Text>
               </View>
-              <Pressable onPress={() => setRosterModalVisible(false)} hitSlop={10}>
+              <Pressable onPress={() => setRosterModalVisible(false)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close class roster">
                 <Ionicons name="close" size={24} color={colors.nearBlack} />
               </Pressable>
             </View>
 
             <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ gap: 10, paddingBottom: 16 }}>
-              {rosterLoading ? (
+              {rosterError ? <ErrorBanner onRetry={() => { if (rosterItem) void openRoster(rosterItem); }} /> : rosterLoading ? (
                 <Text style={styles.emptyText}>Loading attendee list...</Text>
               ) : rosterList.length === 0 ? (
                 <View style={styles.emptyCard}>
@@ -1399,13 +1450,13 @@ export default function StaffSchedulesScreen() {
                         {m.email} · ID {m.membershipId}
                       </Text>
                     </View>
-                    <Pressable
+                    {can('takeAttendance') ? <Pressable
                       onPress={() => void handleRemoveAttendee(m.id)}
                       style={styles.removeAttendeeBtn}
                       accessibilityRole="button"
                     >
                       <Text style={{ color: colors.scarlet, fontSize: 12, fontWeight: '700' }}>Remove</Text>
-                    </Pressable>
+                    </Pressable> : null}
                   </View>
                 ))
               )}
@@ -1530,6 +1581,9 @@ function makeStyles(colors: ThemeColors) {
     backgroundColor: colors.offWhite,
   },
   scroll: {
+    width: '100%',
+    maxWidth: 820,
+    alignSelf: 'center',
     padding: 16,
     gap: 16,
     paddingBottom: 40,

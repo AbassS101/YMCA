@@ -14,7 +14,7 @@ export function SwimInstructorDashboard({ staffId }: { staffId: string }) {
   const completed = day.lessons.filter((l) => l.status === 'completed').length;
 
   return (
-    <DashboardScaffold subtitle="Swim Instructor Command Center" error={day.error} onRetry={() => void day.reload()}>
+    <DashboardScaffold subtitle="Swim instruction" error={day.error} onRetry={() => void day.reload()}>
       <PersonaHero
         theme={theme}
         name={day.profile?.name ?? 'Coach'}

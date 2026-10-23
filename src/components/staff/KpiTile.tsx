@@ -3,7 +3,6 @@ import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@/context/ThemeContext';
-import { radii } from '@/theme/typography';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -16,21 +15,21 @@ export type KpiTileProps = {
 };
 
 export function KpiTile({ label, value, icon, color, onPress }: KpiTileProps) {
-  const { colors: tc, isDark } = useTheme();
+  const { colors: tc } = useTheme();
   return (
     <Pressable
       onPress={onPress}
       disabled={onPress == null}
       style={({ pressed }) => [
         styles.tile,
-        { backgroundColor: isDark ? '#0F1B2E' : '#F8FAFC', borderColor: tc.cardBorder },
+        { backgroundColor: tc.background, borderColor: tc.cardBorder },
         pressed && { opacity: 0.85 },
       ]}
       accessibilityRole={onPress ? 'button' : 'summary'}
       accessibilityLabel={`${label}: ${value}`}
     >
-      <Ionicons name={icon} size={16} color={color} />
-      <Text style={[styles.value, { color }]} allowFontScaling>
+      <View style={styles.tileHeader}><Ionicons name={icon} size={16} color={color} />{onPress ? <Ionicons name="arrow-forward" size={13} color={tc.textMuted} /> : null}</View>
+      <Text style={[styles.value, { color: tc.text }]} allowFontScaling>
         {value}
       </Text>
       <Text style={[styles.label, { color: tc.textMuted }]} allowFontScaling numberOfLines={2}>
@@ -59,23 +58,25 @@ const styles = StyleSheet.create({
   tile: {
     flexGrow: 1,
     flexBasis: '22%',
-    minWidth: 72,
-    minHeight: 84,
-    borderRadius: radii.md,
+    minWidth: 120,
+    minHeight: 108,
+    borderRadius: 8,
     borderWidth: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    alignItems: 'stretch',
     justifyContent: 'center',
-    gap: 2,
+    gap: 6,
   },
   value: {
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: 26,
+    fontWeight: '700',
+    letterSpacing: -0.6,
   },
   label: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
-    textAlign: 'center',
+    textAlign: 'left',
   },
+  tileHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 });

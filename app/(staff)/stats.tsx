@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { ChipRow } from '@/components/desk/Sheet';
@@ -81,6 +81,7 @@ export default function StatsScreen() {
   const [data, setData] = useState<Loaded | null>(null);
   const [error, setError] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const today = getDemoToday();
   const range: StatsRange = useMemo(() => {
@@ -135,7 +136,7 @@ export default function StatsScreen() {
     return () => {
       cancelled = true;
     };
-  }, [activeScope, api, range, today, requesterId, childWatchRules, can]);
+  }, [activeScope, api, range, today, requesterId, childWatchRules, can, reloadKey]);
 
   if (!activeScope) {
     return (
@@ -159,7 +160,11 @@ export default function StatsScreen() {
   };
 
   return (
-    <StaffScreen subtitle="Stats & Exports">
+    <StaffScreen subtitle="Reports & exports">
+      <View style={{ gap: 6 }}>
+        <Text style={{ color: tc.text, fontSize: 26, fontWeight: '700' }} accessibilityRole="header">Reports & exports</Text>
+        <Text style={{ color: tc.textMuted, fontSize: 14, lineHeight: 21 }}>Membership, attendance and department results. Choose a department and reporting period below.</Text>
+      </View>
       {scopes.length > 1 ? (
         <ChipRow
           options={scopes.map((s) => ({ key: s, label: STATS_SCOPE_LABELS[s] }))}
@@ -175,8 +180,8 @@ export default function StatsScreen() {
         <ActionButton label="Export" icon="download-outline" color={accent} variant="outline" onPress={() => setExportOpen(true)} />
       ) : null}
 
-      {error ? <ErrorBanner onRetry={() => setRangeKey((k) => k)} /> : null}
-      {!current && !error ? <Text style={{ color: tc.textMuted }}>Loading…</Text> : null}
+      {error ? <ErrorBanner onRetry={() => setReloadKey((key) => key + 1)} /> : null}
+      {!current && !error ? <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', padding: 16 }} accessibilityRole="progressbar"><ActivityIndicator color={tc.primary} /><Text style={{ color: tc.textMuted }}>Loading reports…</Text></View> : null}
 
       {current?.branch && activeScope === 'branch' ? (
         <BranchView stats={current.branch.stats} accent={accent} goTo={(s) => { setData(null); setScope(s); }} scopes={scopes} onMembers={() => router.push('/(staff)/members')} />
@@ -201,18 +206,21 @@ export default function StatsScreen() {
 // --- Shared bits ----------------------------------------------------------------------------------
 
 function Table({ rows }: { rows: [string, string][] }) {
+  const { colors: tc } = useTheme();
   if (rows.length === 0) return <EmptyState icon="stats-chart-outline" text="No data for this range." />;
   return (
     <>
       {rows.map(([k, v], i) => (
-        <ListRow key={`${i}-${k}`}title={k} right={<Text style={{ fontWeight: '800' }}>{v}</Text>} />
+        <ListRow key={`${i}-${k}`} title={k} right={<Text style={{ color: tc.text, fontWeight: '600', textAlign: 'right', flexShrink: 1 }}>{v}</Text>} />
       ))}
     </>
   );
 }
 
 function RetentionCards({ monthly, cohorts }: { monthly: MonthlyRetention[]; cohorts: CohortRow[] }) {
+  const { colors: tc } = useTheme();
   const missing = cohorts.length === 0;
+  const milestones = [{ key: 'd30Pct', label: 'After 30 days' }, { key: 'd90Pct', label: 'After 90 days' }, { key: 'd365Pct', label: 'After 1 year' }] as const;
   return (
     <>
       <SectionCard title="12-Month Retention" icon="repeat" subtitle="Month: retained % · churn % · new joins">
@@ -223,11 +231,26 @@ function RetentionCards({ monthly, cohorts }: { monthly: MonthlyRetention[]; coh
           ])}
         />
       </SectionCard>
-      <SectionCard title="Cohort Retention" icon="people" subtitle="Share of each join month still active at 30 / 90 / 365 days">
+      <SectionCard title="New member retention" icon="people-outline" subtitle="How many new members stay active after joining">
         {missing ? (
-          <EmptyState icon="people-outline" text="No cohorts yet." />
+          <EmptyState icon="people-outline" text="Retention will appear once members have a recorded join date." />
         ) : (
-          <Table rows={cohorts.map((c) => [`${c.cohort} (${c.size})`, `${dash(c.d30Pct, '%')} / ${dash(c.d90Pct, '%')} / ${dash(c.d365Pct, '%')}`])} />
+          <>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+              {milestones.map(({ key, label }) => {
+                const eligible = cohorts.filter((row) => row[key] !== null);
+                const members = eligible.reduce((sum, row) => sum + row.size, 0);
+                const retainedPct = members ? Math.round(eligible.reduce((sum, row) => sum + row.size * (row[key] ?? 0), 0) / members * 10) / 10 : null;
+                return <View key={key} style={{ flex: 1, minWidth: 130, padding: 14, borderRadius: 8, backgroundColor: tc.background, gap: 5 }}>
+                  <Text style={{ color: tc.textMuted, fontSize: 12 }}>{label}</Text>
+                  <Text style={{ color: tc.text, fontSize: 26, fontWeight: '700' }}>{dash(retainedPct, '%')}</Text>
+                  <Text style={{ color: tc.textMuted, fontSize: 12 }}>{members ? `${members} members eligible` : 'Not enough history yet'}</Text>
+                </View>;
+              })}
+            </View>
+            {cohorts.map((row) => <ListRow key={row.cohort} title={`Joined ${new Date(`${row.cohort}-01T12:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`} subtitle={`${row.size} members · 30 days: ${dash(row.d30Pct, '%')} · 90 days: ${dash(row.d90Pct, '%')} · 1 year: ${dash(row.d365Pct, '%')}`} />)}
+            <Text style={{ color: tc.textMuted, fontSize: 12, lineHeight: 18 }}>A dash means that joining month has not reached the milestone. Guest passes are excluded.</Text>
+          </>
         )}
       </SectionCard>
     </>
