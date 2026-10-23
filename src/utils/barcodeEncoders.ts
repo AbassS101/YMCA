@@ -91,7 +91,7 @@ export function encodeCode39(value: string): number[] {
 const CODABAR: Record<string, string> = {
   '0': 'nnnnnww', '1': 'nnnnwwn', '2': 'nnnwnnw', '3': 'wwnnnnn', '4': 'nnwnnwn',
   '5': 'wnnnnwn', '6': 'nwnnnnw', '7': 'nwnnwnn', '8': 'nwwnnnn', '9': 'wnnwnnn',
-  '-': 'nnnwwnn', $: 'nnwwnnn', ':': 'wnnnwnw', '/': 'wnwnnnw', '.': 'wnwnwnw', '+': 'nnwnwnw',
+  '-': 'nnnwwnn', $: 'nnwwnnn', ':': 'wnnnwnw', '/': 'wnwnnnw', '.': 'wnwnwnn', '+': 'nnwnwnw',
   A: 'nnwwnwn', B: 'nwnwnnw', C: 'nnnwnww', D: 'nnnwwwn',
 };
 

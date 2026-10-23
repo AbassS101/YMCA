@@ -4,6 +4,7 @@ import {
   StyleSheet,
   Pressable,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '@/components/AppText';
@@ -14,17 +15,11 @@ import { getFlameTier } from '@/domain/attendanceStreak';
 import { getDemoToday } from '@/domain/demoClock';
 import { accessSummary, facilityAccess } from '@/domain/householdAccess';
 import { useSession } from '@/context/SessionContext';
-import { arrivalRepo } from '@/repositories/arrivalRepo';
 import { streakRepo } from '@/repositories/streakRepo';
 import {
   boostBrightnessForScanner,
   restoreScreenBrightness,
-  isScannerBrightnessBoosted,
 } from '@/utils/brightness';
-import {
-  generateBarcodeBars,
-  formatBarcodeLabel,
-} from '@/utils/barcode';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ScannedBarcode } from '@/components/ScannedBarcode';
 import { loadWalletCard, type WalletCard } from '@/utils/walletCard';
@@ -48,17 +43,30 @@ export function MemberCheckInCard({
   onClose,
   showInlineCard = true,
 }: MemberCheckInCardProps) {
-  const { api, session } = useSession();
+  const { session } = useSession();
   const router = useRouter();
   const [walletCard, setWalletCard] = useState<WalletCard | null>(null);
+  const [walletCardLoaded, setWalletCardLoaded] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(initialExpanded);
 
   // A scanned physical card replaces the generated barcode; reload when returning from the scan screen.
   useFocusEffect(
     React.useCallback(() => {
       const userId = session?.userId;
-      if (!userId) return;
-      void loadWalletCard(userId).then(setWalletCard);
+      setWalletCardLoaded(false);
+      if (!userId) {
+        setWalletCard(null);
+        setWalletCardLoaded(true);
+        return;
+      }
+      let active = true;
+      void loadWalletCard(userId).then((card) => {
+        if (active) {
+          setWalletCard(card);
+          setWalletCardLoaded(true);
+        }
+      });
+      return () => { active = false; };
     }, [session?.userId]),
   );
   const [isBrightnessBoosted, setIsBrightnessBoosted] = useState(false);
@@ -71,42 +79,42 @@ export function MemberCheckInCard({
     }
   }, [member?.id]);
 
-  // Generate barcode bars from member ID
-  const barcodeBars = generateBarcodeBars(member.membershipId, member.homeBranchId);
-  const barcodeLabel = formatBarcodeLabel(member.membershipId, member.homeBranchId);
+  // Preserve the scanned format and payload. The fallback encodes the entire
+  // membership ID, including leading zeroes, without branch labels or truncation.
+  const barcodeValue = walletCard?.value ?? member.membershipId;
+  const barcodeType = walletCard?.type ?? 'code128';
   const gymNeedsOrientation = facilityAccess(member, getDemoToday()).gym.status === 'needs_orientation';
 
   // Handle opening Full-Screen Scan Focus Mode
-  const handleOpenScanMode = async () => {
+  const handleOpenScanMode = () => {
     setIsScanModalOpen(true);
-    try {
-      const prev = await boostBrightnessForScanner();
-      previousBrightnessRef.current = prev;
-      setIsBrightnessBoosted(true);
-    } catch (e) {
-      void e; // Brightness boost is optional.
-    }
   };
 
-  // Handle closing Full-Screen Scan Focus Mode
-  const handleCloseScanMode = async () => {
-    setIsScanModalOpen(false);
-    try {
-      await restoreScreenBrightness(previousBrightnessRef.current);
+  // Also runs when Account opens the pass with initialExpanded=true.
+  useEffect(() => {
+    if (!isScanModalOpen) return;
+    let active = true;
+    void boostBrightnessForScanner().then((previous) => {
+      if (!active) {
+        void restoreScreenBrightness(previous);
+        return;
+      }
+      previousBrightnessRef.current = previous;
+      setIsBrightnessBoosted(true);
+    }).catch(() => undefined);
+    return () => {
+      active = false;
+      void restoreScreenBrightness(previousBrightnessRef.current);
       previousBrightnessRef.current = null;
       setIsBrightnessBoosted(false);
-    } catch (e) {
-      void e; // Brightness restore is optional.
-    }
-    if (member?.id) {
-      try {
-        const res = await streakRepo.recordCheckIn(member.id, { source: 'optical_scanner' });
-        setStreakProfile(res.profile);
-        if (res.isNewCheckIn) void arrivalRepo.notifyArrival(api, member.id, 'scanner');
-      } catch {
-        // ignore
-      }
-    }
+    };
+  }, [isScanModalOpen]);
+
+  // Handle closing Full-Screen Scan Focus Mode
+  const handleCloseScanMode = () => {
+    setIsScanModalOpen(false);
+    // Closing a displayed barcode does not prove the welcome desk accepted it.
+    // Attendance must come from the actual check-in flow.
     onClose?.();
   };
 
@@ -125,7 +133,7 @@ export function MemberCheckInCard({
   // Ensure brightness is cleaned up if component unmounts while boosted
   useEffect(() => {
     return () => {
-      if (isScannerBrightnessBoosted()) {
+      if (previousBrightnessRef.current !== null) {
         void restoreScreenBrightness(previousBrightnessRef.current);
       }
     };
@@ -258,27 +266,10 @@ export function MemberCheckInCard({
 
             {/* Barcode Lines Area */}
             <View style={styles.barcodeLinesWrapper}>
-              {walletCard ? (
-                <ScannedBarcode value={walletCard.value} type={walletCard.type} height={52} />
-              ) : (
-                <View style={styles.barcodeLines}>
-                  {barcodeBars.map((seg, idx) => (
-                    <View
-                      key={idx}
-                      style={[
-                        styles.bar,
-                        {
-                          width: Math.max(2, seg.width * 1.8),
-                          marginRight: seg.marginRight,
-                        },
-                      ]}
-                    />
-                  ))}
-                </View>
-              )}
+              {walletCardLoaded ? <ScannedBarcode value={barcodeValue} type={barcodeType} height={64} /> : <ActivityIndicator accessibilityLabel="Loading check-in barcode" />}
             </View>
 
-            <AppText style={styles.barcodeNumbers}>{walletCard ? walletCard.value : barcodeLabel}</AppText>
+            <AppText style={styles.barcodeNumbers}>{walletCardLoaded ? barcodeValue : 'Loading pass…'}</AppText>
           </Pressable>
 
           <Pressable
@@ -466,27 +457,10 @@ export function MemberCheckInCard({
             {/* Giant Barcode Display Area (Primary Focus of Screen) */}
             <View style={styles.giantBarcodeContainer}>
               {/* Giant Barcode Bars */}
-              {walletCard ? (
-                <ScannedBarcode value={walletCard.value} type={walletCard.type} height={110} />
-              ) : (
-                <View style={styles.giantBarcodeLines}>
-                  {barcodeBars.map((seg, idx) => (
-                    <View
-                      key={idx}
-                      style={[
-                        styles.giantBar,
-                        {
-                          width: Math.max(3, seg.width * 2.2),
-                          marginRight: seg.marginRight * 1.05,
-                        },
-                      ]}
-                    />
-                  ))}
-                </View>
-              )}
+              {walletCardLoaded ? <ScannedBarcode value={barcodeValue} type={barcodeType} height={120} /> : <ActivityIndicator accessibilityLabel="Loading check-in barcode" />}
 
               {/* Barcode Number & Branch Code */}
-              <AppText style={styles.giantBarcodeNumbers}>{walletCard ? walletCard.value : barcodeLabel}</AppText>
+              <AppText style={styles.giantBarcodeNumbers}>{walletCardLoaded ? barcodeValue : 'Loading pass…'}</AppText>
             </View>
 
             {/* Instruction Tip */}
@@ -505,10 +479,10 @@ export function MemberCheckInCard({
                 pressed && { opacity: 0.9 },
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Done scanning, return to home"
+              accessibilityLabel="Close check-in pass"
             >
               <Ionicons name="checkmark-circle" size={18} color={colors.white} />
-              <AppText style={styles.modalDoneButtonText}>Done / Finish Scanning</AppText>
+              <AppText style={styles.modalDoneButtonText}>Close pass</AppText>
             </Pressable>
           </View>
         </View>
