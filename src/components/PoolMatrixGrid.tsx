@@ -13,15 +13,16 @@ import { useTheme } from '@/context/ThemeContext';
 import {
   DAYS_OF_WEEK,
   getPoolSlots,
-  type PoolDayKey,
   type PoolId,
   type PoolTimeSlot,
 } from '@/domain/poolScheduleData';
 import { radii, spacing } from '@/theme/typography';
+import type { PoolScheduleConfig } from '@/domain/branchContent';
 
 interface PoolMatrixGridProps {
   poolId: PoolId;
   onSelectSlot: (slot: PoolTimeSlot) => void;
+  schedule?: PoolScheduleConfig;
 }
 
 const HOURS = [
@@ -48,7 +49,7 @@ const HOUR_HEIGHT = 44; // pixels per hour
 const START_MINUTES = 360; // 6:00 AM
 const COLUMN_WIDTH = 110;
 
-export function PoolMatrixGrid({ poolId, onSelectSlot }: PoolMatrixGridProps) {
+export function PoolMatrixGrid({ poolId, onSelectSlot, schedule }: PoolMatrixGridProps) {
   const { colors: tc, isDark } = useTheme();
   const { poolSchedule } = useAppConfig().config;
 
@@ -136,7 +137,7 @@ export function PoolMatrixGrid({ poolId, onSelectSlot }: PoolMatrixGridProps) {
 
             {/* 7 Columns for Each Day */}
             {DAYS_OF_WEEK.map((d) => {
-              const slots = getPoolSlots(poolId, d.key, poolSchedule);
+              const slots = getPoolSlots(poolId, d.key, schedule ?? poolSchedule);
 
               return (
                 <View

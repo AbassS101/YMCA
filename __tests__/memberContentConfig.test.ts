@@ -17,6 +17,7 @@ import { MockProtivityAdapter } from '@/protivity/MockProtivityAdapter';
 import { configRepo } from '@/repositories/configRepo';
 import { supportTicketRepo } from '@/repositories/supportTicketRepo';
 import { resetStore } from '@/storage/demoStore';
+import { copyPoolDay } from '@/domain/poolScheduleEditor';
 
 const api = new MockProtivityAdapter();
 const IT = 'staff-itadmin';
@@ -87,6 +88,14 @@ describe('pool overrides', () => {
 });
 
 describe('who edits member content', () => {
+  it('persists recurring pool days for the Aquatics Director and rejects other departments', async () => {
+    const schedule = copyPoolDay(defaultAppConfig().poolSchedule, 'indoor', 'monday', ['tuesday', 'thursday']);
+    await configRepo.update(api, 'poolSchedule', schedule, AQUATICS);
+    const reloaded = await configRepo.get(api);
+    expect(reloaded.poolSchedule.weeklyDays).toEqual(schedule.weeklyDays);
+    await expect(configRepo.update(api, 'poolSchedule', schedule, WELLNESS)).rejects.toThrow('not permitted');
+    await expect(configRepo.update(api, 'poolSchedule', schedule, FRONT_DESK)).rejects.toThrow('not permitted');
+  });
   it('lets Staff Admin and IT edit every content section', () => {
     for (const role of ['staff_admin', 'it_admin']) {
       for (const s of CONTENT) expect(canEditConfigSection(role, s)).toBe(true);

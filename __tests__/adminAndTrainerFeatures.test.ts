@@ -40,7 +40,7 @@ describe('Staff Admin and Trainer Capabilities', () => {
         priority: 'high',
         authorName: 'Pat Nguyen (Staff Admin)',
         pinned: true,
-      });
+      }, 'staff-admin');
       expect(ann.id).toBeDefined();
 
       // Verify member received notification
@@ -53,12 +53,12 @@ describe('Staff Admin and Trainer Capabilities', () => {
       const updated = await adapter.updateAnnouncement(ann.id, {
         title: 'Heated Lap Pool Maintenance Concluded',
         priority: 'urgent',
-      });
+      }, 'staff-admin');
       expect(updated.title).toBe('Heated Lap Pool Maintenance Concluded');
       expect(updated.priority).toBe('urgent');
 
       // 3. Delete announcement
-      await adapter.deleteAnnouncement(ann.id);
+      await adapter.deleteAnnouncement(ann.id, 'staff-admin');
       const allAnns = await adapter.listAnnouncements('silver-spring');
       expect(allAnns.find((a) => a.id === ann.id)).toBeUndefined();
     });

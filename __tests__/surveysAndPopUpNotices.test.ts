@@ -238,7 +238,7 @@ describe('Staff Member Surveys and App-Open Pop-up Notices', () => {
         popupNotice: true,
         actionLabel: 'Check Alternative Hours',
         actionUrl: '/(member)/branch-amenities',
-      });
+      }, 'staff-admin');
 
       expect(created.id).toBeDefined();
       expect(created.popupNotice).toBe(true);
@@ -256,11 +256,11 @@ describe('Staff Member Surveys and App-Open Pop-up Notices', () => {
       const target = anns[0];
 
       // Enable popup
-      const updatedOn = await announcementRepo.update(api, target.id, { popupNotice: true });
+      const updatedOn = await announcementRepo.update(api, target.id, { popupNotice: true }, 'staff-admin');
       expect(updatedOn.popupNotice).toBe(true);
 
       // Disable popup
-      const updatedOff = await announcementRepo.update(api, target.id, { popupNotice: false });
+      const updatedOff = await announcementRepo.update(api, target.id, { popupNotice: false }, 'staff-admin');
       expect(updatedOff.popupNotice).toBe(false);
     });
 

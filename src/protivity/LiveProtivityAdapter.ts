@@ -160,6 +160,10 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
+  async createStaffGroup(_creatorId: string, _name: string, _staffIds: string[]): Promise<Thread> {
+    throw new ProtivityNotConnected();
+  }
+
   async getOrCreateThread(_memberId: string, _staffId: string): Promise<Thread> {
     throw new ProtivityNotConnected();
   }
@@ -382,7 +386,7 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
-  async createAnnouncement(_input: Omit<Announcement, 'id' | 'createdAt'>): Promise<Announcement> {
+  async createAnnouncement(_input: Omit<Announcement, 'id' | 'createdAt'>, _requesterUserId?: string): Promise<Announcement> {
     throw new ProtivityNotConnected();
   }
 
@@ -425,11 +429,11 @@ export class LiveProtivityAdapter implements ProtivityPort {
     throw new ProtivityNotConnected();
   }
 
-  async updateAnnouncement(_id: string, _updates: Partial<Announcement>): Promise<Announcement> {
+  async updateAnnouncement(_id: string, _updates: Partial<Announcement>, _requesterUserId?: string): Promise<Announcement> {
     throw new ProtivityNotConnected();
   }
 
-  async deleteAnnouncement(_id: string): Promise<void> {
+  async deleteAnnouncement(_id: string, _requesterUserId?: string): Promise<void> {
     throw new ProtivityNotConnected();
   }
 

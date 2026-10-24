@@ -53,6 +53,7 @@ export function AquaticsDirectorDashboard({ staffId }: { staffId: string }) {
       {can('viewDepartmentStats') ? (
         <QuickActionBar
           actions={[
+            { key: 'pool', label: 'Pool Schedule', icon: 'water-outline', onPress: () => router.push('/(staff)/admin-pool-schedule' as never), color: theme.color },
             { key: 'stats', label: 'Stats', icon: 'analytics-outline', onPress: () => router.push('/(staff)/stats?scope=aquatics' as never), color: theme.color },
           ]}
         />

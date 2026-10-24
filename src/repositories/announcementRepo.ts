@@ -8,20 +8,22 @@ export const announcementRepo = {
 
   create(
     api: ProtivityPort,
-    input: Omit<Announcement, 'id' | 'createdAt'>
+    input: Omit<Announcement, 'id' | 'createdAt'>,
+    requesterUserId?: string
   ): Promise<Announcement> {
-    return api.createAnnouncement(input);
+    return api.createAnnouncement(input, requesterUserId);
   },
 
   update(
     api: ProtivityPort,
     id: string,
-    updates: Partial<Announcement>
+    updates: Partial<Announcement>,
+    requesterUserId?: string
   ): Promise<Announcement> {
-    return api.updateAnnouncement(id, updates);
+    return api.updateAnnouncement(id, updates, requesterUserId);
   },
 
-  delete(api: ProtivityPort, id: string): Promise<void> {
-    return api.deleteAnnouncement(id);
+  delete(api: ProtivityPort, id: string, requesterUserId?: string): Promise<void> {
+    return api.deleteAnnouncement(id, requesterUserId);
   },
 };

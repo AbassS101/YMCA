@@ -13,9 +13,7 @@ import { useAppConfig } from '@/context/AppConfigContext';
 import { useTheme } from '@/context/ThemeContext';
 import {
   DAYS_OF_WEEK,
-  applyPoolOverrides,
-  INDOOR_POOL_SLOTS,
-  OUTDOOR_POOL_SLOTS,
+  getPoolSlots,
   type PoolDayKey,
   type PoolId,
   type PoolTimeSlot,
@@ -43,10 +41,10 @@ export function FindLapLaneModal({
   const [timeFilter, setTimeFilter] = useState<TimeOfDayFilter>('all');
 
   const matchingSlots = useMemo(() => {
-    const indoorDaySlots = applyPoolOverrides(INDOOR_POOL_SLOTS, poolSchedule).filter(
+    const indoorDaySlots = getPoolSlots('indoor', selectedDay, poolSchedule).filter(
       (s) => s.day === selectedDay && !s.isClosed && s.lapLanes >= minLanes
     );
-    const outdoorDaySlots = applyPoolOverrides(OUTDOOR_POOL_SLOTS, poolSchedule).filter(
+    const outdoorDaySlots = getPoolSlots('outdoor', selectedDay, poolSchedule).filter(
       (s) => s.day === selectedDay && !s.isClosed && s.lapLanes >= minLanes
     );
 

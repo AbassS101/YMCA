@@ -7,6 +7,7 @@ import { PoolSlotDetailModal } from '@/components/PoolSlotDetailModal';
 import { ChipRow } from '@/components/desk/Sheet';
 import { EmptyState, ListRow, SectionCard } from '@/components/staff/SectionCard';
 import { useTheme } from '@/context/ThemeContext';
+import { useAppConfig } from '@/context/AppConfigContext';
 import { getPoolSlots, POOL_FACILITIES, type PoolId, type PoolTimeSlot } from '@/domain/poolScheduleData';
 import { poolDayForDate } from '@/domain/poolScheduleDates';
 
@@ -18,6 +19,7 @@ const FILTERS = [
 /** Uses the same published lane allocations that members see. */
 export function StaffPoolSchedule({ date }: { date: string }) {
   const { colors: tc } = useTheme();
+  const { poolSchedule } = useAppConfig().config;
   const [pool, setPool] = useState<PoolId>('indoor');
   const [filter, setFilter] = useState('all');
   const [mode, setMode] = useState<'day' | 'week'>('day');
@@ -25,7 +27,7 @@ export function StaffPoolSchedule({ date }: { date: string }) {
   const [details, setDetails] = useState<PoolTimeSlot | null>(null);
   const day = poolDayForDate(date);
   const facility = POOL_FACILITIES[pool];
-  const slots = useMemo(() => getPoolSlots(pool, day).sort((a, b) => a.startMinutes - b.startMinutes), [pool, day]);
+  const slots = useMemo(() => getPoolSlots(pool, day, poolSchedule).sort((a, b) => a.startMinutes - b.startMinutes), [pool, day, poolSchedule]);
   const visible = slots.filter((slot) => {
     if (filter === 'lap') return !slot.isClosed && slot.lapLanes > 0;
     if (filter === 'rec') return !slot.isClosed && slot.recLanes > 0;

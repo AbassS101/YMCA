@@ -49,7 +49,7 @@ export function BroadcastNoticeModal({ visible, onClose, defaultCategory = 'faci
         authorName: `${me.name} (${me.roleLabel || 'Staff'})`,
         pinned: highPriority,
         popupNotice: popup,
-      });
+      }, session?.userId);
       onClose();
       setTitle('');
       setBody('');

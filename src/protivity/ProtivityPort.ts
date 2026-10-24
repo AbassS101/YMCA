@@ -147,6 +147,7 @@ export interface ProtivityPort {
   listCancelRequests(branchId: string, from?: string, to?: string): Promise<CancelRequest[]>;
   listMessages(threadId: string): Promise<Message[]>;
   listThreads(userId: string): Promise<Thread[]>;
+  createStaffGroup(creatorId: string, name: string, staffIds: string[]): Promise<Thread>;
   getOrCreateThread(memberId: string, staffId: string): Promise<Thread>;
   sendMessage(input: {
     threadId: string;
@@ -213,9 +214,9 @@ export interface ProtivityPort {
 
   // Announcements & Events
   listAnnouncements(branchId?: string): Promise<Announcement[]>;
-  createAnnouncement(input: Omit<Announcement, 'id' | 'createdAt'>): Promise<Announcement>;
-  updateAnnouncement(id: string, updates: Partial<Announcement>): Promise<Announcement>;
-  deleteAnnouncement(id: string): Promise<void>;
+  createAnnouncement(input: Omit<Announcement, 'id' | 'createdAt'>, requesterUserId?: string): Promise<Announcement>;
+  updateAnnouncement(id: string, updates: Partial<Announcement>, requesterUserId?: string): Promise<Announcement>;
+  deleteAnnouncement(id: string, requesterUserId?: string): Promise<void>;
 
   // Notifications
   listNotifications(userId: string): Promise<AppNotification[]>;

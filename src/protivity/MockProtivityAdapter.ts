@@ -1,3 +1,4 @@
+import { canManageAnnouncement } from '@/domain/announcementAccess';
 import {
   APP_CONFIG_SECTIONS,
   applyConfigPatch,
@@ -1107,18 +1108,37 @@ export class MockProtivityAdapter implements ProtivityPort {
 
   async listThreads(userId: string): Promise<Thread[]> {
     const state = await loadStore();
-    return state.threads.filter((t) => t.memberId === userId || t.staffId === userId);
+    return state.threads.filter((t) => t.kind === 'group' ? t.participantIds?.includes(userId) : t.memberId === userId || t.staffId === userId);
+  }
+
+  async createStaffGroup(creatorId: string, name: string, staffIds: string[]): Promise<Thread> {
+    const state = await loadStore();
+    const participantIds = [...new Set([creatorId, ...staffIds])];
+    const title = name.trim();
+    if (!title || title.length > 80) throw new Error('Enter a group name of up to 80 characters.');
+    if (participantIds.length < 3) throw new Error('Choose at least two other staff members.');
+    if (participantIds.some((id) => !state.staff.some((s) => s.id === id))) {
+      throw new Error('Group chats are for staff members only.');
+    }
+    const thread: Thread = {
+      id: `group-${Date.now().toString(36)}-${state.threads.length + 1}`,
+      kind: 'group', name: title, participantIds,
+      memberId: creatorId, staffId: creatorId,
+    };
+    state.threads.push(thread);
+    await saveStore(state);
+    return thread;
   }
 
   async getOrCreateThread(memberId: string, staffId: string): Promise<Thread> {
     const state = await loadStore();
     const existing = state.threads.find(
-      (t) =>
+      (t) => t.kind !== 'group' && (
         (t.memberId === memberId && t.staffId === staffId) ||
         // Staff-to-staff threads: reuse the same conversation whichever side starts it.
         (t.memberId === staffId &&
           t.staffId === memberId &&
-          state.staff.some((s) => s.id === memberId))
+          state.staff.some((s) => s.id === memberId)))
     );
     if (existing) {
       return existing;
@@ -1146,6 +1166,8 @@ export class MockProtivityAdapter implements ProtivityPort {
     if (!thread) {
       throw new Error(`Thread not found: ${input.threadId}`);
     }
+    const participants = thread.kind === 'group' ? thread.participantIds ?? [] : [thread.memberId, thread.staffId];
+    if (!participants.includes(input.fromId)) throw new Error('Only participants can send messages.');
     const text = filterProfanity(input.body.trim());
     if (!text) throw new Error('Message cannot be empty.');
     const message: Message = {
@@ -2179,11 +2201,13 @@ export class MockProtivityAdapter implements ProtivityPort {
     });
   }
 
-  async createAnnouncement(input: Omit<Announcement, 'id' | 'createdAt'>): Promise<Announcement> {
+  async createAnnouncement(input: Omit<Announcement, 'id' | 'createdAt'>, requesterUserId?: string): Promise<Announcement> {
     const state = await loadStore();
+    if (!requesterUserId || !hasCapability(requesterRole(state, requesterUserId), 'broadcast')) throw new Error('Sign in as authorized staff to create announcements.');
     const now = new Date().toISOString();
     const newAnn: Announcement = {
       ...input,
+      authorId: requesterUserId,
       id: `ann-${Date.now()}`,
       createdAt: now,
     };
@@ -2328,23 +2352,31 @@ export class MockProtivityAdapter implements ProtivityPort {
   // ==========================================
   // Announcements Admin CRUD
   // ==========================================
-  async updateAnnouncement(id: string, updates: Partial<Announcement>): Promise<Announcement> {
+  async updateAnnouncement(id: string, updates: Partial<Announcement>, requesterUserId?: string): Promise<Announcement> {
     const state = await loadStore();
     const idx = state.announcements.findIndex((a) => a.id === id);
     if (idx === -1) {
       throw new Error(`Announcement not found: ${id}`);
     }
+    if (!canManageAnnouncement(requesterRole(state, requesterUserId ?? ''), requesterUserId ?? '', state.announcements[idx])) throw new Error('You can only manage your own announcements.');
     const updated: Announcement = {
       ...state.announcements[idx],
       ...updates,
+      id: state.announcements[idx].id,
+      authorId: state.announcements[idx].authorId,
+      authorName: state.announcements[idx].authorName,
+      createdAt: state.announcements[idx].createdAt,
     };
     state.announcements[idx] = updated;
     await saveStore(state);
     return updated;
   }
 
-  async deleteAnnouncement(id: string): Promise<void> {
+  async deleteAnnouncement(id: string, requesterUserId?: string): Promise<void> {
     const state = await loadStore();
+    const announcement = state.announcements.find((a) => a.id === id);
+    if (!announcement) throw new Error('Announcement not found.');
+    if (!canManageAnnouncement(requesterRole(state, requesterUserId ?? ''), requesterUserId ?? '', announcement)) throw new Error('You can only manage your own announcements.');
     state.announcements = state.announcements.filter((a) => a.id !== id);
     await saveStore(state);
   }
@@ -4126,9 +4158,9 @@ export class MockProtivityAdapter implements ProtivityPort {
     // 1. Get or create thread with IT Admin (staff-itadmin)
     const itStaffId = 'staff-itadmin';
     let thread = state.threads.find(
-      (t) =>
+      (t) => t.kind !== 'group' && (
         (t.memberId === input.userId && t.staffId === itStaffId) ||
-        (t.staffId === input.userId && t.memberId === itStaffId)
+        (t.staffId === input.userId && t.memberId === itStaffId))
     );
     if (!thread) {
       thread = {

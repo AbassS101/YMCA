@@ -34,6 +34,7 @@ export function DirectConversation({ threadId, fallbackHref }: Props) {
   const [people, setPeople] = useState<Record<string, DirectParticipant> | null>(null);
   const [otherId, setOtherId] = useState('');
   const [otherSubtitle, setOtherSubtitle] = useState('');
+  const [group, setGroup] = useState<{ name: string; names: string[] } | null>(null);
   const [missing, setMissing] = useState(false);
 
   useEffect(() => {
@@ -47,6 +48,15 @@ export function DirectConversation({ threadId, fallbackHref }: Props) {
           if (alive) setMissing(true);
           return;
         }
+        if (thread.kind === 'group') {
+          const participants = await Promise.all((thread.participantIds ?? []).map((id) => resolvePerson(api, id)));
+          if (!alive) return;
+          setGroup({ name: thread.name ?? 'Staff group', names: participants.map((p) => p.name) });
+          setPeople(Object.fromEntries(participants.map((p) => [p.id, p])));
+          setOtherId('');
+          return;
+        }
+        setGroup(null);
         const theirId = thread.memberId === myId ? thread.staffId : thread.memberId;
         const [mePerson, them] = await Promise.all([
           resolvePerson(api, myId),
@@ -82,16 +92,16 @@ export function DirectConversation({ threadId, fallbackHref }: Props) {
 
   const source = useMemo(
     () =>
-      people && other
+      people && (other || group)
         ? directMessageSource(
             api,
             threadId,
             me,
             people,
-            `Direct message: ${mine?.name ?? 'User'} & ${other.name}`
+            group ? `Staff group: ${group.name}` : `Direct message: ${mine?.name ?? 'User'} & ${other?.name}`
           )
         : null,
-    [api, threadId, me, people, other, mine]
+    [api, threadId, me, people, other, mine, group]
   );
 
   const goBack = () => {
@@ -102,7 +112,14 @@ export function DirectConversation({ threadId, fallbackHref }: Props) {
   const tag = other?.isStaff ? roleTag(String(other.role)) ?? { label: 'STAFF', color: '#0284C7' } : null;
   const firstName = other?.name.split(' ')[0] ?? '';
 
-  const intro = other ? (
+  const intro = group ? (
+    <View style={[styles.intro, { borderBottomColor: theme.border }]}>
+      <Ionicons name="people" size={36} color={theme.accent} />
+      <Text style={[styles.introName, { color: theme.text }]}>{group.name}</Text>
+      <Text style={[styles.introHint, { color: theme.muted }]}>{group.names.join(', ')}</Text>
+      <Text style={[styles.introHint, { color: theme.muted }]}>Private staff group - {group.names.length} participants</Text>
+    </View>
+  ) : other ? (
     <View style={[styles.intro, { borderBottomColor: theme.border }]}>
       <UserAvatar uri={other.avatarUrl} name={other.name} size={64} />
       <Text style={[styles.introName, { color: theme.text }]}>{other.name}</Text>
@@ -129,7 +146,7 @@ export function DirectConversation({ threadId, fallbackHref }: Props) {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.bg }]}>
-      <YHeader subtitle={other?.name ?? 'Messages'} />
+      <YHeader subtitle={group?.name ?? other?.name ?? 'Messages'} />
       <View style={[styles.bar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Pressable
           onPress={goBack}
@@ -144,7 +161,7 @@ export function DirectConversation({ threadId, fallbackHref }: Props) {
         <View style={styles.barText}>
           <View style={styles.nameLine}>
             <Text style={[styles.barName, { color: theme.text }]} numberOfLines={1}>
-              {other?.name ?? 'Conversation'}
+              {group?.name ?? other?.name ?? 'Conversation'}
             </Text>
             {tag ? (
               <View style={[styles.tag, { backgroundColor: tag.color }]}>
@@ -153,7 +170,7 @@ export function DirectConversation({ threadId, fallbackHref }: Props) {
             ) : null}
           </View>
           <Text style={[styles.barSub, { color: theme.muted }]} numberOfLines={1}>
-            {other?.isStaff ? `YMCA Staff · ${staffRoleLabel}` : 'Member'}
+            {group ? `${group.names.length} staff members` : other?.isStaff ? `YMCA Staff · ${staffRoleLabel}` : 'Member'}
           </Text>
         </View>
       </View>
@@ -168,11 +185,12 @@ export function DirectConversation({ threadId, fallbackHref }: Props) {
           me={me}
           enabled={Boolean(source)}
           header={intro}
-          placeholder={iAmStaff ? `Message ${firstName} as YMCA staff` : `Message ${firstName || 'staff'}`}
+          placeholder={group ? 'Message the group' : iAmStaff ? `Message ${firstName} as YMCA staff` : `Message ${firstName || 'staff'}`}
           maxLength={1000}
+          bottomSafeArea={false}
           emptyTitle="No messages yet"
           emptySubtitle={
-            iAmStaff
+            group ? 'Send the first message to your group.' : iAmStaff
               ? `Say hello to ${firstName || 'your member'}.`
               : 'Ask a question or say hello - staff will reply here.'
           }

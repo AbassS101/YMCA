@@ -16,6 +16,7 @@ import {
 import { DEFAULT_CHILD_WATCH_RULES, type ChildWatchRules } from '@/domain/childWatch';
 import { NEW_MEMBER_DAYS } from '@/domain/deskAlerts';
 import { INDOOR_POOL_SLOTS, OUTDOOR_POOL_SLOTS, POOL_FACILITIES } from '@/domain/poolScheduleData';
+import { validateWeeklyPoolDays } from '@/domain/poolScheduleEditor';
 import { SWIM_CLASS_CAPACITY } from '@/domain/lessonPricing';
 import type { ConfigSection } from '@/domain/staffCapabilities';
 import {
@@ -535,6 +536,8 @@ function validateBusyTimes(b: BusyTimesConfig): string | null {
 const POOL_SLOT_IDS = new Set([...INDOOR_POOL_SLOTS, ...OUTDOOR_POOL_SLOTS].map((s) => s.id));
 
 function validatePoolSchedule(p: PoolScheduleConfig): string | null {
+  const weeklyError = validateWeeklyPoolDays(p);
+  if (weeklyError) return weeklyError;
   if (!Object.keys(p.facilityNotices).every((k) => k in POOL_FACILITIES)) return 'Unknown pool in the notices.';
   if (!Object.values(p.facilityNotices).every((v) => typeof v === 'string')) return 'Pool notices must be text.';
   for (const [id, o] of Object.entries(p.slotOverrides)) {

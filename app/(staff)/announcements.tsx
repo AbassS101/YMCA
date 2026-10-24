@@ -1,3 +1,4 @@
+import { canManageAnnouncement } from '@/domain/announcementAccess';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -83,6 +84,7 @@ export default function StaffAnnouncementsScreen() {
   }
 
   function openEdit(item: Announcement) {
+    if (!canManageAnnouncement(session?.role, staffId, item)) return;
     setEditingId(item.id);
     setTitle(item.title);
     setBody(item.body);
@@ -115,7 +117,7 @@ export default function StaffAnnouncementsScreen() {
           popupNotice,
           actionLabel: actionLabel.trim() || undefined,
           actionUrl: actionUrl.trim() || undefined,
-        });
+        }, staffId);
         dialog.alert('Updated!', 'Announcement details updated successfully.', [{ text: 'OK' }], 'checkmark');
       } else {
         const staff = await api.getStaff(staffId).catch(() => null);
@@ -130,7 +132,7 @@ export default function StaffAnnouncementsScreen() {
           authorName: staff ? `${staff.name} (${staff.roleLabel})` : 'YMCA Staff',
           actionLabel: actionLabel.trim() || undefined,
           actionUrl: actionUrl.trim() || undefined,
-        });
+        }, staffId);
         dialog.alert(
           'Broadcasted!',
           popupNotice
@@ -151,7 +153,7 @@ export default function StaffAnnouncementsScreen() {
 
   async function handleDelete(id: string) {
     try {
-      await announcementRepo.delete(api, id);
+      await announcementRepo.delete(api, id, staffId);
       dialog.alert('Deleted', 'Announcement removed from the branch notice board.', [{ text: 'OK' }], 'checkmark');
       await load();
     } catch {
@@ -161,7 +163,7 @@ export default function StaffAnnouncementsScreen() {
 
   async function handleTogglePin(item: Announcement) {
     try {
-      await announcementRepo.update(api, item.id, { pinned: !item.pinned });
+      await announcementRepo.update(api, item.id, { pinned: !item.pinned }, staffId);
       await load();
     } catch {
       dialog.alert('Error', 'Failed to toggle pinned status.', [{ text: 'OK' }]);
@@ -170,7 +172,7 @@ export default function StaffAnnouncementsScreen() {
 
   async function handleTogglePopup(item: Announcement) {
     try {
-      await announcementRepo.update(api, item.id, { popupNotice: !item.popupNotice });
+      await announcementRepo.update(api, item.id, { popupNotice: !item.popupNotice }, staffId);
       await load();
     } catch {
       dialog.alert('Error', 'Failed to toggle pop-up notice status.', [{ text: 'OK' }]);
@@ -179,7 +181,7 @@ export default function StaffAnnouncementsScreen() {
 
   return (
     <View style={styles.screen}>
-      <YHeader subtitle="Staff Admin · Announcements Manager" />
+      <YHeader subtitle="Announcements Manager" />
       {error ? <ErrorBanner onRetry={() => void load()} /> : null}
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -278,7 +280,7 @@ export default function StaffAnnouncementsScreen() {
               ) : null}
 
               {/* Action Buttons */}
-              <View style={styles.cardActions}>
+              {canManageAnnouncement(session?.role, staffId, item) ? <View style={styles.cardActions}>
                 <Pressable
                   onPress={() => openEdit(item)}
                   style={styles.actionBtnOutline}
@@ -325,7 +327,7 @@ export default function StaffAnnouncementsScreen() {
                   <Ionicons name="trash" size={15} color={colors.scarlet} />
                   <Text style={[styles.actionBtnText, { color: colors.scarlet }]}>Delete</Text>
                 </Pressable>
-              </View>
+              </View> : null}
             </View>
           ))
         )}

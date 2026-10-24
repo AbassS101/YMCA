@@ -68,6 +68,10 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [groupMode, setGroupMode] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [pickerError, setPickerError] = useState('');
   const [query, setQuery] = useState('');
   const [people, setPeople] = useState<Person[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
@@ -83,7 +87,11 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
           try {
             const [msgs, other] = await Promise.all([
               messageRepo.listMessages(api, thread.id),
-              resolvePerson(api, thread.memberId === myId ? thread.staffId : thread.memberId).then(
+              thread.kind === 'group' ? Promise.resolve({
+                id: thread.id, name: thread.name ?? 'Staff group',
+                subtitle: `${thread.participantIds?.length ?? 0} staff members`,
+                isStaff: false, role: 'staff',
+              }) : resolvePerson(api, thread.memberId === myId ? thread.staffId : thread.memberId).then(
                 (p): Person => ({ ...p })
               ),
             ]);
@@ -121,13 +129,17 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
     else router.replace('/(member)/(tabs)/home' as never);
   };
 
-  const openPicker = async () => {
+  const openPicker = async (group = false) => {
+    setGroupMode(group);
+    setGroupName('');
+    setSelected([]);
+    setPickerError('');
     setQuery('');
     setPickerOpen(true);
     setPeopleLoading(true);
     try {
       if (iAmStaff) {
-        const [members, staff] = await Promise.all([api.listAllMembers(), api.listStaff()]);
+        const [members, staff] = await Promise.all([group ? Promise.resolve([]) : api.listAllMembers(), api.listStaff()]);
         setPeople([
           ...staff.map((s) => ({
             id: s.id,
@@ -161,6 +173,7 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
       }
     } catch {
       setPeople([]);
+      setPickerError('Could not load people. Close and try again.');
     } finally {
       setPeopleLoading(false);
     }
@@ -178,6 +191,23 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
       );
       setPickerOpen(false);
       router.push(`${threadBase}/${thread.id}` as never);
+    } catch {
+      setPickerError('Could not start the conversation. Please try again.');
+    } finally {
+      setStarting(null);
+    }
+  };
+
+  const createGroup = async () => {
+    if (starting || selected.length < 2 || !groupName.trim()) return;
+    setStarting('group');
+    setPickerError('');
+    try {
+      const thread = await messageRepo.createStaffGroup(api, myId, groupName, selected);
+      setPickerOpen(false);
+      router.push(`${threadBase}/${thread.id}` as never);
+    } catch {
+      setPickerError('Could not create the group. Please try again.');
     } finally {
       setStarting(null);
     }
@@ -185,12 +215,12 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
 
   const filteredPeople = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = people.filter((p) => p.id !== myId);
+    const list = people.filter((p) => p.id !== myId && (!groupMode || p.isStaff));
     if (!q) return list;
     return list.filter(
       (p) => p.name.toLowerCase().includes(q) || p.subtitle.toLowerCase().includes(q)
     );
-  }, [people, query, myId]);
+  }, [people, query, myId, groupMode]);
 
   const renderRow = ({ item }: { item: Row }) => {
     const { thread, other, last } = item;
@@ -211,7 +241,11 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
         accessibilityRole="button"
         accessibilityLabel={`Conversation with ${other.name}. ${preview}`}
       >
-        <UserAvatar uri={other.avatarUrl} name={other.name} size={46} />
+        {thread.kind === 'group' ? (
+          <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: theme.input, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="people" size={25} color={theme.accent} />
+          </View>
+        ) : <UserAvatar uri={other.avatarUrl} name={other.name} size={46} />}
         <View style={styles.rowBody}>
           <View style={styles.rowTop}>
             <View style={styles.nameLine}>
@@ -273,15 +307,28 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
               <Text style={[styles.sectionTitle, { color: theme.muted }]}>
                 {iAmStaff ? 'CONVERSATIONS' : 'CONVERSATIONS WITH YMCA STAFF'}
               </Text>
-              <Pressable
-                onPress={() => void openPicker()}
-                style={[styles.newBtn, { backgroundColor: theme.accent }]}
-                accessibilityRole="button"
-                accessibilityLabel={iAmStaff ? 'New message' : 'Message staff'}
-              >
-                <Ionicons name="create-outline" size={15} color="#FFFFFF" />
-                <Text style={styles.newBtnText}>{iAmStaff ? 'New message' : 'Message staff'}</Text>
-              </Pressable>
+              <View style={styles.headerActions}>
+                <Pressable
+                  onPress={() => void openPicker()}
+                  style={[styles.newBtn, { backgroundColor: theme.accent }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={iAmStaff ? 'New message' : 'Message staff'}
+                >
+                  <Ionicons name="create-outline" size={15} color="#FFFFFF" />
+                  <Text style={styles.newBtnText}>{iAmStaff ? 'New message' : 'Message staff'}</Text>
+                </Pressable>
+                {iAmStaff ? (
+                  <Pressable
+                    onPress={() => void openPicker(true)}
+                    style={[styles.newBtn, { backgroundColor: theme.input }]}
+                    accessibilityRole="button"
+                    accessibilityLabel="New staff group"
+                  >
+                    <Ionicons name="people-outline" size={16} color={theme.accent} />
+                    <Text style={[styles.newBtnText, { color: theme.accent }]}>New group</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
           </View>
         }
@@ -320,16 +367,26 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
               <Text style={[styles.cancel, { color: theme.muted }]}>Cancel</Text>
             </Pressable>
             <Text style={[styles.modalTitle, { color: theme.text }]}>
-              {iAmStaff ? 'New message' : 'Message staff'}
+              {groupMode ? 'New staff group' : iAmStaff ? 'New message' : 'Message staff'}
             </Text>
             <View style={{ width: 52 }} />
           </View>
+          {groupMode ? (
+            <View style={{ padding: 12, gap: 10 }}>
+              <TextInput value={groupName} onChangeText={setGroupName} maxLength={80} placeholder="Group name" placeholderTextColor={theme.muted} accessibilityLabel="Group name" style={[styles.searchInput, { color: theme.text, backgroundColor: theme.input, paddingHorizontal: 12 }]} />
+              <Text style={{ color: theme.muted }}>Choose at least two staff members - {selected.length} selected</Text>
+              <Pressable onPress={() => void createGroup()} disabled={Boolean(starting) || selected.length < 2 || !groupName.trim()} accessibilityRole="button" style={[styles.newBtn, { backgroundColor: theme.accent, opacity: starting || selected.length < 2 || !groupName.trim() ? 0.5 : 1 }]}>
+                <Text style={styles.newBtnText}>{starting ? 'Creating...' : 'Create group'}</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          {pickerError ? <Text accessibilityRole="alert" style={{ color: theme.text, padding: 12 }}>{pickerError}</Text> : null}
           <View style={[styles.searchWrap, { backgroundColor: theme.input }]}>
             <Ionicons name="search" size={16} color={theme.muted} />
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder={iAmStaff ? 'Search members or staff by name, role, or email' : 'Search staff by name or role'}
+              placeholder={groupMode ? 'Search staff by name or role' : iAmStaff ? 'Search members or staff by name, role, or email' : 'Search staff by name or role'}
               placeholderTextColor={theme.muted}
               style={[styles.searchInput, { color: theme.text }]}
               autoCorrect={false}
@@ -355,7 +412,9 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
                   : null;
                 return (
                   <Pressable
-                    onPress={() => void startWith(item)}
+                    onPress={() => groupMode
+                      ? setSelected((ids) => ids.includes(item.id) ? ids.filter((id) => id !== item.id) : [...ids, item.id])
+                      : void startWith(item)}
                     disabled={Boolean(starting)}
                     style={({ pressed }) => [
                       styles.row,
@@ -365,7 +424,8 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
                       },
                     ]}
                     accessibilityRole="button"
-                    accessibilityLabel={`Message ${item.name}`}
+                    accessibilityLabel={groupMode ? `Select ${item.name}` : `Message ${item.name}`}
+                    accessibilityState={groupMode ? { selected: selected.includes(item.id) } : undefined}
                   >
                     <UserAvatar uri={item.avatarUrl} name={item.name} size={42} />
                     <View style={styles.rowBody}>
@@ -383,7 +443,7 @@ export function MessagesInbox({ mode, threadBase, header }: Props) {
                         {item.subtitle}
                       </Text>
                     </View>
-                    {starting === item.id ? (
+                    {groupMode ? <Ionicons name={selected.includes(item.id) ? 'checkbox' : 'square-outline'} size={22} color={theme.accent} /> : starting === item.id ? (
                       <ActivityIndicator size="small" color={theme.accent} />
                     ) : (
                       <Ionicons name="chatbubble-outline" size={18} color={theme.accent} />
@@ -420,6 +480,7 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 8,
   },
+  headerActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   sectionTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 0.6, flexShrink: 1 },
   newBtn: {
     flexDirection: 'row',

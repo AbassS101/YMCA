@@ -61,7 +61,21 @@ export type ProgramSection = {
 export type BusyTimesConfig = { byDay: number[][]; note: string };
 
 export type PoolSlotOverride = { title?: string; isClosed?: boolean; note?: string };
+export type PoolWeeklyBlock = {
+  id: string;
+  templateId: string;
+  title: string;
+  startTime: string;
+  endTime: string;
+  lapLanes: number;
+  recLanes: number;
+  programLanes: number;
+  isClosed: boolean;
+  note: string;
+};
 export type PoolScheduleConfig = {
+  /** Replacement days repeat every week. Omitted days keep the original schedule. */
+  weeklyDays?: Record<string, PoolWeeklyBlock[]>;
   /** Banner shown at the top of the pool schedule, keyed by pool id. Blank = none. */
   facilityNotices: Record<string, string>;
   /** Per-slot changes, keyed by slot id. */

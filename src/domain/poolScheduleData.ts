@@ -2044,6 +2044,27 @@ export function allPoolSlots(poolId: PoolId): PoolTimeSlot[] {
  * Helper to get slots for a specific pool and day
  */
 export function getPoolSlots(poolId: PoolId, day: PoolDayKey, cfg?: PoolScheduleConfig): PoolTimeSlot[] {
+  const blocks = cfg?.weeklyDays?.[`${poolId}:${day}`];
+  if (blocks) return blocks.map((block): PoolTimeSlot => {
+    const template = allPoolSlots(poolId).find((s) => s.id === block.templateId)!;
+    const closed = block.isClosed;
+    const lap = closed ? 0 : block.lapLanes;
+    const rec = closed ? 0 : block.recLanes;
+    const program = closed ? 0 : block.programLanes;
+    return {
+      ...template, id: block.id, poolId, day, title: block.title,
+      startTime: block.startTime, endTime: block.endTime,
+      startMinutes: timeToMinutes(block.startTime), endMinutes: timeToMinutes(block.endTime),
+      lapLanes: lap, recLanes: rec, programLanes: program, totalLanes: lap + rec + program,
+      isClosed: closed, notes: block.note,
+      category: closed ? 'closed' : template.category,
+      colorTheme: closed ? THEMES.darkClosed : template.colorTheme,
+      laneBreakdownLabel: closed ? 'Closed' : lap === template.lapLanes && rec === template.recLanes && program === template.programLanes
+        ? template.laneBreakdownLabel
+        : [lap ? `${lap} Lap` : '', rec ? `${rec} Rec` : '', program ? `${program} ${block.title}` : ''].filter(Boolean).join(' · '),
+      laneAllocations: buildLaneAllocations(closed ? 'closed' : template.category, lap, rec, program, block.title),
+    };
+  }).sort((a, b) => a.startMinutes - b.startMinutes);
   return applyPoolOverrides(allPoolSlots(poolId).filter((s) => s.day === day), cfg);
 }
 
@@ -2073,5 +2094,5 @@ export function findOpenLapSwimSlots(
   minLapLanes: number = 3,
   cfg?: PoolScheduleConfig
 ): PoolTimeSlot[] {
-  return applyPoolOverrides(allPoolSlots(poolId), cfg).filter((s) => !s.isClosed && s.lapLanes >= minLapLanes);
+  return DAYS_OF_WEEK.flatMap(({ key }) => getPoolSlots(poolId, key, cfg)).filter((s) => !s.isClosed && s.lapLanes >= minLapLanes);
 }

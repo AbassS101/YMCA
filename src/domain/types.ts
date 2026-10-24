@@ -657,7 +657,14 @@ export type ClientFitnessGoal = {
 
 export type TrainerAssignment = { memberId: string; staffId: string };
 
-export type Thread = { id: string; memberId: string; staffId: string };
+export type Thread = {
+  id: string;
+  memberId: string;
+  staffId: string;
+  kind?: 'group';
+  name?: string;
+  participantIds?: string[];
+};
 
 export type Message = {
   id: string;
@@ -950,6 +957,7 @@ export type Announcement = {
   expiresAt?: string;
   actionUrl?: string; // Optional deep link
   actionLabel?: string;
+  authorId?: string; // Legacy notices without an owner are admin-only.
   authorName: string;
   pinned?: boolean;
   popupNotice?: boolean; // When true, pops up as a modal when members open the app

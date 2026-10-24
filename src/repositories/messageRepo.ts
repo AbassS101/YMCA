@@ -10,6 +10,10 @@ export const messageRepo = {
     return api.listThreads(userId);
   },
 
+  createStaffGroup(api: ProtivityPort, creatorId: string, name: string, staffIds: string[]): Promise<Thread> {
+    return api.createStaffGroup(creatorId, name, staffIds);
+  },
+
   getOrCreateThread(
     api: ProtivityPort,
     memberId: string,

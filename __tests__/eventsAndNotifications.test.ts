@@ -31,7 +31,7 @@ describe('YMCA Events and Announcements with Notifications', () => {
       priority: 'normal',
       authorName: 'Pat Nguyen (Aquatics)',
       pinned: false,
-    });
+    }, 'staff-admin');
 
     expect(created.id).toBeDefined();
     expect(created.title).toBe('Sauna & Steam Room Maintenance Complete');

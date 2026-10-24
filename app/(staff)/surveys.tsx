@@ -269,7 +269,7 @@ export default function StaffSurveysScreen() {
           popupNotice: popupAlert,
           actionLabel: 'Take Survey Now',
           actionUrl: '/(member)/surveys',
-        });
+        }, staffId);
       }
 
       setCreateModalVisible(false);
