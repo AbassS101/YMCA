@@ -47,7 +47,7 @@ export function ChatComposer({
   const [menuOpen, setMenuOpen] = useState(false);
   const [pinNext, setPinNext] = useState(false);
   const [height, setHeight] = useState(0);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<import('react').ComponentRef<typeof TextInput>>(null);
 
   useEffect(() => {
     if (editTarget) {

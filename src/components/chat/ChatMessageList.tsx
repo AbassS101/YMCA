@@ -187,8 +187,8 @@ export const ChatMessageList = React.forwardRef<{ scrollToEnd: () => void }, Pro
             });
           }}
           contentContainerStyle={styles.content}
-          ListHeaderComponent={isThread ? (header ?? null) : null}
-          ListFooterComponent={isThread ? null : (header ?? null)}
+          ListHeaderComponent={isThread ? (header ?? undefined) : undefined}
+          ListFooterComponent={isThread ? undefined : (header ?? undefined)}
           ListEmptyComponent={
             <View style={[styles.empty, !isThread && { transform: [{ scaleY: -1 }] }]}>
               {loading ? (

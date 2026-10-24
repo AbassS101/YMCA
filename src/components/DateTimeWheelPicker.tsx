@@ -29,7 +29,7 @@ function WheelColumn({
   value: string;
   onChange: (v: string) => void;
 }) {
-  const ref = React.useRef<ScrollView>(null);
+  const ref = React.useRef<import('react').ComponentRef<typeof ScrollView>>(null);
 
   // Snap values not in the list (e.g. :20) to the nearest item.
   const idx = React.useMemo(() => {
@@ -90,7 +90,7 @@ export function DateTimeWheelPicker({
   daysCount = 90,
 }: DateTimeWheelPickerProps) {
   const today = getDemoToday();
-  const dateScrollRef = React.useRef<ScrollView>(null);
+  const dateScrollRef = React.useRef<import('react').ComponentRef<typeof ScrollView>>(null);
 
   const dates = React.useMemo(() => {
     const list: { iso: string; dayName: string; monthDay: string; monthLabel: string; isToday: boolean }[] = [];

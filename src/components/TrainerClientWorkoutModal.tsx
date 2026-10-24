@@ -116,7 +116,7 @@ function RepsWheel({
   borderColor,
   accessibilityLabel,
 }: RepsWheelProps) {
-  const ref = useRef<ScrollView>(null);
+  const ref = useRef<import('react').ComponentRef<typeof ScrollView>>(null);
   const trimmed = value.trim();
   const options =
     trimmed && !REPS_WHEEL_OPTIONS.includes(trimmed)
@@ -254,7 +254,7 @@ export function TrainerClientWorkoutModal({
   const yesterdayStr = getOffsetDateString(todayStr, -1);
 
   const [date, setDate] = useState(todayStr);
-  const dateWheelRef = useRef<ScrollView>(null);
+  const dateWheelRef = useRef<import('react').ComponentRef<typeof ScrollView>>(null);
   const dateCardX = useRef<Record<string, number>>({});
 
   const scrollWheelToDate = (iso: string) => {

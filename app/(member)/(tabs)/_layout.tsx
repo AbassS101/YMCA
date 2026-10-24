@@ -41,7 +41,7 @@ export default function MemberTabsLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={Math.max(size, 26)} color={color} />
+            <Ionicons name="home" size={Math.max(size, 26)} color={typeof color === 'number' ? colors.primary : color ?? undefined} />
           ),
           tabBarAccessibilityLabel: 'Home',
         }}
@@ -51,7 +51,7 @@ export default function MemberTabsLayout() {
         options={{
           title: 'Classes',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar" size={Math.max(size, 26)} color={color} />
+            <Ionicons name="calendar" size={Math.max(size, 26)} color={typeof color === 'number' ? colors.primary : color ?? undefined} />
           ),
           tabBarAccessibilityLabel: 'Classes',
         }}
@@ -62,7 +62,7 @@ export default function MemberTabsLayout() {
           href: communityForum ? undefined : null,
           title: 'Community',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people" size={Math.max(size, 26)} color={color} />
+            <Ionicons name="people" size={Math.max(size, 26)} color={typeof color === 'number' ? colors.primary : color ?? undefined} />
           ),
           tabBarAccessibilityLabel: 'General Community Space & Forum',
         }}
@@ -78,7 +78,7 @@ export default function MemberTabsLayout() {
         options={{
           title: 'Staff',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="id-card" size={Math.max(size, 26)} color={color} />
+            <Ionicons name="id-card" size={Math.max(size, 26)} color={typeof color === 'number' ? colors.primary : color ?? undefined} />
           ),
           tabBarAccessibilityLabel: 'Staff',
         }}
@@ -94,7 +94,7 @@ export default function MemberTabsLayout() {
         options={{
           title: 'Account',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-circle" size={Math.max(size, 26)} color={color} />
+            <Ionicons name="person-circle" size={Math.max(size, 26)} color={typeof color === 'number' ? colors.primary : color ?? undefined} />
           ),
           tabBarAccessibilityLabel: 'Account',
         }}

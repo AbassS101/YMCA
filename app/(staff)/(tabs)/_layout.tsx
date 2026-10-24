@@ -47,7 +47,7 @@ export default function StaffTabsLayout() {
         options={{
           title: todayLabel,
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name={todayIcon} size={Math.max(size, 26)} color={color} />
+            <Ionicons name={todayIcon} size={Math.max(size, 26)} color={typeof color === 'number' ? theme.color : color ?? undefined} />
           ),
           tabBarAccessibilityLabel: todayLabel,
         }}
@@ -57,7 +57,7 @@ export default function StaffTabsLayout() {
         options={{
           title: schedulesLabel,
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar" size={Math.max(size, 26)} color={color} />
+            <Ionicons name="calendar" size={Math.max(size, 26)} color={typeof color === 'number' ? theme.color : color ?? undefined} />
           ),
           tabBarAccessibilityLabel: 'Schedules, classes, lessons and pools',
         }}
@@ -67,7 +67,7 @@ export default function StaffTabsLayout() {
         options={{
           title: membersLabel,
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people" size={Math.max(size, 26)} color={color} />
+            <Ionicons name="people" size={Math.max(size, 26)} color={typeof color === 'number' ? theme.color : color ?? undefined} />
           ),
           tabBarAccessibilityLabel: membersLabel,
         }}
@@ -77,7 +77,7 @@ export default function StaffTabsLayout() {
         options={{
           title: 'Messages',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles" size={Math.max(size, 26)} color={color} />
+            <Ionicons name="chatbubbles" size={Math.max(size, 26)} color={typeof color === 'number' ? theme.color : color ?? undefined} />
           ),
           tabBarAccessibilityLabel: 'Messages',
         }}
@@ -87,7 +87,7 @@ export default function StaffTabsLayout() {
         options={{
           title: 'Me',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={Math.max(size, 26)} color={color} />
+            <Ionicons name="person" size={Math.max(size, 26)} color={typeof color === 'number' ? theme.color : color ?? undefined} />
           ),
           tabBarAccessibilityLabel: 'Me',
         }}

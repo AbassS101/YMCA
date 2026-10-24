@@ -41,7 +41,7 @@ test('iPhone uses the system scanner and returns a scanned card for confirmation
       return { remove };
     },
   });
-  const screen = render(<WalletCardScreen />);
+  const screen = await render(<WalletCardScreen />);
   try {
     await act(async () => {});
     expect(screen.queryByTestId('camera')).toBeNull();
@@ -55,7 +55,7 @@ test('iPhone uses the system scanner and returns a scanned card for confirmation
     expect(dismissScanner).toHaveBeenCalled();
     expect(remove).toHaveBeenCalled();
   } finally {
-    screen.unmount();
+    await screen.unmount();
     Object.assign(CameraView, { isModernBarcodeScannerAvailable: false });
     Platform.OS = originalOS;
   }
@@ -69,33 +69,33 @@ test('keeps the native camera mounted through permission dialogs and background/
     change = callback;
     return { remove: jest.fn() };
   });
-  const screen = render(<WalletCardScreen />);
+  const screen = await render(<WalletCardScreen />);
   try {
     await act(async () => {});
     expect(screen.getByTestId('camera')).toBeTruthy();
     expect(screen.getByText('Starting camera…')).toBeTruthy();
-    fireEvent(screen.getByTestId('camera'), 'cameraReady');
+    await fireEvent(screen.getByTestId('camera'), 'cameraReady');
     expect(screen.queryByText('Starting camera…')).toBeNull();
     const camera = screen.getByTestId('camera');
     expect(camera.props.autofocus).toBe('on');
-    act(() => change('inactive'));
+    await act(() => change('inactive'));
     expect(screen.getByTestId('camera')).toBeTruthy();
-    act(() => change('background'));
+    await act(() => change('background'));
     expect(screen.getByTestId('camera')).toBe(camera);
     await act(async () => change('active'));
     expect(screen.getByTestId('camera')).toBeTruthy();
     expect(screen.getByTestId('camera')).toBe(camera);
     expect(screen.queryByText('Starting camera…')).toBeNull();
     jest.useFakeTimers();
-    fireEvent.press(screen.getByText('Restart camera'));
+    await fireEvent.press(screen.getByText('Restart camera'));
     expect(screen.queryByTestId('camera')).toBeNull();
-    act(() => jest.advanceTimersByTime(499));
+    await act(() => jest.advanceTimersByTime(499));
     expect(screen.queryByTestId('camera')).toBeNull();
-    act(() => jest.advanceTimersByTime(1));
+    await act(() => jest.advanceTimersByTime(1));
     expect(screen.getByTestId('camera')).toBeTruthy();
     expect(screen.getByTestId('camera')).not.toBe(camera);
   } finally {
-    screen.unmount();
+    await screen.unmount();
     jest.useRealTimers();
     listener.mockRestore();
     AppState.currentState = originalState;

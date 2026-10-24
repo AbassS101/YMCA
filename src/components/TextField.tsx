@@ -10,7 +10,7 @@ type TextFieldProps = TextInputProps & {
   error?: string;
 };
 
-export const TextField = forwardRef<TextInput, TextFieldProps>(
+export const TextField = forwardRef<import('react').ComponentRef<typeof TextInput>, TextFieldProps>(
   function TextField({ label, error, style, ...inputProps }, ref) {
     const { colors } = useTheme();
     const { multiplier, scale } = useAccessibility();

@@ -4,14 +4,9 @@
     "slug": "ymca-silver-spring",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/app-icon.png",
     "scheme": "ymca-silver-spring",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#00609C"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "org.ymcadc.silverspring",
@@ -45,7 +40,15 @@
           "recordAudioAndroid": false
         }
       ],
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#00609C"
+        }
+      ]
     ],
     "extra": {
       "router": {},

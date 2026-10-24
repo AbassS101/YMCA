@@ -55,7 +55,7 @@ export function ChatView({
   const [actionMsg, setActionMsg] = useState<ChatMessage | null>(null);
   const [reportMsg, setReportMsg] = useState<ChatMessage | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const keyboardContainerRef = React.useRef<View>(null);
+  const keyboardContainerRef = React.useRef<import('react').ComponentRef<typeof View>>(null);
   const [keyboardOffset, setKeyboardOffset] = useState(0);
   const listRef = React.useRef<{ scrollToEnd: () => void }>(null);
 

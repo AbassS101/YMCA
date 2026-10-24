@@ -131,9 +131,9 @@ export function NewTopicModal({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const scrollRef = useRef<ScrollView>(null);
-  const titleInputRef = useRef<TextInput>(null);
-  const contentInputRef = useRef<TextInput>(null);
+  const scrollRef = useRef<import('react').ComponentRef<typeof ScrollView>>(null);
+  const titleInputRef = useRef<import('react').ComponentRef<typeof TextInput>>(null);
+  const contentInputRef = useRef<import('react').ComponentRef<typeof TextInput>>(null);
 
   useEffect(() => {
     if (initialTemplateId && visible) {
